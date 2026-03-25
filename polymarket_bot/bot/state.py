@@ -1,6 +1,56 @@
+import logging
+
+from bot.config import CIRCUIT_BREAKER_LOSSES, LIVE_TRADING
+
+logger = logging.getLogger(__name__)
+
+
 class BotState:
     def __init__(self):
         self.mode = "medium"
+        self._live_enabled = LIVE_TRADING
+        self._consecutive_losses = 0
+        self._circuit_breaker_triggered = False
+
+    # ── Live trading guard ──
+
+    @property
+    def is_live_allowed(self) -> bool:
+        """Live trading дозволено тільки якщо: env=true + mode!=test + circuit breaker не спрацював."""
+        if not self._live_enabled:
+            return False
+        if self.mode == "test":
+            return False
+        if self._circuit_breaker_triggered:
+            return False
+        return True
+
+    def record_win(self):
+        self._consecutive_losses = 0
+
+    def record_loss(self):
+        self._consecutive_losses += 1
+        if self._consecutive_losses >= CIRCUIT_BREAKER_LOSSES:
+            self._circuit_breaker_triggered = True
+            logger.warning(
+                "CIRCUIT BREAKER: %s consecutive losses — live trading DISABLED",
+                self._consecutive_losses,
+            )
+
+    def reset_circuit_breaker(self):
+        self._circuit_breaker_triggered = False
+        self._consecutive_losses = 0
+        logger.info("Circuit breaker reset — live trading re-enabled")
+
+    @property
+    def consecutive_losses(self) -> int:
+        return self._consecutive_losses
+
+    @property
+    def circuit_breaker_active(self) -> bool:
+        return self._circuit_breaker_triggered
+
+    # ── Mode thresholds ──
 
     def get_thresholds(self):
         modes = {

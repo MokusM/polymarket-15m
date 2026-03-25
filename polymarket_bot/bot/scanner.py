@@ -101,6 +101,10 @@ class Scanner:
 
                         if can_send:
                             signal["market_id"] = market_id
+                            signal["market_slug"] = market_prices.get("market_slug") or ""
+                            signal["neg_risk"] = bool(
+                                market_prices.get("neg_risk", False)
+                            )
                             signal["market_title"] = (
                                 market_prices.get("title")
                                 or market_prices.get("question")

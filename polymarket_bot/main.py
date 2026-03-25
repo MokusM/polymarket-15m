@@ -1,50 +1,71 @@
 import asyncio
 import logging
 import os
+import sys
 
-# Налаштування логування формату
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
 
+from bot.config import LIVE_TRADING
 from bot.scanner import Scanner
 from bot.settlement import settle_markets
-from bot.telegram_bot import start_telegram_polling
+from bot.telegram_bot import start_telegram_polling, set_execution_client
 from bot.storage import init_db
+from bot.position_manager import init_positions_table
+
 
 async def main():
     logger.info("Ініціалізація бази даних SQLite...")
+    logger.info("Python: %s", sys.executable)
     init_db()
+    init_positions_table()
+
+    execution_client = None
+    if LIVE_TRADING:
+        from bot.execution_client import ExecutionClient
+        execution_client = ExecutionClient()
+        set_execution_client(execution_client)
+        if execution_client.ready:
+            logger.info("🟢 LIVE TRADING увімкнено")
+        else:
+            reason = getattr(execution_client, "not_ready_reason", None) or "невідомо"
+            logger.warning(
+                "⚠️ LIVE_TRADING=true, але ExecutionClient не готовий. Причина: %s",
+                reason,
+            )
+    else:
+        logger.info("📋 Paper trading mode")
 
     scanner = Scanner()
-    
+
     logger.info("🚀 Запуск Polymarket BTC 15m Scanner Bot...")
-    
-    # Запускаємо всі 3 фонові задачі паралельно:
-    # 1. Цикл сканування та генерації сигналів
-    # 2. Цикл перевірки закриття ринків (Settlement)
-    # 3. Слухання подій Telegram для Inline кнопок Approve/Reject
+
     tasks = [
         asyncio.create_task(scanner.run()),
         asyncio.create_task(settle_markets()),
-        asyncio.create_task(start_telegram_polling())
+        asyncio.create_task(start_telegram_polling()),
     ]
-    
+
+    if LIVE_TRADING and execution_client and execution_client.ready:
+        from bot.position_manager import monitor_positions_loop
+        tasks.append(asyncio.create_task(monitor_positions_loop(execution_client)))
+
     try:
         await asyncio.gather(*tasks)
     except KeyboardInterrupt:
-        logger.info("Отримано сигнал зупинки бота (KeyboardInterrupt).")
+        logger.info("Зупинка бота (KeyboardInterrupt).")
     except Exception as e:
-        logger.error(f"Критична помилка виконання: {e}", exc_info=True)
+        logger.error("Критична помилка: %s", e, exc_info=True)
     finally:
         await scanner.close()
-        logger.info("Бот успішно зупинено.")
+        logger.info("Бот зупинено.")
+
 
 if __name__ == "__main__":
-    # Захист запуску asyncio на Windows
     if os.name == 'nt':
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-    
+
     asyncio.run(main())

@@ -114,6 +114,8 @@ class PolymarketClient:
                 {
                     "event_id": event_id,
                     "market_id": market.get("id"),
+                    "market_slug": market.get("slug") or slug,
+                    "neg_risk": bool(market.get("negRisk", False)),
                     "title": title,
                     "question": market.get("question"),
                     "price_yes": price_yes,

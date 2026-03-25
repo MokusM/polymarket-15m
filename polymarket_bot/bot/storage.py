@@ -2,7 +2,7 @@ import json
 import logging
 import sqlite3
 
-from bot.config import AUTO_APPROVE_PAPER, DB_PATH, STAKE_USD
+from bot.config import AUTO_APPROVE_PAPER, DB_PATH, STAKE_USD, LIVE_TRADING
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +21,10 @@ def _migrate_signals_columns(cursor: sqlite3.Cursor) -> None:
         ("payload_json", "TEXT"),
         ("time_left", "REAL"),
         ("telegram_message_id", "INTEGER"),
+        (
+            "live_entry_status",
+            "TEXT",
+        ),  # NULL=paper/невизначено; opened=CLOB fill; no_position=approve але позиції нема
     ]
     for col, decl in additions:
         if col not in existing:
@@ -70,11 +74,16 @@ def init_db():
 def save_signal(signal: dict) -> int | None:
     """Зберігає сигнал: повний JSON + той самий HTML, що й у Telegram; paper — auto approve."""
     from bot.alert_text import format_signal_alert_html
+    from bot.risk import calculate_stake
     from bot.state import state
 
     mode = state.mode
     decision = "approve" if AUTO_APPROVE_PAPER else "pending"
-    stake = STAKE_USD
+    if LIVE_TRADING:
+        risk = calculate_stake(signal)
+        stake = float(risk["stake_usd"]) if risk.get("edge", 0) > 0 else float(STAKE_USD)
+    else:
+        stake = float(STAKE_USD)
     time_left = signal.get("time_left")
 
     payload = {**signal, "bot_mode_saved": mode, "stake_usd": stake}
@@ -126,6 +135,47 @@ def save_signal(signal: dict) -> int | None:
             conn.close()
 
 
+def update_signal_live_fill(signal_id: int, stake_usd: float, contract_price: float):
+    """Після реального fill: оновити stake і ціну контракту для коректного settlement / Telegram."""
+    try:
+        conn = get_connection()
+        conn.execute(
+            """
+            UPDATE signals SET stake_usd = ?, contract_price = ?,
+                live_entry_status = 'opened'
+            WHERE id = ?
+            """,
+            (stake_usd, contract_price, signal_id),
+        )
+        conn.commit()
+        logger.info(
+            "Сигнал #%s: live fill stake=%.2f contract_price=%.4f",
+            signal_id, stake_usd, contract_price,
+        )
+    except Exception as e:
+        logger.error("Помилка update_signal_live_fill: %s", e)
+    finally:
+        if "conn" in locals() and conn:
+            conn.close()
+
+
+def mark_signal_live_no_position(signal_id: int):
+    """Після Approve live: ордер не виконано / ліміт у стакані — не рахувати paper LOSS у settlement."""
+    try:
+        conn = get_connection()
+        conn.execute(
+            "UPDATE signals SET live_entry_status = 'no_position' WHERE id = ?",
+            (signal_id,),
+        )
+        conn.commit()
+        logger.info("Сигнал #%s: live_entry_status=no_position", signal_id)
+    except Exception as e:
+        logger.error("Помилка mark_signal_live_no_position: %s", e)
+    finally:
+        if "conn" in locals() and conn:
+            conn.close()
+
+
 def update_decision(signal_id: int, decision: str):
     try:
         conn = get_connection()
@@ -169,6 +219,25 @@ def update_telegram_message_id(signal_id: int, message_id: int):
         conn.commit()
     except Exception as e:
         logger.error("Помилка збереження message_id: %s", e)
+    finally:
+        if "conn" in locals() and conn:
+            conn.close()
+
+
+def signal_live_position_already_closed(signal_id: int) -> bool:
+    """True, якщо для цього сигналу є закрита позиція в positions (монітор уже зафіксував вихід)."""
+    if not signal_id:
+        return False
+    try:
+        conn = get_connection()
+        row = conn.execute(
+            "SELECT 1 FROM positions WHERE signal_id = ? AND status = 'closed' LIMIT 1",
+            (signal_id,),
+        ).fetchone()
+        return row is not None
+    except Exception as e:
+        logger.error("Помилка signal_live_position_already_closed: %s", e)
+        return False
     finally:
         if "conn" in locals() and conn:
             conn.close()

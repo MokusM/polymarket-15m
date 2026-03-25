@@ -1,0 +1,491 @@
+"""
+Polymarket CLOB execution client — buy/sell shares on binary markets.
+
+Uses py-clob-client for authenticated order placement on clob.polymarket.com.
+Gamma API (gamma-api.polymarket.com) is read-only — used only for market data.
+"""
+
+import asyncio
+import logging
+import math
+import os
+from typing import Optional
+
+from bot.config import (
+    POLYMARKET_PRIVATE_KEY,
+    POLYMARKET_CHAIN_ID,
+    CONTRACT_PRICE_MAX,
+    CLOB_CROSS_SPREAD_BUY,
+    CLOB_MAX_BUY_SLIPPAGE_ABS,
+    CLOB_TRADE_HISTORY_LIMIT,
+    CLOB_TRADE_HISTORY_MAX_PAGES,
+)
+
+logger = logging.getLogger(__name__)
+
+try:
+    from py_clob_client.client import ClobClient
+    from py_clob_client.clob_types import (
+        OrderArgs, OrderType, BalanceAllowanceParams, AssetType,
+        PartialCreateOrderOptions,
+    )
+    CLOB_AVAILABLE = True
+except ImportError:
+    CLOB_AVAILABLE = False
+    logger.warning("py-clob-client не встановлено: pip install py-clob-client")
+
+CLOB_HOST = "https://clob.polymarket.com"
+
+
+def trade_timestamp(tr: dict) -> float:
+    """Unix time для сортування угод CLOB (різні ключі в різних версіях API)."""
+    for k in ("match_time", "timestamp", "created_at", "last_update"):
+        v = tr.get(k)
+        if v is None:
+            continue
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            continue
+    return 0.0
+
+
+class ExecutionClient:
+    """Обгортка CLOB client для розміщення ордерів на Polymarket."""
+
+    def __init__(self):
+        self.client: Optional["ClobClient"] = None
+        self._initialized = False
+        self.not_ready_reason: str | None = None
+
+        if not CLOB_AVAILABLE:
+            self.not_ready_reason = (
+                "немає py-clob-client у цьому Python (pip install для того ж python, що запускає main.py)"
+            )
+            logger.error("py-clob-client не доступний — live trading вимкнено")
+            return
+
+        if not POLYMARKET_PRIVATE_KEY:
+            self.not_ready_reason = "POLYMARKET_PRIVATE_KEY порожній у .env"
+            logger.warning("POLYMARKET_PRIVATE_KEY не задано — live trading вимкнено")
+            return
+
+        try:
+            self.sig_type = int(os.environ.get("POLYMARKET_SIGNATURE_TYPE", "2"))
+            funder = os.environ.get("POLYMARKET_FUNDER_ADDRESS") or None
+
+            temp = ClobClient(
+                host=CLOB_HOST,
+                chain_id=POLYMARKET_CHAIN_ID,
+                key=POLYMARKET_PRIVATE_KEY,
+            )
+            creds = temp.create_or_derive_api_creds()
+            logger.info("API creds derived: %s...", creds.api_key[:16])
+
+            self.client = ClobClient(
+                host=CLOB_HOST,
+                chain_id=POLYMARKET_CHAIN_ID,
+                key=POLYMARKET_PRIVATE_KEY,
+                creds=creds,
+                signature_type=self.sig_type,
+                funder=funder,
+            )
+            self._initialized = True
+            self.not_ready_reason = None
+            logger.info(
+                "ExecutionClient init OK (chain=%s, sig_type=%s, funder=%s)",
+                POLYMARKET_CHAIN_ID, self.sig_type, funder or "N/A",
+            )
+        except Exception as e:
+            self.not_ready_reason = f"init: {e}"[:300]
+            logger.error("Помилка ініціалізації ExecutionClient: %s", e, exc_info=True)
+
+    @property
+    def ready(self) -> bool:
+        return self._initialized and self.client is not None
+
+    async def get_clob_minimum_order_size(
+        self,
+        market_slug: str = "",
+        market_id: str | None = None,
+    ) -> float:
+        """
+        Мінімальний розмір ордера в shares з CLOB (окремо від мінімуму ~$1 notional).
+        """
+        import httpx
+
+        condition_id: str | None = None
+        try:
+            async with httpx.AsyncClient() as client:
+                if market_slug:
+                    r = await client.get(
+                        f"https://gamma-api.polymarket.com/markets/slug/{market_slug}"
+                    )
+                    if r.status_code == 200:
+                        condition_id = r.json().get("conditionId")
+                if not condition_id and market_id:
+                    r = await client.get(
+                        f"https://gamma-api.polymarket.com/markets/{market_id}"
+                    )
+                    if r.status_code == 200:
+                        condition_id = r.json().get("conditionId")
+                if not condition_id:
+                    return 1.0
+                r2 = await client.get(f"{CLOB_HOST}/markets/{condition_id}")
+                if r2.status_code != 200:
+                    return 1.0
+                mos = r2.json().get("minimum_order_size")
+                return float(mos) if mos is not None else 1.0
+        except Exception as e:
+            logger.warning("get_clob_minimum_order_size: %s", e)
+            return 1.0
+
+    async def get_balance(self) -> float:
+        """Повернути USDC баланс з CLOB (COLLATERAL)."""
+        if not self.ready:
+            return 0.0
+        try:
+            loop = asyncio.get_event_loop()
+            params = BalanceAllowanceParams(
+                asset_type=AssetType.COLLATERAL,
+                signature_type=self.sig_type,
+            )
+            result = await loop.run_in_executor(
+                None, self.client.get_balance_allowance, params,
+            )
+            if isinstance(result, dict):
+                raw = result.get("balance", "0")
+                return float(raw) / 1e6
+            return 0.0
+        except Exception as e:
+            logger.error("Помилка get_balance: %s", e)
+            return 0.0
+
+    def _fetch_trades_pages_sync(self, max_pages: int) -> list[dict]:
+        """
+        GET /data/trades з пагінацією (Level 2). Повний get_trades() у клієнті тягне всю історію — не використовуємо.
+        """
+        from py_clob_client.clob_types import RequestArgs
+        from py_clob_client.headers.headers import create_level_2_headers
+        from py_clob_client.http_helpers.helpers import get
+        from py_clob_client.client import TRADES, add_query_trade_params, END_CURSOR
+
+        c = self.client
+        request_args = RequestArgs(method="GET", request_path=TRADES)
+        headers = create_level_2_headers(c.signer, c.creds, request_args)
+        all_rows: list[dict] = []
+        next_cursor: str | None = "MA=="
+        pages = 0
+        while (
+            next_cursor
+            and next_cursor != END_CURSOR
+            and pages < max(1, max_pages)
+        ):
+            url = add_query_trade_params(
+                "{}{}".format(c.host, TRADES), None, next_cursor,
+            )
+            response = get(url, headers=headers)
+            if not isinstance(response, dict):
+                break
+            all_rows.extend(response.get("data") or [])
+            next_cursor = response.get("next_cursor")
+            pages += 1
+        return all_rows
+
+    async def get_recent_trades(
+        self,
+        limit: int | None = None,
+        max_pages: int | None = None,
+    ) -> list[dict]:
+        """
+        Останні угоди акаунта з CLOB (як у веб-історії для цього гаманця / API keys).
+        """
+        if not self.ready:
+            return []
+        lim = limit if limit is not None else CLOB_TRADE_HISTORY_LIMIT
+        if lim <= 0:
+            return []
+        pages = max_pages if max_pages is not None else CLOB_TRADE_HISTORY_MAX_PAGES
+        try:
+            loop = asyncio.get_event_loop()
+            rows = await loop.run_in_executor(
+                None,
+                lambda: self._fetch_trades_pages_sync(pages),
+            )
+            rows.sort(key=trade_timestamp, reverse=True)
+            return rows[:lim]
+        except Exception as e:
+            logger.error("Помилка get_recent_trades: %s", e, exc_info=True)
+            return []
+
+    def _resolve_buy_limit_price_sync(self, token_id: str, reference: float) -> tuple[float, str | None]:
+        """
+        Лімітна ціна BUY: ask не вище CONTRACT_PRICE_MAX (та сама верхня межа, що й у сканері).
+        CLOB_MAX_BUY_SLIPPAGE_ABS — лише попередження в лог, якщо ринок пішов від сигналу, але ще в зоні курсу.
+        """
+        tick_s = self.client.get_tick_size(token_id)
+        tick = float(tick_s) if tick_s else 0.01
+
+        def tick_up(p: float) -> float:
+            steps = math.ceil(p / tick - 1e-12)
+            return min(0.99, round(steps * tick, 6))
+
+        ref_lim = tick_up(reference)
+
+        if not CLOB_CROSS_SPREAD_BUY:
+            return ref_lim, None
+
+        try:
+            raw = self.client.get_price(token_id, "SELL")
+            ap = (
+                float(raw.get("price", 0))
+                if isinstance(raw, dict)
+                else float(raw or 0)
+            )
+        except Exception as ex:
+            logger.warning("cross-spread BUY: %s", ex)
+            return ref_lim, None
+
+        if ap <= 0:
+            return ref_lim, None
+
+        hard_cap = min(0.99, CONTRACT_PRICE_MAX)
+        if ap > hard_cap + 1e-9:
+            return (
+                0.0,
+                (
+                    f"Ask {ap:.2f} вище макс. ціни входу {hard_cap:.2f} "
+                    f"(CONTRACT_PRICE_MAX, зона як у сканері). Ордер не відправлено."
+                ),
+            )
+
+        if CLOB_MAX_BUY_SLIPPAGE_ABS > 0:
+            soft = reference + CLOB_MAX_BUY_SLIPPAGE_ABS
+            if ap > soft + 1e-9:
+                logger.warning(
+                    "BUY: ask %.4f далі від сигналу %.4f ніж +%.2f, але ask ≤ %.2f — ордер дозволено.",
+                    ap, reference, CLOB_MAX_BUY_SLIPPAGE_ABS, hard_cap,
+                )
+
+        p = max(reference, min(ap, hard_cap))
+        return tick_up(p), None
+
+    async def buy_shares(
+        self,
+        token_id: str,
+        price: float,
+        size: float | None = None,
+        stake_usd: float | None = None,
+        neg_risk: bool = False,
+        tick_size: str = "0.01",
+        market_slug: str | None = None,
+        market_id: str | None = None,
+    ) -> Optional[dict]:
+        """
+        Купити shares за лімітною ціною.
+        price — опорна ціна з сигналу; ліміт не вище CONTRACT_PRICE_MAX; зсув від сигналу лише логується (див. CLOB_MAX_BUY_SLIPPAGE_ABS).
+        Якщо передано stake_usd — кількість shares рахується від фінальної лімітної ціни (~та сама сума $).
+        Два обмеження CLOB: мінімум notional ~$1 і minimum_order_size (shares) з /markets/{condition}.
+        """
+        if not self.ready:
+            logger.error("ExecutionClient не готовий — ордер не розміщено")
+            return {"success": False, "error": "ExecutionClient not ready"}
+
+        if price <= 0:
+            return {"success": False, "error": "Invalid price"}
+
+        use_stake = stake_usd is not None and float(stake_usd) > 0
+        if not use_stake:
+            if size is None or float(size) <= 0:
+                return {"success": False, "error": "Invalid size"}
+            size = float(size)
+        else:
+            stake_usd = float(stake_usd)
+
+        try:
+            loop = asyncio.get_event_loop()
+            limit_p, slip_err = await loop.run_in_executor(
+                None,
+                lambda: self._resolve_buy_limit_price_sync(token_id, price),
+            )
+            if slip_err:
+                return {"success": False, "error": slip_err}
+
+            if use_stake:
+                size = round(stake_usd / limit_p, 2)
+                if size <= 0:
+                    return {"success": False, "error": "Розмір позиції після ціни = 0"}
+
+            logger.info(
+                "BUY ліміт: сигнал %.4f -> ліміт %.4f | stake_mode=%s",
+                price, limit_p, use_stake,
+            )
+
+            if market_slug or market_id:
+                min_sh = await self.get_clob_minimum_order_size(
+                    market_slug or "", market_id,
+                )
+                if min_sh > 0:
+                    size = max(size, min_sh)
+
+            if limit_p * size < 1.0:
+                need = math.ceil((1.0 / limit_p) * 100) / 100.0
+                while need * limit_p < 1.0 - 1e-9:
+                    need = round(need + 0.01, 2)
+                size = max(size, need)
+
+            if limit_p * size < 1.0:
+                return {
+                    "success": False,
+                    "error": f"Сума ордера ${limit_p * size:.2f} < $1.00 (мінімум CLOB)",
+                }
+
+            order_args = OrderArgs(
+                token_id=token_id,
+                price=limit_p,
+                size=size,
+                side="BUY",
+            )
+            options = PartialCreateOrderOptions(
+                tick_size=tick_size,
+                neg_risk=neg_risk,
+            )
+
+            def _post():
+                return self.client.create_and_post_order(order_args, options)
+
+            signed = await loop.run_in_executor(None, _post)
+
+            logger.info(
+                "ORDER PLACED: BUY %s shares @ %.2f | token=%s | result=%s",
+                size, limit_p, token_id[:12], signed,
+            )
+            if isinstance(signed, dict):
+                signed["_effective_price"] = limit_p
+                signed["_order_size"] = size
+                return signed
+            return {
+                "success": True,
+                "order_id": str(signed),
+                "_effective_price": limit_p,
+                "_order_size": size,
+            }
+
+        except Exception as e:
+            logger.error("Помилка buy_shares: %s", e, exc_info=True)
+            return {"success": False, "error": str(e)}
+
+    async def sell_shares(
+        self,
+        token_id: str,
+        price: float,
+        size: float,
+        neg_risk: bool = False,
+        tick_size: str = "0.01",
+    ) -> Optional[dict]:
+        """Продати shares (для partial exit / stop-loss)."""
+        if not self.ready:
+            logger.error("ExecutionClient не готовий — ордер не розміщено")
+            return {"success": False, "error": "ExecutionClient not ready"}
+
+        try:
+            loop = asyncio.get_event_loop()
+            order_args = OrderArgs(
+                token_id=token_id,
+                price=price,
+                size=size,
+                side="SELL",
+            )
+            options = PartialCreateOrderOptions(
+                tick_size=tick_size,
+                neg_risk=neg_risk,
+            )
+
+            def _post():
+                return self.client.create_and_post_order(order_args, options)
+
+            signed = await loop.run_in_executor(None, _post)
+
+            logger.info(
+                "ORDER PLACED: SELL %s shares @ %.2f | token=%s | result=%s",
+                size, price, token_id[:12], signed,
+            )
+            if isinstance(signed, dict):
+                return signed
+            return {"success": True, "order_id": str(signed)}
+
+        except Exception as e:
+            logger.error("Помилка sell_shares: %s", e, exc_info=True)
+            return {"success": False, "error": str(e)}
+
+    async def get_market_token_ids(
+        self,
+        market_slug: str,
+        market_id: str | None = None,
+    ) -> Optional[tuple[str, str]]:
+        """
+        Отримати clobTokenIds (YES, NO) з Gamma API для маркету.
+
+        Спочатку /markets/slug/{slug}; якщо slug порожній або 404 — /markets/{id}.
+        """
+        import httpx
+        import json
+
+        def _parse_tokens(data: dict) -> Optional[tuple[str, str]]:
+            raw = data.get("clobTokenIds")
+            if isinstance(raw, str):
+                try:
+                    raw = json.loads(raw)
+                except json.JSONDecodeError:
+                    raw = None
+            if isinstance(raw, list) and len(raw) >= 2:
+                return (str(raw[0]), str(raw[1]))
+            return None
+
+        try:
+            async with httpx.AsyncClient() as client:
+                if market_slug:
+                    r = await client.get(
+                        f"https://gamma-api.polymarket.com/markets/slug/{market_slug}"
+                    )
+                    if r.status_code == 200:
+                        data = r.json()
+                        tokens = _parse_tokens(data)
+                        if tokens:
+                            return tokens
+
+                if market_id:
+                    r2 = await client.get(
+                        f"https://gamma-api.polymarket.com/markets/{market_id}"
+                    )
+                    if r2.status_code == 200:
+                        data2 = r2.json()
+                        tokens = _parse_tokens(data2)
+                        if tokens:
+                            return tokens
+                        logger.warning(
+                            "Gamma markets/%s: немає clobTokenIds у відповіді",
+                            market_id,
+                        )
+        except Exception as e:
+            logger.error(
+                "Помилка get_market_token_ids(slug=%s, id=%s): %s",
+                market_slug, market_id, e,
+            )
+        return None
+
+    async def get_token_price(self, token_id: str, side: str = "BUY") -> float:
+        """Поточна ціна token через CLOB (best price for side)."""
+        if not self.ready:
+            return 0.0
+        try:
+            loop = asyncio.get_event_loop()
+            result = await loop.run_in_executor(
+                None, self.client.get_price, token_id, side,
+            )
+            if isinstance(result, dict):
+                return float(result.get("price", 0))
+            return float(result) if result else 0.0
+        except Exception as e:
+            logger.error("Помилка get_token_price: %s", e)
+            return 0.0

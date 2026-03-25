@@ -53,6 +53,12 @@ async def settle_markets():
                 price_no = info.get("price_no", 0.0)
 
                 if price_yes in [0.0, 1.0] and price_no in [0.0, 1.0]:
+                    # Сигнал не дійшов до Telegram — не рахуємо результат
+                    if not sig.get("telegram_message_id"):
+                        update_result(sig["id"], "NO_ENTRY", 0.0)
+                        logger.info("Сигнал %s: немає telegram_message_id — пропускаємо", sig["id"])
+                        continue
+
                     if sig.get("live_entry_status") == _NO_POSITION:
                         update_result(sig["id"], "NO_ENTRY", 0.0)
                         logger.info(

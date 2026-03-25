@@ -342,17 +342,13 @@ async def send_alert(signal_id: int, signal: dict):
         update_telegram_message_id(signal_id, msg.message_id)
         store_pending_signal(signal_id, {**signal, "_risk": risk})
 
-        # Test mode convenience: auto-approve live orders without manual click.
+        # Auto-approve live orders without manual click.
         if AUTO_APPROVE_LIVE and state.is_live_allowed and client_ready and risk.get("edge", 0) > 0:
             update_decision(signal_id, "approve")
             order_text = await _execute_live_order(signal_id)
-            auto_text = (
-                f"{text}\n\n<b>Вибрано: ✅ Approve (AUTO)</b>\n{order_text}"
-            )
-            await bot.edit_message_text(
+            await bot.send_message(
                 chat_id=CHAT_ID,
-                message_id=msg.message_id,
-                text=auto_text,
+                text=f"<b>✅ Approve (AUTO)</b>\n{order_text}",
                 parse_mode="HTML",
             )
     except Exception as e:
@@ -374,6 +370,9 @@ async def process_decision(callback_query: types.CallbackQuery):
             order_text = ""
             if action == "approve" and state.is_live_allowed and _execution_client and _execution_client.ready:
                 order_text = await _execute_live_order(signal_id)
+            else:
+                # Clear signal from memory on reject/skip to prevent accidental re-execution
+                _pending_signals.pop(signal_id, None)
 
             msg_text = f"<b>{action_label}</b>"
             if order_text:

@@ -13,8 +13,6 @@ from datetime import datetime, timezone
 
 from bot.config import (
     BREAKEVEN_AFTER_ROI_PCT,
-    DB_PATH_TEST,
-    DB_PATH_LIVE,
     POSITION_MONITOR_INTERVAL,
     SL_PERCENT,
     TP_FULL_PRICE,

@@ -111,7 +111,6 @@ def calculate_stake(signal: dict, bankroll: float | None = None) -> dict:
     if edge <= 0:
         return result
 
-    odds = (1 - cp) / cp if cp > 0 else 0
     kelly_full = edge / (1 - cp) if (1 - cp) > 0 else 0
     kelly_stake = br * KELLY_FRACTION * kelly_full
 

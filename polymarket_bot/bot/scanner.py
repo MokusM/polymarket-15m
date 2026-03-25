@@ -14,7 +14,6 @@ from bot.config import (
     OBI_LEVELS,
 )
 from bot.exchange_client import ExchangeClient
-from bot.execution_client import get_order_book_imbalance
 from bot.polymarket_client import PolymarketClient
 from bot.indicators import add_indicators
 from bot.signals import check_signals
@@ -90,21 +89,22 @@ class Scanner:
                         direction = signal["direction"]
                         market_id = str(market_prices["market_id"])
 
-                        # ── OBI filter (skip in test mode) ──
-                        token_id_for_obi = (
-                            market_prices.get("token_yes_id")
-                            if direction == "UP"
-                            else market_prices.get("token_no_id")
-                        )
+                        # ── OBI filter (Binance stakan, skip in test mode) ──
                         obi = 1.0
-                        if token_id_for_obi and state.mode != "test":
-                            obi = await get_order_book_imbalance(
-                                token_id_for_obi, OBI_LEVELS
+                        if state.mode != "test":
+                            obi = await self.exchange.get_order_book_imbalance(
+                                levels=OBI_LEVELS
                             )
-                            if obi < OBI_MIN_RATIO:
+                            # UP: потрібен bid > ask (bullish); DOWN: потрібен ask > bid
+                            obi_pass = (
+                                obi >= OBI_MIN_RATIO
+                                if direction == "UP"
+                                else obi <= (1.0 / OBI_MIN_RATIO)
+                            )
+                            if not obi_pass:
                                 logger.debug(
-                                    "OBI %.3f < %.2f for %s %s — skip",
-                                    obi, OBI_MIN_RATIO, direction, market_id,
+                                    "OBI %.3f не відповідає напрямку %s (threshold=%.2f) — skip",
+                                    obi, direction, OBI_MIN_RATIO,
                                 )
                                 continue
                         signal["obi"] = obi

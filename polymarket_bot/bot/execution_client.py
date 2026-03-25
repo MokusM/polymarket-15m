@@ -37,40 +37,6 @@ except ImportError:
 CLOB_HOST = "https://clob.polymarket.com"
 
 
-async def get_order_book_imbalance(token_id: str, levels: int = 5) -> float:
-    """
-    Order Book Imbalance = bid_volume / ask_volume (публічний CLOB endpoint).
-
-    > 1.0 — переважають покупці (bullish pressure)
-    < 1.0 — переважають продавці (bearish pressure)
-    = 1.0 — neutral (fallback при помилці або відсутності даних)
-    """
-    import httpx
-
-    try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            r = await client.get(
-                f"{CLOB_HOST}/book",
-                params={"token_id": token_id},
-            )
-            if r.status_code != 200:
-                logger.warning("OBI: CLOB /book HTTP %s for %s", r.status_code, token_id[:12])
-                return 1.0
-            data = r.json()
-            bids = data.get("bids", [])[:levels]
-            asks = data.get("asks", [])[:levels]
-            bid_vol = sum(float(b.get("size", 0)) for b in bids)
-            ask_vol = sum(float(a.get("size", 0)) for a in asks)
-            if ask_vol <= 0:
-                return 1.0
-            obi = round(bid_vol / ask_vol, 3)
-            logger.debug("OBI %s: bid=%.1f ask=%.1f → %.3f", token_id[:12], bid_vol, ask_vol, obi)
-            return obi
-    except Exception as e:
-        logger.warning("OBI fetch error (%s): %s", token_id[:12], e)
-        return 1.0
-
-
 def trade_timestamp(tr: dict) -> float:
     """Unix time для сортування угод CLOB (різні ключі в різних версіях API)."""
     for k in ("match_time", "timestamp", "created_at", "last_update"):
@@ -507,10 +473,6 @@ class ExecutionClient:
                 market_slug, market_id, e,
             )
         return None
-
-    async def get_order_book_imbalance(self, token_id: str, levels: int = 5) -> float:
-        """OBI від CLOB (публічний endpoint, не потребує авторизації)."""
-        return await get_order_book_imbalance(token_id, levels)
 
     async def get_token_price(self, token_id: str, side: str = "BUY") -> float:
         """Поточна ціна token через CLOB (best price for side)."""

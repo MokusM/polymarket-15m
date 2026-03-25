@@ -48,5 +48,32 @@ class ExchangeClient:
             logger.error(f"Помилка отримання свічок з Binance: {e}")
             return pd.DataFrame() # Порожній датафрейм у разі помилки
 
+    async def get_order_book_imbalance(
+        self, symbol: str = "BTCUSDT", levels: int = 20
+    ) -> float:
+        """
+        OBI = bid_volume / ask_volume з Binance стакану (top N levels).
+
+        > 1.0 — переважають покупці (bullish)
+        < 1.0 — переважають продавці (bearish)
+        = 1.0 — neutral (fallback при помилці)
+        """
+        try:
+            r = await self.client.get(
+                "/depth", params={"symbol": symbol, "limit": levels}
+            )
+            r.raise_for_status()
+            data = r.json()
+            bid_vol = sum(float(b[1]) for b in data.get("bids", []))
+            ask_vol = sum(float(a[1]) for a in data.get("asks", []))
+            if ask_vol <= 0:
+                return 1.0
+            obi = round(bid_vol / ask_vol, 3)
+            logger.debug("OBI %s: bid=%.2f ask=%.2f → %.3f", symbol, bid_vol, ask_vol, obi)
+            return obi
+        except Exception as e:
+            logger.warning("OBI Binance error: %s", e)
+            return 1.0
+
     async def close(self):
         await self.client.aclose()

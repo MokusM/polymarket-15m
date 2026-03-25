@@ -12,8 +12,11 @@ from bot.config import (
     NOTIFY_SESSION_CHANGE,
     OBI_MIN_RATIO,
     OBI_LEVELS,
+    CONTRACT_PRICE_MIN,
+    CONTRACT_PRICE_MAX,
 )
 from bot.exchange_client import ExchangeClient
+from bot.execution_client import get_clob_ask_price
 from bot.polymarket_client import PolymarketClient
 from bot.indicators import add_indicators
 from bot.signals import check_signals
@@ -108,6 +111,26 @@ class Scanner:
                                 )
                                 continue
                         signal["obi"] = obi
+
+                        # ── CLOB ask price check (skip in test mode) ──
+                        if state.mode != "test":
+                            token_id_ask = (
+                                market_prices.get("token_yes_id")
+                                if direction == "UP"
+                                else market_prices.get("token_no_id")
+                            )
+                            if token_id_ask:
+                                clob_ask = await get_clob_ask_price(token_id_ask)
+                                if clob_ask > 0:
+                                    if not (CONTRACT_PRICE_MIN <= clob_ask <= CONTRACT_PRICE_MAX):
+                                        logger.info(
+                                            "CLOB ask %.2f поза зоною [%.2f–%.2f] — skip %s %s",
+                                            clob_ask, CONTRACT_PRICE_MIN, CONTRACT_PRICE_MAX,
+                                            direction, market_id,
+                                        )
+                                        continue
+                                    # Оновлюємо contract_price реальною CLOB ask ціною
+                                    signal["contract_price"] = clob_ask
 
                         key = f"{market_id}_{direction}"
                         now = datetime.now().timestamp()

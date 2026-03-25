@@ -37,6 +37,32 @@ except ImportError:
 CLOB_HOST = "https://clob.polymarket.com"
 
 
+async def get_clob_ask_price(token_id: str) -> float:
+    """
+    Публічний CLOB endpoint — реальна ask ціна (без авторизації).
+    side=SELL у термінах CLOB = best ask = ціна яку ти платиш за BUY.
+    Повертає 0.0 при помилці або відсутності токена.
+    """
+    if not token_id:
+        return 0.0
+    import httpx
+    try:
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            r = await client.get(
+                f"{CLOB_HOST}/price",
+                params={"token_id": token_id, "side": "SELL"},
+            )
+            if r.status_code != 200:
+                logger.warning("get_clob_ask_price HTTP %s for %s", r.status_code, token_id[:12])
+                return 0.0
+            price = float(r.json().get("price", 0))
+            logger.debug("CLOB ask %s → %.4f", token_id[:12], price)
+            return price
+    except Exception as e:
+        logger.warning("get_clob_ask_price %s: %s", token_id[:12], e)
+        return 0.0
+
+
 def trade_timestamp(tr: dict) -> float:
     """Unix time для сортування угод CLOB (різні ключі в різних версіях API)."""
     for k in ("match_time", "timestamp", "created_at", "last_update"):

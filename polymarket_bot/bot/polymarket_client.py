@@ -23,6 +23,19 @@ def _candidate_btc_15m_unix_starts() -> list[int]:
     )
 
 
+def _parse_clob_token_ids(market: dict[str, Any]) -> tuple[str, str]:
+    """Parse YES/NO token IDs from clobTokenIds field."""
+    raw = market.get("clobTokenIds")
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except json.JSONDecodeError:
+            raw = None
+    if isinstance(raw, list) and len(raw) >= 2:
+        return str(raw[0]), str(raw[1])
+    return "", ""
+
+
 def _parse_outcome_prices(market: dict[str, Any]) -> tuple[float, float]:
     raw = market.get("outcomePrices", ["0", "0"])
     if isinstance(raw, str):
@@ -97,6 +110,7 @@ class PolymarketClient:
                     continue
 
             price_yes, price_no = _parse_outcome_prices(market)
+            token_yes_id, token_no_id = _parse_clob_token_ids(market)
             event = evs[0] if evs else {}
             event_id = event.get("id")
             title = event.get("title") or market.get("question") or ""
@@ -122,6 +136,8 @@ class PolymarketClient:
                     "price_no": price_no,
                     "end_date_iso": end_str,
                     "event_start_time": event_start,
+                    "token_yes_id": token_yes_id,
+                    "token_no_id": token_no_id,
                 }
             )
 

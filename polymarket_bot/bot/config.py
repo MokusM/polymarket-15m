@@ -103,6 +103,14 @@ BREAKEVEN_AFTER_ROI_PCT = float(os.getenv("BREAKEVEN_AFTER_ROI_PCT", "50"))
 # Circuit breaker: auto-disable live trading after N consecutive losses
 CIRCUIT_BREAKER_LOSSES = int(os.getenv("CIRCUIT_BREAKER_LOSSES", "3"))
 
+# GAP filter: |current_price - start_price| must exceed this threshold (USD)
+GAP_MIN_USD = float(os.getenv("GAP_MIN_USD", "50"))
+
+# OBI filter: bid_volume / ask_volume must exceed this ratio (1.0 = neutral)
+OBI_MIN_RATIO = float(os.getenv("OBI_MIN_RATIO", "1.2"))
+# Number of top orderbook levels to sum for OBI calculation
+OBI_LEVELS = int(os.getenv("OBI_LEVELS", "5"))
+
 # Session change notifications
 NOTIFY_SESSION_CHANGE = True
 

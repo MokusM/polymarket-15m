@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 import logging
 from typing import Optional
 
-from bot.config import IGNORE_IF_TIME_LEFT_LT_MIN, IGNORE_IF_CONTRACT_PRICE_GT, ATR_MIN_USD
+from bot.config import IGNORE_IF_TIME_LEFT_LT_MIN, IGNORE_IF_CONTRACT_PRICE_GT, ATR_MIN_USD, GAP_MIN_USD
 from bot.state import state
 
 logger = logging.getLogger(__name__)
@@ -214,6 +214,11 @@ def check_signals(market_info: dict, df: pd.DataFrame) -> dict | None:
     delta = price - start_price
     delta_percent = (delta / start_price) * 100 if start_price > 0 else 0
 
+    # --- GAP filter: |delta| must exceed GAP_MIN_USD ---
+    if state.mode != "test" and abs(delta) < GAP_MIN_USD:
+        logger.debug("GAP %.1f < %.1f — skip", abs(delta), GAP_MIN_USD)
+        return None
+
     chg_1h = last.get("chg_1h", 0)
     chg_1h_val = float(chg_1h) if not pd.isna(chg_1h) else 0
     ema_9_slope = float(last.get("ema_9_slope", 0))
@@ -239,4 +244,5 @@ def check_signals(market_info: dict, df: pd.DataFrame) -> dict | None:
         "atr": round(float(atr), 2) if not pd.isna(atr) else 0,
         "atr_zone": atr_zone,
         "chg_1h": round(chg_1h_val, 3),
+        "obi": 1.0,  # placeholder; scanner overwrites with real value
     }

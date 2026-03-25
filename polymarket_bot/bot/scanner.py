@@ -10,11 +10,15 @@ from bot.config import (
     MAX_SIGNALS_PER_ROUND_PER_SIDE,
     REPEAT_ALERTS_AFTER_COOLDOWN,
     NOTIFY_SESSION_CHANGE,
+    OBI_MIN_RATIO,
+    OBI_LEVELS,
 )
 from bot.exchange_client import ExchangeClient
+from bot.execution_client import get_order_book_imbalance
 from bot.polymarket_client import PolymarketClient
 from bot.indicators import add_indicators
 from bot.signals import check_signals
+from bot.state import state
 from bot.storage import save_signal
 from bot.telegram_bot import send_alert, send_info_message
 from bot.alert_text import get_current_session_key, format_session_alert_html
@@ -85,6 +89,25 @@ class Scanner:
                     if signal:
                         direction = signal["direction"]
                         market_id = str(market_prices["market_id"])
+
+                        # ── OBI filter (skip in test mode) ──
+                        token_id_for_obi = (
+                            market_prices.get("token_yes_id")
+                            if direction == "UP"
+                            else market_prices.get("token_no_id")
+                        )
+                        obi = 1.0
+                        if token_id_for_obi and state.mode != "test":
+                            obi = await get_order_book_imbalance(
+                                token_id_for_obi, OBI_LEVELS
+                            )
+                            if obi < OBI_MIN_RATIO:
+                                logger.debug(
+                                    "OBI %.3f < %.2f for %s %s — skip",
+                                    obi, OBI_MIN_RATIO, direction, market_id,
+                                )
+                                continue
+                        signal["obi"] = obi
 
                         key = f"{market_id}_{direction}"
                         now = datetime.now().timestamp()

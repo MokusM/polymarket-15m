@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 
 from bot.config import STAKE_USD
@@ -12,6 +13,18 @@ from bot.storage import (
 from bot.telegram_bot import send_info_message
 
 _NO_POSITION = "no_position"
+
+
+def _market_title(sig: dict) -> str:
+    """Витягує назву маркету з payload_json, fallback — market_id."""
+    try:
+        payload = json.loads(sig.get("payload_json") or "{}")
+        title = payload.get("market_title") or ""
+        if title:
+            return title
+    except Exception:
+        pass
+    return sig.get("market_id", "")[:24]
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +64,7 @@ async def settle_markets():
                             await send_info_message(
                                 f"💤 <b>Сигнал #{sig['id']} — без позиції</b>\n"
                                 f"Live-ордер не дав fill або скасовано.\n"
-                                f"Маркет: {sig.get('market_id', '')[:20]}"
+                                f"<i>{_market_title(sig)}</i>"
                             )
                         continue
 
@@ -68,7 +81,8 @@ async def settle_markets():
                         if tg_msg_id:
                             await send_info_message(
                                 f"📋 <b>Сигнал #{sig['id']} — закрито монітором</b>\n"
-                                f"PnL вже відображено в повідомленнях SL/TP."
+                                f"PnL вже відображено в повідомленнях SL/TP.\n"
+                                f"<i>{_market_title(sig)}</i>"
                             )
                         continue
 
@@ -112,6 +126,7 @@ async def settle_markets():
                     payout = shares * 1.0 if result_str == "WIN" else 0
                     await send_info_message(
                         f"{result_icon} <b>Сигнал #{sig['id']} — {result_str}</b>\n"
+                        f"<i>{_market_title(sig)}</i>\n"
                         f"{direction} {side} @ {contract_price:.2f} | "
                         f"${stake:.2f} → ${payout:.2f} ({shares:.1f} shares)\n"
                         f"PnL: <b>{pnl_sign} USD</b>"

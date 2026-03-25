@@ -14,12 +14,16 @@ from datetime import datetime, timezone
 from bot.config import (
     BREAKEVEN_AFTER_ROI_PCT,
     POSITION_MONITOR_INTERVAL,
+    POSITION_MONITOR_INTERVAL_ACTIVE,
     SL_PERCENT,
     TP_FULL_PRICE,
     TP_PARTIAL_PRICE,
     TP_PARTIAL_SELL_PCT,
 )
 from bot.storage import get_db_path
+
+PENDING_POLL_INTERVAL = 2      # секунди між перевірками pending ордерів
+PENDING_ORDER_EXPIRY_MIN = 16  # скасовуємо трекінг після N хвилин (ринок закрився)
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +66,92 @@ def _migrate_positions_columns(cursor: sqlite3.Cursor) -> None:
         cursor.execute(
             "ALTER TABLE positions ADD COLUMN realized_pnl REAL DEFAULT 0",
         )
+
+
+def init_pending_orders_table(db_path: str | None = None):
+    try:
+        conn = _get_conn(db_path)
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS pending_orders (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                order_id TEXT UNIQUE,
+                signal_id INTEGER,
+                market_id TEXT,
+                market_slug TEXT,
+                token_id TEXT,
+                direction TEXT,
+                side TEXT,
+                limit_price REAL,
+                expected_shares REAL,
+                stake_usd REAL,
+                neg_risk INTEGER DEFAULT 0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        conn.commit()
+    except Exception as e:
+        logger.error("Помилка init_pending_orders_table: %s", e)
+    finally:
+        conn.close()
+
+
+def save_pending_order(
+    order_id: str,
+    signal_id: int,
+    market_id: str,
+    market_slug: str,
+    token_id: str,
+    direction: str,
+    limit_price: float,
+    expected_shares: float,
+    stake_usd: float,
+    neg_risk: bool = False,
+) -> None:
+    side = "YES" if direction == "UP" else "NO"
+    try:
+        conn = _get_conn()
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO pending_orders
+                (order_id, signal_id, market_id, market_slug, token_id,
+                 direction, side, limit_price, expected_shares, stake_usd, neg_risk)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (order_id, signal_id, market_id, market_slug, token_id,
+             direction, side, limit_price, expected_shares, stake_usd, int(neg_risk)),
+        )
+        conn.commit()
+        logger.info("Pending order saved: %s (signal #%s)", order_id[:16], signal_id)
+    except Exception as e:
+        logger.error("Помилка save_pending_order: %s", e)
+    finally:
+        conn.close()
+
+
+def get_pending_orders() -> list[dict]:
+    try:
+        conn = _get_conn()
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute("SELECT * FROM pending_orders").fetchall()
+        return [dict(r) for r in rows]
+    except Exception as e:
+        logger.error("Помилка get_pending_orders: %s", e)
+        return []
+    finally:
+        conn.close()
+
+
+def remove_pending_order(pending_id: int) -> None:
+    try:
+        conn = _get_conn()
+        conn.execute("DELETE FROM pending_orders WHERE id = ?", (pending_id,))
+        conn.commit()
+    except Exception as e:
+        logger.error("Помилка remove_pending_order: %s", e)
+    finally:
+        conn.close()
 
 
 def init_positions_table(db_path: str | None = None):
@@ -395,5 +485,97 @@ async def monitor_positions_loop(execution_client):
         except Exception as e:
             logger.error("Помилка monitor_positions: %s", e, exc_info=True)
 
-        sleep_sec = 1 if count_open_positions() > 0 else POSITION_MONITOR_INTERVAL
+        sleep_sec = POSITION_MONITOR_INTERVAL_ACTIVE if count_open_positions() > 0 else POSITION_MONITOR_INTERVAL
         await asyncio.sleep(sleep_sec)
+
+
+async def poll_pending_orders_loop(execution_client):
+    """
+    Поллінг pending ордерів кожні 2с.
+    Статус MATCHED → open_position(); CANCELLED/expired → no_position.
+    """
+    from datetime import datetime, timezone
+    from bot.state import state
+    from bot.storage import mark_signal_live_no_position, update_decision, update_signal_live_fill
+    from bot.telegram_bot import send_info_message
+
+    logger.info("Pending orders poller запущено (інтервал %ss)", PENDING_POLL_INTERVAL)
+
+    while True:
+        try:
+            pending = get_pending_orders()
+            for po in pending:
+                order_id = po["order_id"]
+
+                # Перевірка віку — ринок міг закритися
+                try:
+                    created = datetime.fromisoformat(po["created_at"])
+                    if created.tzinfo is None:
+                        created = created.replace(tzinfo=timezone.utc)
+                    age_min = (datetime.now(timezone.utc) - created).total_seconds() / 60
+                except Exception:
+                    age_min = 0
+
+                if age_min > PENDING_ORDER_EXPIRY_MIN:
+                    remove_pending_order(po["id"])
+                    mark_signal_live_no_position(po["signal_id"])
+                    update_decision(po["signal_id"], "approve")
+                    logger.info("Pending order %s expired after %.1f min", order_id[:16], age_min)
+                    await send_info_message(
+                        f"⏰ <b>Ліміт не заповнився</b> (ринок закрився)\n"
+                        f"orderID: <code>{order_id[:20]}</code>"
+                    )
+                    continue
+
+                # Запит статусу ордера з CLOB
+                order_data = await execution_client.get_order_status(order_id)
+                if not order_data:
+                    continue
+
+                status = (order_data.get("status") or "").upper()
+
+                if status == "MATCHED":
+                    fill_price = float(order_data.get("price", po["limit_price"]))
+                    size_matched = float(order_data.get("size_matched", po["expected_shares"]))
+                    if size_matched <= 0:
+                        size_matched = po["expected_shares"]
+                    stake_eff = round(size_matched * fill_price, 2)
+
+                    pos_id = open_position(
+                        signal_id=po["signal_id"],
+                        market_id=po["market_id"],
+                        market_slug=po["market_slug"],
+                        token_id=po["token_id"],
+                        direction=po["direction"],
+                        entry_price=fill_price,
+                        shares=size_matched,
+                        stake_usd=stake_eff,
+                    )
+                    remove_pending_order(po["id"])
+                    update_signal_live_fill(po["signal_id"], stake_eff, fill_price)
+
+                    logger.info(
+                        "Pending %s FILLED → Position #%s @ %.2f x %.2f shares",
+                        order_id[:16], pos_id, fill_price, size_matched,
+                    )
+                    await send_info_message(
+                        f"🚀 <b>Ордер виконано → Позиція #{pos_id}</b>\n"
+                        f"{po['direction']} {po['side']} @ {fill_price:.2f} | "
+                        f"{size_matched:.1f} shares | ~${stake_eff:.2f}\n"
+                        f"SL/TP моніторинг активовано."
+                    )
+
+                elif status == "CANCELLED":
+                    remove_pending_order(po["id"])
+                    mark_signal_live_no_position(po["signal_id"])
+                    update_decision(po["signal_id"], "approve")
+                    logger.info("Pending order %s CANCELLED", order_id[:16])
+                    await send_info_message(
+                        f"❌ <b>Ліміт скасовано</b>\n"
+                        f"orderID: <code>{order_id[:20]}</code>"
+                    )
+
+        except Exception as e:
+            logger.error("poll_pending_orders: %s", e, exc_info=True)
+
+        await asyncio.sleep(PENDING_POLL_INTERVAL)

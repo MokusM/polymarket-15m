@@ -474,6 +474,20 @@ class ExecutionClient:
             )
         return None
 
+    async def get_order_status(self, order_id: str) -> dict | None:
+        """Статус ордера з CLOB: LIVE / MATCHED / CANCELLED."""
+        if not self.ready:
+            return None
+        try:
+            loop = asyncio.get_event_loop()
+            result = await loop.run_in_executor(
+                None, self.client.get_order, order_id,
+            )
+            return result if isinstance(result, dict) else None
+        except Exception as e:
+            logger.warning("get_order_status %s: %s", order_id[:16], e)
+            return None
+
     async def get_token_price(self, token_id: str, side: str = "BUY") -> float:
         """Поточна ціна token через CLOB (best price for side)."""
         if not self.ready:

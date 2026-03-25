@@ -459,15 +459,27 @@ async def _execute_live_order(signal_id: int) -> str:
 
     st_ord = (result.get("status") or "").lower() if isinstance(result, dict) else ""
     if isinstance(result, dict) and result.get("success") and st_ord == "live":
-        await _mark_no_fill()
-        oid = html.escape(str(result.get("orderID", "")))
+        from bot.position_manager import save_pending_order
+        oid = str(result.get("orderID", ""))
         ep = float(result.get("_effective_price", cp))
+        exp_shares = round(stake / ep, 2) if ep > 0 else 0
+        save_pending_order(
+            order_id=oid,
+            signal_id=signal_id,
+            market_id=market_id,
+            market_slug=slug,
+            token_id=token_id,
+            direction=direction,
+            limit_price=ep,
+            expected_shares=exp_shares,
+            stake_usd=stake,
+            neg_risk=neg_risk,
+        )
         return (
-            f"\u26a0\ufe0f <b>\u041b\u0456\u043c\u0456\u0442 \u0443 \u0441\u0442\u0430\u043a\u0430\u043d\u0456</b> "
-            f"(\u0449\u0435 \u043d\u0435 \u0432\u0438\u043a\u043e\u043d\u0430\u043d\u043e).\n"
-            f"orderID: <code>{oid}</code> | \u0446\u0456\u043d\u0430 \u043b\u0456\u043c\u0456\u0442\u0443: {ep:.2f}\n"
-            f"\u041d\u0430 Polymarket: \u0412\u0456\u0434\u043a\u0440\u0438\u0442\u0456 \u0437\u0430\u044f\u0432\u043a\u0438 \u2014 \u043c\u043e\u0436\u043d\u0430 \u0441\u043a\u0430\u0441\u0443\u0432\u0430\u0442\u0438.\n"
-            f"\u041f\u043e\u0437\u0438\u0446\u0456\u044e \u0432 \u0431\u043e\u0442\u0456 \u043d\u0435 \u0441\u0442\u0432\u043e\u0440\u0435\u043d\u043e (\u0434\u043e \u0440\u0435\u0430\u043b\u044c\u043d\u043e\u0433\u043e fill)."
+            f"\u23f3 <b>\u041b\u0456\u043c\u0456\u0442 \u0443 \u0441\u0442\u0430\u043a\u0430\u043d\u0456</b> "
+            f"(\u0449\u0435 \u043d\u0435 \u0432\u0438\u043a\u043e\u043d\u0430\u043d\u043e)\n"
+            f"orderID: <code>{html.escape(oid[:20])}</code> | \u043b\u0456\u043c\u0456\u0442: {ep:.2f}\n"
+            f"\u23f1 \u041f\u043e\u043b\u043b\u0456\u043d\u0433 \u043a\u043e\u0436\u043d\u0456 2\u0441 \u2014 \u043f\u043e\u0437\u0438\u0446\u0456\u044f \u0437'\u044f\u0432\u0438\u0442\u044c\u0441\u044f \u043f\u0456\u0441\u043b\u044f fill."
         )
 
     ep = float(result.get("_effective_price", cp)) if isinstance(result, dict) else cp

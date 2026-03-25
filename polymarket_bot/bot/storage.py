@@ -85,8 +85,10 @@ def save_signal(signal: dict) -> int | None:
     from bot.state import state
 
     mode = state.mode
-    decision = "approve" if AUTO_APPROVE_PAPER else "pending"
-    if LIVE_TRADING and state.mode != "test":
+    is_live_mode = LIVE_TRADING and state.mode != "test"
+    # В live-режимі сигнал очікує на ручне підтвердження або обробку send_alert
+    decision = "approve" if (AUTO_APPROVE_PAPER and not is_live_mode) else "pending"
+    if is_live_mode:
         risk = calculate_stake(signal)
         stake = float(risk["stake_usd"]) if risk.get("edge", 0) > 0 else float(STAKE_USD)
     else:

@@ -323,6 +323,9 @@ async def send_alert(signal_id: int, signal: dict):
         )
     elif state.is_live_allowed:
         text += "\n\U0001f7e2 <b>LIVE MODE</b> (edge \u2264 0 \u2014 \u043e\u0440\u0434\u0435\u0440 \u043d\u0435 \u0431\u0443\u0434\u0435 \u0440\u043e\u0437\u043c\u0456\u0449\u0435\u043d\u043e)"
+        # Позначаємо no_position зразу — settlement запише NO_ENTRY без PnL
+        mark_signal_live_no_position(signal_id)
+        update_decision(signal_id, "approve")
     elif state.circuit_breaker_active:
         text += "\n\U0001f6a8 <b>Circuit breaker</b> \u2014 live \u0432\u0438\u043c\u043a\u043d\u0435\u043d\u043e (paper only)"
 

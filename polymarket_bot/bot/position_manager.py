@@ -13,13 +13,15 @@ from datetime import datetime, timezone
 
 from bot.config import (
     BREAKEVEN_AFTER_ROI_PCT,
-    DB_PATH,
+    DB_PATH_TEST,
+    DB_PATH_LIVE,
     POSITION_MONITOR_INTERVAL,
     SL_PERCENT,
     TP_FULL_PRICE,
     TP_PARTIAL_PRICE,
     TP_PARTIAL_SELL_PCT,
 )
+from bot.storage import get_db_path
 
 logger = logging.getLogger(__name__)
 
@@ -51,8 +53,8 @@ def _pnl_total_on_full_close(
     return float(realized_before or 0) + (proceeds - cost_rem)
 
 
-def _get_conn():
-    return sqlite3.connect(DB_PATH)
+def _get_conn(db_path: str | None = None):
+    return sqlite3.connect(db_path if db_path is not None else get_db_path())
 
 
 def _migrate_positions_columns(cursor: sqlite3.Cursor) -> None:
@@ -64,9 +66,9 @@ def _migrate_positions_columns(cursor: sqlite3.Cursor) -> None:
         )
 
 
-def init_positions_table():
+def init_positions_table(db_path: str | None = None):
     try:
-        conn = _get_conn()
+        conn = _get_conn(db_path)
         cursor = conn.cursor()
         cursor.execute(
             """
@@ -98,8 +100,7 @@ def init_positions_table():
     except Exception as e:
         logger.error("Помилка створення таблиці positions: %s", e)
     finally:
-        if "conn" in locals() and conn:
-            conn.close()
+        conn.close()
 
 
 def open_position(
@@ -148,8 +149,7 @@ def open_position(
         logger.error("Помилка open_position: %s", e)
         return None
     finally:
-        if "conn" in locals() and conn:
-            conn.close()
+        conn.close()
 
 
 def get_open_positions() -> list[dict]:
@@ -164,8 +164,7 @@ def get_open_positions() -> list[dict]:
         logger.error("Помилка get_open_positions: %s", e)
         return []
     finally:
-        if "conn" in locals() and conn:
-            conn.close()
+        conn.close()
 
 
 def count_open_positions() -> int:
@@ -178,8 +177,7 @@ def count_open_positions() -> int:
     except Exception:
         return 0
     finally:
-        if "conn" in locals() and conn:
-            conn.close()
+        conn.close()
 
 
 def close_position(pos_id: int, reason: str, pnl: float = 0.0):
@@ -201,8 +199,7 @@ def close_position(pos_id: int, reason: str, pnl: float = 0.0):
     except Exception as e:
         logger.error("Помилка close_position: %s", e)
     finally:
-        if "conn" in locals() and conn:
-            conn.close()
+        conn.close()
 
     if pnl < 0:
         state.record_loss()
@@ -222,8 +219,7 @@ def update_sl_price(pos_id: int, new_sl: float):
     except Exception as e:
         logger.error("Помилка update_sl_price: %s", e)
     finally:
-        if "conn" in locals() and conn:
-            conn.close()
+        conn.close()
 
 
 def update_partial_exit(
@@ -251,8 +247,7 @@ def update_partial_exit(
     except Exception as e:
         logger.error("Помилка update_partial_exit: %s", e)
     finally:
-        if "conn" in locals() and conn:
-            conn.close()
+        conn.close()
 
 
 async def monitor_positions_loop(execution_client):
@@ -319,9 +314,12 @@ async def monitor_positions_loop(execution_client):
                     logger.warning(
                         "SL TRIGGERED #%s: %.2f <= %.2f", pos_id, current_price, sl,
                     )
-                    await execution_client.sell_shares(
+                    sell_result = await execution_client.sell_shares(
                         pos["token_id"], current_price, remaining,
                     )
+                    if not sell_result or sell_result.get("success") is False:
+                        logger.error("SL SELL failed #%s: %s — позиція залишається відкритою", pos_id, sell_result)
+                        continue
                     pnl = _pnl_total_on_full_close(
                         stake_u, shares_init, remaining, current_price, realized_accum,
                     )
@@ -348,9 +346,12 @@ async def monitor_positions_loop(execution_client):
                         "TP FULL #%s: price %.2f >= %.2f",
                         pos_id, current_price, TP_FULL_PRICE,
                     )
-                    await execution_client.sell_shares(
+                    sell_result = await execution_client.sell_shares(
                         pos["token_id"], current_price, remaining,
                     )
+                    if not sell_result or sell_result.get("success") is False:
+                        logger.error("TP FULL SELL failed #%s: %s — позиція залишається відкритою", pos_id, sell_result)
+                        continue
                     pnl = _pnl_total_on_full_close(
                         stake_u, shares_init, remaining, current_price, realized_accum,
                     )
@@ -373,9 +374,12 @@ async def monitor_positions_loop(execution_client):
                             "TP PARTIAL #%s: price %.2f >= %.2f, selling %.1f",
                             pos_id, current_price, TP_PARTIAL_PRICE, sell_amount,
                         )
-                        await execution_client.sell_shares(
+                        sell_result = await execution_client.sell_shares(
                             pos["token_id"], current_price, sell_amount,
                         )
+                        if not sell_result or sell_result.get("success") is False:
+                            logger.error("TP PARTIAL SELL failed #%s: %s — позиція залишається відкритою", pos_id, sell_result)
+                            continue
                         new_remaining = remaining - sell_amount
                         leg_pnl = _pnl_partial_leg_usd(
                             stake_u, shares_init, sell_amount, current_price,
@@ -393,4 +397,5 @@ async def monitor_positions_loop(execution_client):
         except Exception as e:
             logger.error("Помилка monitor_positions: %s", e, exc_info=True)
 
-        await asyncio.sleep(POSITION_MONITOR_INTERVAL)
+        sleep_sec = 1 if count_open_positions() > 0 else POSITION_MONITOR_INTERVAL
+        await asyncio.sleep(sleep_sec)

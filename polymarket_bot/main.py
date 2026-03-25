@@ -9,19 +9,29 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-from bot.config import LIVE_TRADING
+from bot.config import LIVE_TRADING, DB_PATH_TEST, DB_PATH_LIVE
 from bot.scanner import Scanner
 from bot.settlement import settle_markets
-from bot.telegram_bot import start_telegram_polling, set_execution_client
+from bot.telegram_bot import start_telegram_polling, set_execution_client, daily_report_scheduler
 from bot.storage import init_db
 from bot.position_manager import init_positions_table
 
 
 async def main():
-    logger.info("Ініціалізація бази даних SQLite...")
     logger.info("Python: %s", sys.executable)
-    init_db()
-    init_positions_table()
+
+    # Remove old DB if exists
+    old_db = os.path.join(os.path.dirname(__file__), "signals.db")
+    if os.path.exists(old_db):
+        os.remove(old_db)
+        logger.info("Видалено стару БД: signals.db")
+
+    # Init both databases
+    logger.info("Ініціалізація баз даних (test.db + live.db)...")
+    init_db(DB_PATH_TEST)
+    init_db(DB_PATH_LIVE)
+    init_positions_table(DB_PATH_TEST)
+    init_positions_table(DB_PATH_LIVE)
 
     execution_client = None
     if LIVE_TRADING:
@@ -40,13 +50,13 @@ async def main():
         logger.info("📋 Paper trading mode")
 
     scanner = Scanner()
-
     logger.info("🚀 Запуск Polymarket BTC 15m Scanner Bot...")
 
     tasks = [
         asyncio.create_task(scanner.run()),
         asyncio.create_task(settle_markets()),
         asyncio.create_task(start_telegram_polling()),
+        asyncio.create_task(daily_report_scheduler()),
     ]
 
     if LIVE_TRADING and execution_client and execution_client.ready:
@@ -67,5 +77,4 @@ async def main():
 if __name__ == "__main__":
     if os.name == 'nt':
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-
     asyncio.run(main())

@@ -2,13 +2,20 @@ import json
 import logging
 import sqlite3
 
-from bot.config import AUTO_APPROVE_PAPER, DB_PATH, STAKE_USD, LIVE_TRADING
+from bot.config import AUTO_APPROVE_PAPER, DB_PATH_TEST, DB_PATH_LIVE, STAKE_USD, LIVE_TRADING
 
 logger = logging.getLogger(__name__)
 
 
-def get_connection():
-    return sqlite3.connect(DB_PATH)
+def get_db_path() -> str:
+    from bot.state import state
+    if state.mode == "test":
+        return DB_PATH_TEST
+    return DB_PATH_LIVE
+
+
+def get_connection(db_path: str | None = None) -> sqlite3.Connection:
+    return sqlite3.connect(db_path if db_path is not None else get_db_path())
 
 
 def _migrate_signals_columns(cursor: sqlite3.Cursor) -> None:
@@ -31,9 +38,10 @@ def _migrate_signals_columns(cursor: sqlite3.Cursor) -> None:
             cursor.execute(f"ALTER TABLE signals ADD COLUMN {col} {decl}")
 
 
-def init_db():
+def init_db(db_path: str | None = None):
+    path = db_path if db_path is not None else get_db_path()
     try:
-        conn = get_connection()
+        conn = sqlite3.connect(path)
         cursor = conn.cursor()
         cursor.execute(
             """
@@ -67,8 +75,7 @@ def init_db():
     except Exception as e:
         logger.error("Помилка ініціалізації БД: %s", e)
     finally:
-        if "conn" in locals() and conn:
-            conn.close()
+        conn.close()
 
 
 def save_signal(signal: dict) -> int | None:
@@ -79,7 +86,7 @@ def save_signal(signal: dict) -> int | None:
 
     mode = state.mode
     decision = "approve" if AUTO_APPROVE_PAPER else "pending"
-    if LIVE_TRADING:
+    if LIVE_TRADING and state.mode != "test":
         risk = calculate_stake(signal)
         stake = float(risk["stake_usd"]) if risk.get("edge", 0) > 0 else float(STAKE_USD)
     else:
@@ -131,8 +138,7 @@ def save_signal(signal: dict) -> int | None:
         logger.error("Помилка збереження сигналу: %s", e)
         return None
     finally:
-        if "conn" in locals() and conn:
-            conn.close()
+        conn.close()
 
 
 def update_signal_live_fill(signal_id: int, stake_usd: float, contract_price: float):
@@ -155,8 +161,7 @@ def update_signal_live_fill(signal_id: int, stake_usd: float, contract_price: fl
     except Exception as e:
         logger.error("Помилка update_signal_live_fill: %s", e)
     finally:
-        if "conn" in locals() and conn:
-            conn.close()
+        conn.close()
 
 
 def mark_signal_live_no_position(signal_id: int):
@@ -172,8 +177,7 @@ def mark_signal_live_no_position(signal_id: int):
     except Exception as e:
         logger.error("Помилка mark_signal_live_no_position: %s", e)
     finally:
-        if "conn" in locals() and conn:
-            conn.close()
+        conn.close()
 
 
 def update_decision(signal_id: int, decision: str):
@@ -188,8 +192,7 @@ def update_decision(signal_id: int, decision: str):
     except Exception as e:
         logger.error("Помилка оновлення рішення: %s", e)
     finally:
-        if "conn" in locals() and conn:
-            conn.close()
+        conn.close()
 
 
 def update_result(signal_id: int, result: str, pnl: float):
@@ -204,8 +207,7 @@ def update_result(signal_id: int, result: str, pnl: float):
     except Exception as e:
         logger.error("Помилка оновлення результату: %s", e)
     finally:
-        if "conn" in locals() and conn:
-            conn.close()
+        conn.close()
 
 
 def update_telegram_message_id(signal_id: int, message_id: int):
@@ -220,8 +222,7 @@ def update_telegram_message_id(signal_id: int, message_id: int):
     except Exception as e:
         logger.error("Помилка збереження message_id: %s", e)
     finally:
-        if "conn" in locals() and conn:
-            conn.close()
+        conn.close()
 
 
 def signal_live_position_already_closed(signal_id: int) -> bool:
@@ -239,8 +240,7 @@ def signal_live_position_already_closed(signal_id: int) -> bool:
         logger.error("Помилка signal_live_position_already_closed: %s", e)
         return False
     finally:
-        if "conn" in locals() and conn:
-            conn.close()
+        conn.close()
 
 
 def get_unresolved_signals() -> list:
@@ -257,8 +257,7 @@ def get_unresolved_signals() -> list:
         logger.error("Помилка отримання незакритих сигналів: %s", e)
         return []
     finally:
-        if "conn" in locals() and conn:
-            conn.close()
+        conn.close()
 
 
 if __name__ == "__main__":

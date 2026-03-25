@@ -79,6 +79,21 @@ def calculate_stake(signal: dict, bankroll: float | None = None) -> dict:
             "reason": str,  # "kelly" | "min_cap" | "max_cap" | "no_edge" | "bankroll_limit"
         }
     """
+    from bot.state import state
+    from bot.config import STAKE_USD as FIXED_STAKE
+
+    # Test mode: fixed stake, no Kelly
+    if state.mode == "test":
+        cp = signal.get("contract_price", 0.5)
+        return {
+            "win_prob": 0.60,
+            "edge": 0.10,
+            "kelly_raw": 0.0,
+            "stake_usd": FIXED_STAKE,
+            "shares": round(FIXED_STAKE / cp, 2) if cp > 0 else 0,
+            "reason": "test_fixed",
+        }
+
     br = bankroll if bankroll is not None else BANKROLL_USD
     win_prob = estimate_win_probability(signal)
     cp = signal.get("contract_price", 0.5)

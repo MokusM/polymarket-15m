@@ -1,6 +1,7 @@
 import asyncio
 import html
 import logging
+import sqlite3
 from datetime import datetime, timezone
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
@@ -282,7 +283,10 @@ async def send_alert(signal_id: int, signal: dict):
 
     from bot.risk import calculate_stake, format_risk_line
 
-    risk = calculate_stake(signal)
+    bankroll = None
+    if _execution_client and _execution_client.ready and state.mode != "test":
+        bankroll = await _execution_client.get_balance()
+    risk = calculate_stake(signal, bankroll=bankroll)
     risk_text = format_risk_line(risk)
 
     client_ready = bool(_execution_client and _execution_client.ready)
@@ -364,24 +368,21 @@ async def process_decision(callback_query: types.CallbackQuery):
             signal_id = int(sig_id_str)
             update_decision(signal_id, action)
 
-            emojis = {"approve": "\u2705", "reject": "\u274c", "skip": "\u23ed"}
-            action_text = f"Вибрано: {emojis.get(action, '')} {action.capitalize()}"
-
-            original_text = callback_query.message.html_text
-            new_text = f"{original_text}\n\n<b>{action_text}</b>"
+            emojis = {"approve": "✅", "reject": "❌", "skip": "⏭"}
+            action_label = f"{emojis.get(action, '')} {action.capitalize()}"
 
             order_text = ""
             if action == "approve" and state.is_live_allowed and _execution_client and _execution_client.ready:
                 order_text = await _execute_live_order(signal_id)
 
+            msg_text = f"<b>{action_label}</b>"
             if order_text:
-                new_text += f"\n{order_text}"
+                msg_text += f"\n{order_text}"
 
-            await bot.edit_message_text(
+            await bot.send_message(
                 chat_id=callback_query.message.chat.id,
-                message_id=callback_query.message.message_id,
-                text=new_text,
-                parse_mode="HTML"
+                text=msg_text,
+                parse_mode="HTML",
             )
         except Exception as e:
             logger.error("Помилка decision: %s", e)
@@ -501,98 +502,6 @@ async def _execute_live_order(signal_id: int) -> str:
     )
 
 
-async def edit_signal_result(
-    telegram_message_id: int,
-    alert_html: str,
-    decision: str,
-    result: str,
-    pnl: float,
-    stake_usd: float = 0,
-    contract_price: float = 0,
-    direction: str = "",
-):
-    if not bot or not CHAT_ID or not telegram_message_id:
-        return
-
-    decision_icons = {"approve": "\u2705", "reject": "\u274c", "skip": "\u23ed"}
-    decision_line = ""
-    if decision and decision != "pending":
-        d_icon = decision_icons.get(decision, "")
-        decision_line = f"\n<b>\u0412\u0438\u0431\u0440\u0430\u043d\u043e: {d_icon} {decision.capitalize()}</b>"
-
-    separator = "\u2500" * 18
-
-    if result == "NO_ENTRY":
-        result_line = (
-            f"\n\n{separator}\n"
-            f"\U0001f4a4 <b>\u0411\u0435\u0437 \u043f\u043e\u0437\u0438\u0446\u0456\u0457 \u043d\u0430 CLOB</b>\n"
-            f"<i>Live-\u043e\u0440\u0434\u0435\u0440 \u043d\u0435 \u0434\u0430\u0432 \u0444\u0430\u043a\u0442\u0438\u0447\u043d\u043e\u0433\u043e fill "
-            f"(\u0430\u0431\u043e \u0441\u043a\u0430\u0441\u043e\u0432\u0430\u043d\u043e). "
-            f"\u0420\u0435\u0437\u0443\u043b\u044c\u0442\u0430\u0442 \u043c\u0430\u0440\u043a\u0435\u0442\u0443 \u043d\u0435 \u0440\u0430\u0445\u0443\u0454\u0442\u044c\u0441\u044f \u044f\u043a paper LOSS/WIN.</i>"
-        )
-        new_text = (alert_html or "") + decision_line + result_line
-        try:
-            await bot.edit_message_text(
-                chat_id=CHAT_ID,
-                message_id=telegram_message_id,
-                text=new_text,
-                parse_mode="HTML",
-            )
-        except Exception as e:
-            logger.error("\u041f\u043e\u043c\u0438\u043b\u043a\u0430 edit result #%s: %s", telegram_message_id, e)
-        return
-
-    if result == "CLOSED_EARLY":
-        result_line = (
-            f"\n\n{separator}\n"
-            f"\U0001f4cb <b>\u041f\u043e\u0437\u0438\u0446\u0456\u044e \u0432\u0436\u0435 \u0437\u0430\u043a\u0440\u0438\u0442\u043e \u043c\u043e\u043d\u0456\u0442\u043e\u0440\u043e\u043c</b>\n"
-            f"<i>PnL \u0432\u0436\u0435 \u0432\u0456\u0434\u043e\u0431\u0440\u0430\u0436\u0435\u043d\u043e \u0432 \u043f\u043e\u0432\u0456\u0434\u043e\u043c\u043b\u0435\u043d\u043d\u044f\u0445 SL/TP. "
-            f"\u041f\u043e\u0432\u0442\u043e\u0440\u043d\u0438\u0439 paper WIN/LOSS \u0437\u0430 \u0440\u0435\u0437\u043e\u043b\u0432 \u043c\u0430\u0440\u043a\u0435\u0442\u0443 \u043d\u0435 \u0437\u0430\u0441\u0442\u043e\u0441\u043e\u0432\u0443\u0454\u0442\u044c\u0441\u044f.</i>"
-        )
-        new_text = (alert_html or "") + decision_line + result_line
-        try:
-            await bot.edit_message_text(
-                chat_id=CHAT_ID,
-                message_id=telegram_message_id,
-                text=new_text,
-                parse_mode="HTML",
-            )
-        except Exception as e:
-            logger.error("\u041f\u043e\u043c\u0438\u043b\u043a\u0430 edit result #%s: %s", telegram_message_id, e)
-        return
-
-    result_icon = "\u2705" if result == "WIN" else "\u274c"
-    pnl_sign = f"+{pnl:.2f}" if pnl >= 0 else f"{pnl:.2f}"
-
-    details = ""
-    if stake_usd > 0 and contract_price > 0:
-        side = "YES" if direction == "UP" else "NO"
-        shares = stake_usd / contract_price
-        payout = shares * 1.0 if result == "WIN" else 0
-        details = (
-            f"\n\U0001f4b5 {side} @ {contract_price:.2f} | "
-            f"${stake_usd:.2f} \u2192 ${payout:.2f} ({shares:.1f} shares)"
-        )
-
-    result_line = (
-        f"\n\n{separator}"
-        f"{details}\n"
-        f"{result_icon} <b>{result}</b> | PnL: <b>{pnl_sign} USD</b>"
-    )
-
-    new_text = (alert_html or "") + decision_line + result_line
-
-    try:
-        await bot.edit_message_text(
-            chat_id=CHAT_ID,
-            message_id=telegram_message_id,
-            text=new_text,
-            parse_mode="HTML",
-        )
-    except Exception as e:
-        logger.error("\u041f\u043e\u043c\u0438\u043b\u043a\u0430 edit result #%s: %s", telegram_message_id, e)
-
-
 async def send_info_message(text: str):
     if not bot or not CHAT_ID:
         return
@@ -600,6 +509,77 @@ async def send_info_message(text: str):
         await bot.send_message(chat_id=CHAT_ID, text=text, parse_mode="HTML")
     except Exception as e:
         logger.error("Помилка інфо-повідомлення: %s", e)
+
+
+async def send_daily_report():
+    """Надіслати щоденний звіт о 8:00 Київського часу."""
+    from zoneinfo import ZoneInfo
+    from datetime import timezone
+    from bot.config import DB_PATH_TEST, DB_PATH_LIVE
+    from bot.position_manager import count_open_positions
+
+    kyiv_tz = ZoneInfo("Europe/Kyiv")
+    now_kyiv = datetime.now(kyiv_tz)
+    today_start_kyiv = now_kyiv.replace(hour=0, minute=0, second=0, microsecond=0)
+    today_start_utc = today_start_kyiv.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+
+    lines = [f"📊 <b>Денний звіт — {now_kyiv.strftime('%d.%m.%Y')}</b>\n"]
+
+    for label, db_path in [("🧪 Test", DB_PATH_TEST), ("💰 Live", DB_PATH_LIVE)]:
+        try:
+            conn = sqlite3.connect(db_path)
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                "SELECT result, pnl, direction, contract_price FROM signals "
+                "WHERE decision='approve' AND result IS NOT NULL "
+                "AND result NOT IN ('NO_ENTRY','CLOSED_EARLY') "
+                "AND timestamp >= ?",
+                (today_start_utc,),
+            ).fetchall()
+            conn.close()
+        except Exception:
+            continue
+
+        if not rows:
+            lines.append(f"<b>{label}:</b> немає трейдів за сьогодні")
+            continue
+
+        total = len(rows)
+        wins = sum(1 for r in rows if r["result"] == "WIN")
+        total_pnl = sum(float(r["pnl"] or 0) for r in rows)
+        wr = wins / total * 100 if total else 0
+        pnl_str = f"+{total_pnl:.2f}" if total_pnl >= 0 else f"{total_pnl:.2f}"
+
+        lines.append(
+            f"<b>{label}:</b> {total} трейдів | WR: {wr:.0f}% | PnL: <b>{pnl_str} USD</b>"
+        )
+
+    open_pos = count_open_positions()
+    lines.append(f"\nВідкритих позицій: {open_pos}")
+
+    await send_info_message("\n".join(lines))
+
+
+async def daily_report_scheduler():
+    """Надсилає звіт щодня о 8:00 Київського часу."""
+    from zoneinfo import ZoneInfo
+    from datetime import timedelta
+
+    kyiv_tz = ZoneInfo("Europe/Kyiv")
+    logger.info("Планувальник щоденного звіту запущено (8:00 Київського часу)")
+
+    while True:
+        now = datetime.now(kyiv_tz)
+        next_8 = now.replace(hour=8, minute=0, second=0, microsecond=0)
+        if now >= next_8:
+            next_8 += timedelta(days=1)
+        wait_sec = (next_8 - now).total_seconds()
+        logger.info("Наступний звіт через %.0f хвилин", wait_sec / 60)
+        await asyncio.sleep(wait_sec)
+        try:
+            await send_daily_report()
+        except Exception as e:
+            logger.error("Помилка надсилання денного звіту: %s", e)
 
 
 async def start_telegram_polling():

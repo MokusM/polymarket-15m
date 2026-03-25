@@ -83,7 +83,7 @@ BANKROLL_USD = float(os.getenv("BANKROLL_USD", "20"))
 KELLY_FRACTION = float(os.getenv("KELLY_FRACTION", "0.25"))
 MIN_STAKE_USD = float(os.getenv("MIN_STAKE_USD", "1"))
 MAX_STAKE_USD = float(os.getenv("MAX_STAKE_USD", "5"))
-MAX_OPEN_POSITIONS = int(os.getenv("MAX_OPEN_POSITIONS", "3"))
+MAX_OPEN_POSITIONS = int(os.getenv("MAX_OPEN_POSITIONS", "1"))
 
 # Stop-loss & take-profit levels (absolute contract price)
 SL_PERCENT = float(os.getenv("SL_PERCENT", "40"))
@@ -106,5 +106,13 @@ CIRCUIT_BREAKER_LOSSES = int(os.getenv("CIRCUIT_BREAKER_LOSSES", "3"))
 # Session change notifications
 NOTIFY_SESSION_CHANGE = True
 
-# DB
-DB_PATH = os.path.join(os.path.dirname(__file__), "..", "signals.db")
+# DB — two databases: test mode vs live/other modes
+_BOT_DIR = os.path.dirname(__file__)
+DB_PATH_TEST = os.path.join(_BOT_DIR, "..", "test.db")
+DB_PATH_LIVE = os.path.join(_BOT_DIR, "..", "live.db")
+
+# Position monitor: 1s when position is open, POSITION_MONITOR_INTERVAL when idle
+POSITION_MONITOR_INTERVAL_ACTIVE = 1
+
+# Kyiv timezone for daily report
+KYIV_TZ_STR = "Europe/Kyiv"

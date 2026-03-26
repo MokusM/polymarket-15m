@@ -12,6 +12,7 @@ Signal = мінімум MIN_CONFLUENCE (3/5) індикаторів в одно�
 Фільтри: ATR zone, contract price 50-72¢, time left.
 """
 
+import html as _html
 import pandas as pd
 from datetime import datetime, timezone
 import logging
@@ -372,7 +373,7 @@ def diagnose_signals(market_info: dict, df: pd.DataFrame) -> str:
     lines.append(f"<b>Індикатори</b> (потрібно ≥{min_conf} в один бік):")
     arrow = {"UP": "⬆️", "DOWN": "⬇️", None: "➖"}
     for name, (vote, label) in votes.items():
-        lines.append(f"  {arrow.get(vote, '➖')} {name}: {label}")
+        lines.append(f"  {arrow.get(vote, '➖')} {name}: {_html.escape(label)}")
     lines.append(
         f"{'✅' if conf_ok else '❌'} Конфлюенс: UP={up_count} DOWN={down_count} "
         f"{'→ ' + (direction or 'NONE') if conf_ok else '→ немає сигналу'}"

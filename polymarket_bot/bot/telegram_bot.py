@@ -115,31 +115,36 @@ async def cmd_diagnose(message: types.Message):
     """Показати стан всіх фільтрів на основі останніх даних сканера."""
     from bot.signals import diagnose_signals
 
-    if _scanner is None or _scanner.last_df.empty:
-        await message.answer("⏳ Сканер ще не запустив перший цикл. Зачекай кілька секунд.")
-        return
+    try:
+        if _scanner is None or _scanner.last_df.empty:
+            await message.answer("⏳ Сканер ще не запустив перший цикл. Зачекай кілька секунд.")
+            return
 
-    df = _scanner.last_df
-    markets = _scanner.last_markets
+        df = _scanner.last_df
+        markets = _scanner.last_markets
 
-    if not markets:
-        await message.answer(
-            "❌ Активних BTC 15m маркетів не знайдено.\n"
-            "<i>Ринок відкривається кожні 15 хв.</i>",
-            parse_mode="HTML",
-        )
-        return
+        if not markets:
+            await message.answer(
+                "❌ Активних BTC 15m маркетів не знайдено.\n"
+                "<i>Ринок відкривається кожні 15 хв.</i>",
+                parse_mode="HTML",
+            )
+            return
 
-    parts = []
-    for market in markets:
-        title = market.get("title") or market.get("question") or market.get("market_id", "?")
-        report = diagnose_signals(market, df)
-        parts.append(f"<b>📌 {html.escape(str(title)[:60])}</b>\n{report}")
+        parts = []
+        for market in markets:
+            title = market.get("title") or market.get("question") or market.get("market_id", "?")
+            report = diagnose_signals(market, df)
+            parts.append(f"<b>📌 {html.escape(str(title)[:60])}</b>\n{report}")
 
-    text = "\n\n─────────────────────\n\n".join(parts)
-    if len(text) > 4000:
-        text = text[:4000] + "\n<i>...обрізано</i>"
-    await message.answer(text, parse_mode="HTML")
+        text = "\n\n─────────────────────\n\n".join(parts)
+        if len(text) > 4000:
+            text = text[:4000] + "\n<i>...обрізано</i>"
+        await message.answer(text, parse_mode="HTML")
+
+    except Exception as e:
+        logger.error("cmd_diagnose error: %s", e, exc_info=True)
+        await message.answer(f"❌ Помилка діагностики:\n<code>{html.escape(str(e))}</code>", parse_mode="HTML")
 
 
 @dp.message(Command("list"))

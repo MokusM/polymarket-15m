@@ -104,6 +104,51 @@ def store_pending_signal(signal_id: int, signal: dict):
 
 # ── Commands ──
 
+@dp.message(Command("diagnose"))
+async def cmd_diagnose(message: types.Message):
+    """Показати стан всіх фільтрів для поточного маркету."""
+    from bot.exchange_client import ExchangeClient
+    from bot.polymarket_client import PolymarketClient
+    from bot.indicators import add_indicators
+    from bot.signals import diagnose_signals
+
+    await message.answer("🔍 Збираю дані...", parse_mode="HTML")
+
+    exchange = ExchangeClient()
+    poly = PolymarketClient()
+    try:
+        markets = await poly.get_active_btc_markets()
+        df_raw = await exchange.get_btc_1m_candles(limit=100)
+    finally:
+        await exchange.close()
+        await poly.close()
+
+    if df_raw.empty:
+        await message.answer("❌ Не вдалося отримати свічки Binance.")
+        return
+
+    df = add_indicators(df_raw)
+
+    if not markets:
+        await message.answer(
+            "❌ Активних BTC 15m маркетів не знайдено.\n"
+            "<i>Ринок відкривається кожні 15 хв. Спробуй на початку нового вікна.</i>",
+            parse_mode="HTML",
+        )
+        return
+
+    parts = []
+    for market in markets:
+        title = market.get("title") or market.get("question") or market.get("market_id", "?")
+        report = diagnose_signals(market, df)
+        parts.append(f"<b>📌 {html.escape(str(title)[:60])}</b>\n{report}")
+
+    text = "\n\n─────────────────────\n\n".join(parts)
+    if len(text) > 4000:
+        text = text[:4000] + "\n<i>...обрізано</i>"
+    await message.answer(text, parse_mode="HTML")
+
+
 @dp.message(Command("list"))
 async def cmd_list(message: types.Message):
     """Список всіх доступних команд."""
@@ -112,6 +157,7 @@ async def cmd_list(message: types.Message):
         "\n"
         "📋 <b>Інформація</b>\n"
         "/status — повний статус бота (режим, live, баланс, позиції)\n"
+        "/diagnose — перевірити всі фільтри для поточного маркету\n"
         "/positions — відкриті позиції\n"
         "/balance — баланс Polymarket USDC\n"
         "/history — остання угоди з CLOB API\n"

@@ -272,3 +272,147 @@ def check_signals(market_info: dict, df: pd.DataFrame) -> dict | None:
         "chg_1h": round(chg_1h_val, 3),
         "obi": 1.0,  # placeholder; scanner overwrites with real value
     }
+
+
+# ---------------------------------------------------------------------------
+#  Diagnostic: повний звіт по фільтрах без side effects
+# ---------------------------------------------------------------------------
+
+def diagnose_signals(market_info: dict, df: pd.DataFrame) -> str:
+    """
+    Повертає текстовий звіт про те, на якому фільтрі зупинився сигнал.
+    Використовується командою /diagnose у Telegram.
+    """
+    ok = "✅"
+    fail = "❌"
+    lines = []
+
+    if df.empty or len(df) < 30:
+        return "❌ Недостатньо свічок (< 30)"
+
+    last = df.iloc[-1]
+    price = float(last.get("close", 0))
+    th = state.get_thresholds()
+
+    lines.append(f"💹 BTC: <b>${price:,.0f}</b> | режим: <b>{state.mode.upper()}</b>")
+    lines.append("")
+
+    # ATR
+    atr = last.get("atr", 0)
+    atr_zone = last.get("atr_zone", "dead")
+    atr_threshold = th.get("ATR_MIN_USD", ATR_MIN_USD)
+    atr_ok = pd.isna(atr) or float(atr) >= atr_threshold or state.mode == "test"
+    zone_ok = atr_zone != "dead" or th.get("ALLOW_DEAD_ZONE", False) or state.mode == "test"
+    atr_v = float(atr) if not pd.isna(atr) else 0
+    lines.append(
+        f"{'✅' if atr_ok and zone_ok else '❌'} ATR: <b>${atr_v:.0f}</b> "
+        f"(мін ${atr_threshold:.0f}) | зона: <b>{atr_zone}</b>"
+    )
+
+    # Time left
+    end_date_str = market_info.get("end_date_iso")
+    time_left_min = 0.0
+    if end_date_str:
+        try:
+            from datetime import timezone as _tz
+            dt = datetime.fromisoformat(end_date_str.replace("Z", "+00:00"))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=_tz.utc)
+            time_left_min = (dt - datetime.now(_tz.utc)).total_seconds() / 60.0
+        except Exception:
+            pass
+    time_window_ok = th["TIME_LEFT_MIN_MINUTES"] <= time_left_min <= th["TIME_LEFT_MAX_MINUTES"]
+    time_hard_ok = state.mode == "test" or time_left_min >= IGNORE_IF_TIME_LEFT_LT_MIN
+    lines.append(
+        f"{'✅' if time_window_ok and time_hard_ok else '❌'} Час: <b>{time_left_min:.1f} хв</b> "
+        f"(вікно {th['TIME_LEFT_MIN_MINUTES']}–{th['TIME_LEFT_MAX_MINUTES']} хв)"
+    )
+
+    # Contract price (Gamma)
+    price_yes = market_info.get("price_yes", 0.0)
+    price_no = market_info.get("price_no", 0.0)
+    cp_hard_ok = state.mode == "test" or (
+        price_yes <= IGNORE_IF_CONTRACT_PRICE_GT and price_no <= IGNORE_IF_CONTRACT_PRICE_GT
+    )
+    lines.append(
+        f"{'✅' if cp_hard_ok else '❌'} Gamma ціна: YES <b>{price_yes:.2f}</b> / NO <b>{price_no:.2f}</b> "
+        f"(hard limit ≤{IGNORE_IF_CONTRACT_PRICE_GT})"
+    )
+
+    # 5 indicator votes
+    rsi_vote, rsi_label = _vote_rsi(float(last.get("rsi_1m", 50)))
+    macd_vote, macd_label = _vote_macd(
+        float(last.get("macd_line", 0)),
+        float(last.get("macd_signal", 0)),
+        float(last.get("macd_hist", 0)),
+    )
+    vwap_vote, vwap_label = _vote_vwap(price, float(last.get("vwap", 0)))
+    ema_vote, ema_label = _vote_ema(
+        float(last.get("ema_9", 0)), float(last.get("ema_21", 0))
+    )
+    pivots_vote, pivots_label = _vote_pivots(
+        price,
+        float(last.get("pivot_high", 0)),
+        float(last.get("pivot_low", 0)),
+    )
+    votes = {
+        "RSI": (rsi_vote, rsi_label),
+        "MACD": (macd_vote, macd_label),
+        "VWAP": (vwap_vote, vwap_label),
+        "EMA": (ema_vote, ema_label),
+        "Pivots": (pivots_vote, pivots_label),
+    }
+    up_count = sum(1 for v, _ in votes.values() if v == "UP")
+    down_count = sum(1 for v, _ in votes.values() if v == "DOWN")
+    min_conf = th.get("MIN_CONFLUENCE", 3)
+    conf_ok = up_count >= min_conf or down_count >= min_conf
+    direction = "UP" if up_count >= min_conf else ("DOWN" if down_count >= min_conf else None)
+
+    lines.append("")
+    lines.append(f"<b>Індикатори</b> (потрібно ≥{min_conf} в один бік):")
+    arrow = {"UP": "⬆️", "DOWN": "⬇️", None: "➖"}
+    for name, (vote, label) in votes.items():
+        lines.append(f"  {arrow.get(vote, '➖')} {name}: {label}")
+    lines.append(
+        f"{'✅' if conf_ok else '❌'} Конфлюенс: UP={up_count} DOWN={down_count} "
+        f"{'→ ' + (direction or 'NONE') if conf_ok else '→ немає сигналу'}"
+    )
+
+    if not conf_ok:
+        return "\n".join(lines)
+
+    # Contract price zone filter
+    contract_price = price_yes if direction == "UP" else price_no
+    cp_zone_ok = th["CONTRACT_PRICE_MIN"] <= contract_price <= th["CONTRACT_PRICE_MAX"]
+    lines.append(
+        f"{'✅' if cp_zone_ok else '❌'} Ціна контракту ({direction}): "
+        f"<b>{contract_price:.2f}</b> (зона {th['CONTRACT_PRICE_MIN']:.2f}–{th['CONTRACT_PRICE_MAX']:.2f})"
+    )
+
+    # GAP
+    ptb = market_info.get("ptb")
+    if ptb:
+        gap = price - ptb
+        gap_needed = GAP_MIN_USD if direction == "UP" else -GAP_MIN_USD
+        gap_ok = (gap >= GAP_MIN_USD) if direction == "UP" else (gap <= -GAP_MIN_USD)
+        lines.append(
+            f"{'✅' if gap_ok else '❌'} GAP: BTC ${price:,.0f} vs PTB ${ptb:,.0f} "
+            f"= <b>{gap:+.0f}$</b> (мін {GAP_MIN_USD:+.0f}$)"
+        )
+        gap_val = round(gap, 2)
+    else:
+        lines.append("⚠️ PTB не спарсився — GAP через delta")
+        gap_val = 0.0
+
+    # Strict time-GAP
+    strict_ok = True
+    if state.mode != "test" and time_left_min < TIME_STRICT_MAX_MIN:
+        strict_ok = abs(gap_val) >= GAP_STRICT_USD
+        lines.append(
+            f"{'✅' if strict_ok else '❌'} Strict GAP (час {time_left_min:.1f}<{TIME_STRICT_MAX_MIN:.0f} хв): "
+            f"|GAP| {abs(gap_val):.0f}$ {'≥' if strict_ok else '<'} {GAP_STRICT_USD:.0f}$"
+        )
+
+    lines.append("")
+    lines.append("<i>OBI та CLOB spread перевіряються в scanner (не тут)</i>")
+    return "\n".join(lines)

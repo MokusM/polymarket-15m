@@ -233,7 +233,7 @@ def check_signals(market_info: dict, df: pd.DataFrame) -> dict | None:
         "current_price": price,
         "delta": delta,
         "delta_percent": delta_percent,
-        "ptb": ptb,
+        "ptb": start_price,
         "gap": gap_val,
         "contract_price": contract_price,
         "rsi_1m": float(last.get("rsi_1m", 50)),

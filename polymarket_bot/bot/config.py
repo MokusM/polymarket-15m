@@ -86,10 +86,13 @@ MAX_STAKE_USD = float(os.getenv("MAX_STAKE_USD", "5"))
 MAX_OPEN_POSITIONS = int(os.getenv("MAX_OPEN_POSITIONS", "1"))
 
 # Stop-loss & take-profit levels (absolute contract price)
+# TP ladder (PolySigma): 90¢→25%, 93¢→25%, 95¢→25%, 97¢→100%
 SL_PERCENT = float(os.getenv("SL_PERCENT", "40"))
 TP_PARTIAL_PRICE = float(os.getenv("TP_PARTIAL_PRICE", "0.90"))
-TP_PARTIAL_SELL_PCT = float(os.getenv("TP_PARTIAL_SELL_PCT", "50"))
+TP_PARTIAL_SELL_PCT = float(os.getenv("TP_PARTIAL_SELL_PCT", "25"))
+TP_MID_PRICE = float(os.getenv("TP_MID_PRICE", "0.93"))
 TP_FULL_PRICE = float(os.getenv("TP_FULL_PRICE", "0.95"))
+TP_FINAL_PRICE = float(os.getenv("TP_FINAL_PRICE", "0.97"))
 POSITION_MONITOR_INTERVAL = int(os.getenv("POSITION_MONITOR_INTERVAL", "10"))
 
 # Скільки останніх угод показує /history (CLOB /data/trades)
@@ -105,11 +108,20 @@ CIRCUIT_BREAKER_LOSSES = int(os.getenv("CIRCUIT_BREAKER_LOSSES", "3"))
 
 # GAP filter: |current_price - start_price| must exceed this threshold (USD)
 GAP_MIN_USD = float(os.getenv("GAP_MIN_USD", "50"))
+# Strict GAP required when price > CONTRACT_PRICE_HIGH_MIN or time < TIME_STRICT_MAX_MIN
+GAP_STRICT_USD = float(os.getenv("GAP_STRICT_USD", "100"))
+# CLOB ask price above this → require GAP_STRICT_USD (FLB zone)
+CONTRACT_PRICE_HIGH_MIN = float(os.getenv("CONTRACT_PRICE_HIGH_MIN", "0.75"))
+# Time left below this (min) → require GAP_STRICT_USD
+TIME_STRICT_MAX_MIN = float(os.getenv("TIME_STRICT_MAX_MIN", "5.0"))
 
 # OBI filter: bid_volume / ask_volume must exceed this ratio (1.0 = neutral)
 OBI_MIN_RATIO = float(os.getenv("OBI_MIN_RATIO", "1.2"))
 # Number of top orderbook levels to sum for OBI calculation
 OBI_LEVELS = int(os.getenv("OBI_LEVELS", "5"))
+
+# CLOB bid-ask spread gate: skip signal if spread > this value
+CLOB_SPREAD_MAX = float(os.getenv("CLOB_SPREAD_MAX", "0.03"))
 
 # Session change notifications
 NOTIFY_SESSION_CHANGE = True

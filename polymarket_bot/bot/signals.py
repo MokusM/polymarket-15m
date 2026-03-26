@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 import logging
 from typing import Optional
 
-from bot.config import IGNORE_IF_TIME_LEFT_LT_MIN, IGNORE_IF_CONTRACT_PRICE_GT, ATR_MIN_USD, GAP_MIN_USD
+from bot.config import IGNORE_IF_TIME_LEFT_LT_MIN, IGNORE_IF_CONTRACT_PRICE_GT, ATR_MIN_USD, GAP_MIN_USD, GAP_STRICT_USD, TIME_STRICT_MAX_MIN
 from bot.state import state
 
 logger = logging.getLogger(__name__)
@@ -241,6 +241,15 @@ def check_signals(market_info: dict, df: pd.DataFrame) -> dict | None:
     ema_position = f"{ema_pos} EMA9 ({ema_9_slope:+.1f})"
 
     gap_val = round(price - ptb, 2) if ptb else round(delta, 2)
+
+    # --- Strict time-GAP filter: <5 min left → must have GAP ≥ $100 ---
+    if state.mode != "test" and time_left_min < TIME_STRICT_MAX_MIN:
+        if abs(gap_val) < GAP_STRICT_USD:
+            logger.debug(
+                "Time %.1f min < %.0f min, GAP %.1f < %.0f — skip",
+                time_left_min, TIME_STRICT_MAX_MIN, abs(gap_val), GAP_STRICT_USD,
+            )
+            return None
 
     return {
         "direction": direction,

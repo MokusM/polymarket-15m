@@ -165,23 +165,24 @@ async def cmd_diagnose(message: types.Message):
                     continue
                 try:
                     clob_ask, clob_bid = await _scanner._fetch_clob_best_prices(token_id)
-                    # Validate: skip if CLOB mid is far from Gamma price (empty book)
-                    gamma_ref = gamma_yes if token_label == "YES" else (1 - gamma_yes)
-                    clob_mid = (clob_ask + clob_bid) / 2 if clob_ask > 0 and clob_bid > 0 else 0
-                    if clob_mid > 0 and abs(clob_mid - gamma_ref) > 0.25:
-                        obi_lines.append(f"⚠️ CLOB {token_label}: порожній стакан (bid {clob_bid:.2f}/ask {clob_ask:.2f} ≠ Gamma {gamma_ref:.2f})")
+                    if clob_ask <= 0 or clob_bid <= 0:
+                        obi_lines.append(f"➖ CLOB {token_label}: немає даних")
                         continue
-                    if clob_ask > 0 and clob_bid > 0:
-                        spread = clob_ask - clob_bid
-                        spread_ok = spread <= CLOB_SPREAD_MAX
+                    spread = clob_ask - clob_bid
+                    # Spread > 0.20 = empty/illiquid book (nominal 0.01/0.99 orders)
+                    if spread > 0.20:
+                        gamma_ref = gamma_yes if token_label == "YES" else (1 - gamma_yes)
+                        obi_lines.append(f"⚠️ CLOB {token_label}: порожній стакан (Gamma {gamma_ref:.2f})")
+                        continue
+                    spread_ok = spread <= CLOB_SPREAD_MAX
+                    obi_lines.append(
+                        f"{'✅' if spread_ok else '❌'} CLOB {token_label}: bid <b>{clob_bid:.2f}</b> ask <b>{clob_ask:.2f}</b>"
+                        f" спред <b>{spread:.3f}</b> (макс {CLOB_SPREAD_MAX})"
+                    )
+                    if clob_ask > CONTRACT_PRICE_HIGH_MIN:
                         obi_lines.append(
-                            f"{'✅' if spread_ok else '❌'} CLOB {token_label}: bid <b>{clob_bid:.2f}</b> ask <b>{clob_ask:.2f}</b>"
-                            f" спред <b>{spread:.3f}</b> (макс {CLOB_SPREAD_MAX})"
+                            f"  ⚠️ Ask {clob_ask:.2f} &gt; {CONTRACT_PRICE_HIGH_MIN} → потрібен GAP ≥ {GAP_STRICT_USD:.0f}$"
                         )
-                        if clob_ask > CONTRACT_PRICE_HIGH_MIN:
-                            obi_lines.append(
-                                f"  ⚠️ Ask {clob_ask:.2f} &gt; {CONTRACT_PRICE_HIGH_MIN} → потрібен GAP ≥ {GAP_STRICT_USD:.0f}$"
-                            )
                 except Exception:
                     pass
 

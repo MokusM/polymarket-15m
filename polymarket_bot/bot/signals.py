@@ -331,8 +331,8 @@ def diagnose_signals(market_info: dict, df: pd.DataFrame) -> str:
         price_yes <= IGNORE_IF_CONTRACT_PRICE_GT and price_no <= IGNORE_IF_CONTRACT_PRICE_GT
     )
     lines.append(
-        f"{'✅' if cp_hard_ok else '❌'} Gamma ціна: YES <b>{price_yes:.2f}</b> / NO <b>{price_no:.2f}</b> "
-        f"(hard limit ≤{IGNORE_IF_CONTRACT_PRICE_GT})"
+        f"{'✅' if cp_hard_ok else '❌'} Gamma ціна (AMM): YES <b>{price_yes:.2f}</b> / NO <b>{price_no:.2f}</b> "
+        f"<i>— CLOB ask може бути на 5-10¢ вище</i>"
     )
 
     # 5 indicator votes

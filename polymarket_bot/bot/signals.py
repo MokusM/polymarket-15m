@@ -297,9 +297,13 @@ def diagnose_signals(market_info: dict, df: pd.DataFrame) -> str:
 
     lines.append(f"💹 BTC: <b>${price:,.0f}</b> | режим: <b>{state.mode.upper()}</b>")
     ptb_raw = market_info.get("ptb")
-    question_raw = market_info.get("question") or market_info.get("title") or ""
-    lines.append(f"📋 question: <code>{_html.escape(question_raw[:120])}</code>")
     lines.append(f"🎯 PTB: <b>{'$' + str(ptb_raw) if ptb_raw else '❌ не спарсено'}</b>")
+    # Show all string fields to find where PTB hides
+    skip_keys = {"token_yes_id", "token_no_id", "market_id", "event_id"}
+    for k, v in market_info.items():
+        if k in skip_keys or v is None:
+            continue
+        lines.append(f"  <code>{_html.escape(k)}</code>: {_html.escape(str(v)[:100])}")
     lines.append("")
 
     # ATR

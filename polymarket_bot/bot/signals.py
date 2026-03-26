@@ -392,18 +392,20 @@ def diagnose_signals(market_info: dict, df: pd.DataFrame) -> str:
         start_price = float(df.iloc[-15]["open"]) if len(df) >= 15 else price
     gap_val = round(price - start_price, 2)
     gap_ok = (gap_val >= GAP_MIN_USD) if direction == "UP" else (gap_val <= -GAP_MIN_USD)
+    needed = f"+{GAP_MIN_USD:.0f}$" if direction == "UP" else f"-{GAP_MIN_USD:.0f}$"
     lines.append(
         f"{'✅' if gap_ok else '❌'} GAP: BTC ${price:,.0f} vs вікно-старт ${start_price:,.0f} "
-        f"= <b>{gap_val:+.0f}$</b> (мін {GAP_MIN_USD:+.0f}$)"
+        f"= <b>{gap_val:+.0f}$</b> (потрібно {needed} для {direction})"
     )
 
     # Strict time-GAP
     strict_ok = True
     if state.mode != "test" and time_left_min < TIME_STRICT_MAX_MIN:
         strict_ok = abs(gap_val) >= GAP_STRICT_USD
+        needed_strict = f"+{GAP_STRICT_USD:.0f}$" if direction == "UP" else f"-{GAP_STRICT_USD:.0f}$"
         lines.append(
             f"{'✅' if strict_ok else '❌'} Strict GAP (час {time_left_min:.1f}&lt;{TIME_STRICT_MAX_MIN:.0f} хв): "
-            f"|GAP| {abs(gap_val):.0f}$ {'≥' if strict_ok else '&lt;'} {GAP_STRICT_USD:.0f}$"
+            f"GAP {gap_val:+.0f}$ (потрібно {needed_strict})"
         )
 
     lines.append("")

@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 import logging
 from typing import Optional
 
-from bot.config import IGNORE_IF_TIME_LEFT_LT_MIN, IGNORE_IF_CONTRACT_PRICE_GT, ATR_MIN_USD, GAP_MIN_USD, GAP_STRICT_USD, TIME_STRICT_MAX_MIN
+from bot.config import IGNORE_IF_TIME_LEFT_LT_MIN, IGNORE_IF_CONTRACT_PRICE_GT, ATR_MIN_USD
 from bot.state import state
 
 logger = logging.getLogger(__name__)
@@ -215,20 +215,7 @@ def check_signals(market_info: dict, df: pd.DataFrame) -> dict | None:
     delta = price - start_price
     delta_percent = (delta / start_price) * 100 if start_price > 0 else 0
 
-    # --- GAP filter: BTC vs PTB ---
-    # Для btc-updown-15m маркетів PTB = ціна BTC на початку вікна (start_price).
-    # Немає фіксованого страйку в питанні — GAP = delta = current - window_open.
-    ptb = start_price
     gap_val = round(delta, 2)  # позитивний = BTC вище ніж на старті вікна
-
-    if state.mode != "test":
-        gap_ok = (gap_val >= GAP_MIN_USD) if direction == "UP" else (gap_val <= -GAP_MIN_USD)
-        if not gap_ok:
-            logger.debug(
-                "GAP %.1f недостатній для %s (threshold=%.0f) — skip",
-                gap_val, direction, GAP_MIN_USD,
-            )
-            return None
 
     chg_1h = last.get("chg_1h", 0)
     chg_1h_val = float(chg_1h) if not pd.isna(chg_1h) else 0
@@ -237,15 +224,6 @@ def check_signals(market_info: dict, df: pd.DataFrame) -> dict | None:
     # backwards-compat fields for storage columns
     ema_pos = "above" if ema_vote == "UP" else "below" if ema_vote == "DOWN" else "at"
     ema_position = f"{ema_pos} EMA9 ({ema_9_slope:+.1f})"
-
-    # --- Strict time-GAP filter: <5 min left → must have GAP ≥ $100 ---
-    if state.mode != "test" and time_left_min < TIME_STRICT_MAX_MIN:
-        if abs(gap_val) < GAP_STRICT_USD:
-            logger.debug(
-                "Time %.1f min < %.0f min, GAP %.1f < %.0f — skip",
-                time_left_min, TIME_STRICT_MAX_MIN, abs(gap_val), GAP_STRICT_USD,
-            )
-            return None
 
     return {
         "direction": direction,

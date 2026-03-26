@@ -2,7 +2,6 @@ import asyncio
 import logging
 from datetime import datetime
 
-import httpx
 import pandas as pd
 
 from bot.config import (
@@ -11,11 +10,6 @@ from bot.config import (
     MAX_SIGNALS_PER_ROUND_PER_SIDE,
     REPEAT_ALERTS_AFTER_COOLDOWN,
     NOTIFY_SESSION_CHANGE,
-    OBI_MIN_RATIO,
-    OBI_LEVELS,
-    CLOB_SPREAD_MAX,
-    CONTRACT_PRICE_HIGH_MIN,
-    GAP_STRICT_USD,
 )
 from bot.exchange_client import ExchangeClient
 from bot.polymarket_client import PolymarketClient
@@ -98,59 +92,7 @@ class Scanner:
                         direction = signal["direction"]
                         market_id = str(market_prices["market_id"])
 
-                        # ── OBI filter (Binance stakan, skip in test mode) ──
-                        obi = 1.0
-                        if state.mode != "test":
-                            obi = await self.exchange.get_order_book_imbalance(
-                                levels=OBI_LEVELS
-                            )
-                            # UP: потрібен bid > ask (bullish); DOWN: потрібен ask > bid
-                            # OBI_MIN_RATIO=0 → фільтр вимкнено
-                            if OBI_MIN_RATIO <= 0:
-                                obi_pass = True
-                            else:
-                                obi_pass = (
-                                    obi >= OBI_MIN_RATIO
-                                    if direction == "UP"
-                                    else obi <= (1.0 / OBI_MIN_RATIO)
-                                )
-                            if not obi_pass:
-                                logger.debug(
-                                    "OBI %.3f не відповідає напрямку %s (threshold=%.2f) — skip",
-                                    obi, direction, OBI_MIN_RATIO,
-                                )
-                                continue
-                        signal["obi"] = obi
-
-                        # ── CLOB spread + high-price GAP gate (skip in test mode) ──
-                        if state.mode != "test":
-                            token_id = (
-                                market_prices.get("token_yes_id")
-                                if direction == "UP"
-                                else market_prices.get("token_no_id")
-                            )
-                            if token_id:
-                                clob_ask, clob_bid = await self._fetch_clob_best_prices(token_id)
-
-                                # Priority 4: spread gate
-                                if clob_ask > 0 and clob_bid > 0:
-                                    spread = clob_ask - clob_bid
-                                    if spread > CLOB_SPREAD_MAX:
-                                        logger.debug(
-                                            "CLOB spread %.3f > %.3f — skip",
-                                            spread, CLOB_SPREAD_MAX,
-                                        )
-                                        continue
-
-                                # Priority 1: high-price GAP gate
-                                if clob_ask > CONTRACT_PRICE_HIGH_MIN:
-                                    gap = signal.get("gap", 0)
-                                    if abs(gap) < GAP_STRICT_USD:
-                                        logger.debug(
-                                            "CLOB ask %.2f > %.2f (FLB zone) but GAP %.1f < %.0f — skip",
-                                            clob_ask, CONTRACT_PRICE_HIGH_MIN, gap, GAP_STRICT_USD,
-                                        )
-                                        continue
+                        signal["obi"] = 1.0
 
                         key = f"{market_id}_{direction}"
                         now = datetime.now().timestamp()
@@ -211,28 +153,6 @@ class Scanner:
         text = format_session_alert_html(current, btc_price, atr, atr_zone, chg_1h)
         asyncio.create_task(send_info_message(text))
         logger.info("Session change → %s", current)
-
-    async def _fetch_clob_best_prices(self, token_id: str) -> tuple[float, float]:
-        """Return (best_ask, best_bid) from CLOB public book API. Returns (0, 0) on error."""
-        try:
-            async with httpx.AsyncClient(timeout=3.0) as client:
-                r = await client.get(
-                    "https://clob.polymarket.com/book",
-                    params={"token_id": token_id},
-                )
-                if r.status_code != 200:
-                    return 0.0, 0.0
-                data = r.json()
-                asks = data.get("asks") or []
-                bids = data.get("bids") or []
-                # Polymarket CLOB sorts asks DESC (worst→best) and bids ASC (worst→best)
-                # so best ask = asks[-1], best bid = bids[-1]
-                best_ask = float(asks[-1]["price"]) if asks else 0.0
-                best_bid = float(bids[-1]["price"]) if bids else 0.0
-                return best_ask, best_bid
-        except Exception as e:
-            logger.debug("_fetch_clob_best_prices(%s): %s", token_id[:12], e)
-            return 0.0, 0.0
 
     async def close(self):
         await self.exchange.close()

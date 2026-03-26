@@ -199,7 +199,7 @@ def check_signals(market_info: dict, df: pd.DataFrame) -> dict | None:
     if not (th["CONTRACT_PRICE_MIN"] <= contract_price <= th["CONTRACT_PRICE_MAX"]):
         return None
 
-    # --- Start price ---
+    # --- Start price (для відображення руху BTC у вікні) ---
     event_start_iso = market_info.get("event_start_time")
     start_price = _binance_open_at_polymarket_window_start(df, event_start_iso)
     start_price_source = "pm_window_binance_open"
@@ -214,10 +214,23 @@ def check_signals(market_info: dict, df: pd.DataFrame) -> dict | None:
     delta = price - start_price
     delta_percent = (delta / start_price) * 100 if start_price > 0 else 0
 
-    # --- GAP filter: |delta| must exceed GAP_MIN_USD ---
-    if state.mode != "test" and abs(delta) < GAP_MIN_USD:
-        logger.debug("GAP %.1f < %.1f — skip", abs(delta), GAP_MIN_USD)
-        return None
+    # --- GAP filter: BTC vs PTB (страйк-ціна маркету) ---
+    ptb = market_info.get("ptb")
+    if state.mode != "test":
+        if ptb:
+            gap = price - ptb  # позитивний = BTC вище страйку
+            gap_ok = (gap >= GAP_MIN_USD) if direction == "UP" else (gap <= -GAP_MIN_USD)
+            if not gap_ok:
+                logger.debug(
+                    "GAP %.1f недостатній для %s (PTB=%.0f, threshold=%.0f) — skip",
+                    gap, direction, ptb, GAP_MIN_USD,
+                )
+                return None
+        else:
+            # PTB не спарсився — fallback на старий delta-GAP
+            if abs(delta) < GAP_MIN_USD:
+                logger.debug("GAP fallback: delta %.1f < %.1f — skip", abs(delta), GAP_MIN_USD)
+                return None
 
     chg_1h = last.get("chg_1h", 0)
     chg_1h_val = float(chg_1h) if not pd.isna(chg_1h) else 0
@@ -227,6 +240,8 @@ def check_signals(market_info: dict, df: pd.DataFrame) -> dict | None:
     ema_pos = "above" if ema_vote == "UP" else "below" if ema_vote == "DOWN" else "at"
     ema_position = f"{ema_pos} EMA9 ({ema_9_slope:+.1f})"
 
+    gap_val = round(price - ptb, 2) if ptb else round(delta, 2)
+
     return {
         "direction": direction,
         "confluence": confluence,
@@ -235,6 +250,8 @@ def check_signals(market_info: dict, df: pd.DataFrame) -> dict | None:
         "current_price": price,
         "delta": delta,
         "delta_percent": delta_percent,
+        "ptb": ptb,
+        "gap": gap_val,
         "contract_price": contract_price,
         "rsi_1m": float(last.get("rsi_1m", 50)),
         "ema_position": ema_position,

@@ -1,6 +1,7 @@
 import httpx
 import logging
 import json
+import re
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 from zoneinfo import ZoneInfo
@@ -21,6 +22,19 @@ def _candidate_btc_15m_unix_starts() -> list[int]:
     return sorted(
         {int((base + timedelta(minutes=m)).timestamp()) for m in (-15, 0, 15)}
     )
+
+
+def _parse_ptb(question: str) -> Optional[float]:
+    """Парсить страйк-ціну (PTB) з тексту питання: 'Will BTC be above $69,500...'"""
+    if not question:
+        return None
+    m = re.search(r"\$([0-9,]+(?:\.[0-9]+)?)", question)
+    if m:
+        try:
+            return float(m.group(1).replace(",", ""))
+        except ValueError:
+            pass
+    return None
 
 
 def _parse_clob_token_ids(market: dict[str, Any]) -> tuple[str, str]:
@@ -123,6 +137,12 @@ class PolymarketClient:
             )
 
             event_start = market.get("eventStartTime") or event.get("startTime")
+            question = market.get("question") or ""
+            ptb = _parse_ptb(question)
+            if ptb:
+                logger.debug("PTB parsed: $%.0f from '%s'", ptb, question)
+            else:
+                logger.warning("PTB not parsed from question: '%s'", question)
 
             btc_markets.append(
                 {
@@ -131,13 +151,14 @@ class PolymarketClient:
                     "market_slug": market.get("slug") or slug,
                     "neg_risk": bool(market.get("negRisk", False)),
                     "title": title,
-                    "question": market.get("question"),
+                    "question": question,
                     "price_yes": price_yes,
                     "price_no": price_no,
                     "end_date_iso": end_str,
                     "event_start_time": event_start,
                     "token_yes_id": token_yes_id,
                     "token_no_id": token_no_id,
+                    "ptb": ptb,
                 }
             )
 

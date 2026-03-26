@@ -289,7 +289,7 @@ def diagnose_signals(market_info: dict, df: pd.DataFrame) -> str:
     lines = []
 
     if df.empty or len(df) < 30:
-        return "❌ Недостатньо свічок (< 30)"
+        return "❌ Недостатньо свічок (&lt; 30)"
 
     last = df.iloc[-1]
     price = float(last.get("close", 0))
@@ -410,8 +410,8 @@ def diagnose_signals(market_info: dict, df: pd.DataFrame) -> str:
     if state.mode != "test" and time_left_min < TIME_STRICT_MAX_MIN:
         strict_ok = abs(gap_val) >= GAP_STRICT_USD
         lines.append(
-            f"{'✅' if strict_ok else '❌'} Strict GAP (час {time_left_min:.1f}<{TIME_STRICT_MAX_MIN:.0f} хв): "
-            f"|GAP| {abs(gap_val):.0f}$ {'≥' if strict_ok else '<'} {GAP_STRICT_USD:.0f}$"
+            f"{'✅' if strict_ok else '❌'} Strict GAP (час {time_left_min:.1f}&lt;{TIME_STRICT_MAX_MIN:.0f} хв): "
+            f"|GAP| {abs(gap_val):.0f}$ {'≥' if strict_ok else '&lt;'} {GAP_STRICT_USD:.0f}$"
         )
 
     lines.append("")

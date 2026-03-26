@@ -225,8 +225,10 @@ class Scanner:
                 data = r.json()
                 asks = data.get("asks") or []
                 bids = data.get("bids") or []
-                best_ask = float(asks[0]["price"]) if asks else 0.0
-                best_bid = float(bids[0]["price"]) if bids else 0.0
+                # Polymarket CLOB sorts asks DESC (worst→best) and bids ASC (worst→best)
+                # so best ask = asks[-1], best bid = bids[-1]
+                best_ask = float(asks[-1]["price"]) if asks else 0.0
+                best_bid = float(bids[-1]["price"]) if bids else 0.0
                 return best_ask, best_bid
         except Exception as e:
             logger.debug("_fetch_clob_best_prices(%s): %s", token_id[:12], e)

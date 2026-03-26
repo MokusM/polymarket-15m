@@ -133,10 +133,10 @@ async def cmd_diagnose(message: types.Message):
 
         from bot.config import OBI_MIN_RATIO, OBI_LEVELS, CLOB_SPREAD_MAX, CONTRACT_PRICE_HIGH_MIN, GAP_STRICT_USD
 
-        # Fetch OBI once (same for all markets — it's Binance BTC/USDT orderbook)
+        # Fetch OBI with more levels for stable reading
         obi = None
         try:
-            obi = await _scanner.exchange.get_order_book_imbalance(levels=OBI_LEVELS)
+            obi = await _scanner.exchange.get_order_book_imbalance(levels=20)
         except Exception:
             pass
 
@@ -145,44 +145,45 @@ async def cmd_diagnose(message: types.Message):
             title = market.get("title") or market.get("market_id", "?")
             report = diagnose_signals(market, df)
 
-            # OBI line
             obi_lines = []
+
+            # OBI line
             if obi is not None and OBI_MIN_RATIO > 0:
                 direction_guess = "UP" if market.get("price_yes", 0.5) > 0.5 else "DOWN"
-                if direction_guess == "UP":
-                    obi_ok = obi >= OBI_MIN_RATIO
-                    obi_needed = f"≥{OBI_MIN_RATIO}"
-                else:
-                    obi_ok = obi <= (1.0 / OBI_MIN_RATIO)
-                    obi_needed = f"≤{1.0/OBI_MIN_RATIO:.2f}"
+                obi_ok = obi >= OBI_MIN_RATIO if direction_guess == "UP" else obi <= (1.0 / OBI_MIN_RATIO)
+                obi_needed = f"≥{OBI_MIN_RATIO}" if direction_guess == "UP" else f"≤{1.0/OBI_MIN_RATIO:.2f}"
                 obi_lines.append(
-                    f"{'✅' if obi_ok else '❌'} OBI (Binance): <b>{obi:.3f}</b> (потрібно {obi_needed} для {direction_guess})"
+                    f"{'✅' if obi_ok else '❌'} OBI (Binance top-20): <b>{obi:.3f}</b> (потрібно {obi_needed} для {direction_guess})"
                 )
             elif obi is not None:
-                obi_lines.append(f"➖ OBI: <b>{obi:.3f}</b> (фільтр вимкнено, OBI_MIN_RATIO=0)")
+                obi_lines.append(f"➖ OBI (Binance top-20): <b>{obi:.3f}</b> (фільтр вимкнено)")
 
-            # CLOB spread line
-            token_yes = market.get("token_yes_id", "")
-            token_no = market.get("token_no_id", "")
-            token_id = token_yes or token_no
-            if token_id:
+            # CLOB spread — check both tokens, pick the one that matches Gamma price
+            gamma_yes = market.get("price_yes", 0.5)
+            for token_label, token_id in [("YES", market.get("token_yes_id", "")), ("NO", market.get("token_no_id", ""))]:
+                if not token_id:
+                    continue
                 try:
                     clob_ask, clob_bid = await _scanner._fetch_clob_best_prices(token_id)
+                    # Validate: skip if CLOB mid is far from Gamma price (empty book)
+                    gamma_ref = gamma_yes if token_label == "YES" else (1 - gamma_yes)
+                    clob_mid = (clob_ask + clob_bid) / 2 if clob_ask > 0 and clob_bid > 0 else 0
+                    if clob_mid > 0 and abs(clob_mid - gamma_ref) > 0.25:
+                        obi_lines.append(f"⚠️ CLOB {token_label}: порожній стакан (bid {clob_bid:.2f}/ask {clob_ask:.2f} ≠ Gamma {gamma_ref:.2f})")
+                        continue
                     if clob_ask > 0 and clob_bid > 0:
                         spread = clob_ask - clob_bid
                         spread_ok = spread <= CLOB_SPREAD_MAX
                         obi_lines.append(
-                            f"{'✅' if spread_ok else '❌'} CLOB spread: bid <b>{clob_bid:.2f}</b> / ask <b>{clob_ask:.2f}</b>"
-                            f" = <b>{spread:.3f}</b> (макс {CLOB_SPREAD_MAX})"
+                            f"{'✅' if spread_ok else '❌'} CLOB {token_label}: bid <b>{clob_bid:.2f}</b> ask <b>{clob_ask:.2f}</b>"
+                            f" спред <b>{spread:.3f}</b> (макс {CLOB_SPREAD_MAX})"
                         )
                         if clob_ask > CONTRACT_PRICE_HIGH_MIN:
                             obi_lines.append(
-                                f"⚠️ Ask {clob_ask:.2f} &gt; {CONTRACT_PRICE_HIGH_MIN} → потрібен GAP ≥ {GAP_STRICT_USD:.0f}$"
+                                f"  ⚠️ Ask {clob_ask:.2f} &gt; {CONTRACT_PRICE_HIGH_MIN} → потрібен GAP ≥ {GAP_STRICT_USD:.0f}$"
                             )
-                    else:
-                        obi_lines.append("➖ CLOB spread: немає даних")
                 except Exception:
-                    obi_lines.append("➖ CLOB spread: помилка")
+                    pass
 
             extra = "\n" + "\n".join(obi_lines) if obi_lines else ""
             parts.append(f"<b>📌 {html.escape(str(title)[:60])}</b>\n{report}{extra}")

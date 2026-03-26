@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 from bot.config import LIVE_TRADING, DB_PATH_TEST, DB_PATH_LIVE
 from bot.scanner import Scanner
 from bot.settlement import settle_markets
-from bot.telegram_bot import start_telegram_polling, set_execution_client, daily_report_scheduler
+from bot.telegram_bot import start_telegram_polling, set_execution_client, set_scanner, daily_report_scheduler
 from bot.storage import init_db
 from bot.position_manager import init_positions_table
 
@@ -50,6 +50,7 @@ async def main():
         logger.info("📋 Paper trading mode")
 
     scanner = Scanner()
+    set_scanner(scanner)
     logger.info("🚀 Запуск Polymarket BTC 15m Scanner Bot...")
 
     tasks = [

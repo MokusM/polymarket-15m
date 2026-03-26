@@ -47,6 +47,9 @@ class Scanner:
         self.last_signal_time = {}
         self.signal_counts = {}
         self._last_session_key: str | None = None
+        # Cache for /diagnose command
+        self.last_df: pd.DataFrame = pd.DataFrame()
+        self.last_markets: list = []
 
     async def run(self):
         logger.info("Пошук активних ринків BTC...")
@@ -80,6 +83,8 @@ class Scanner:
 
                 # 3. Рахуємо індикатори
                 df_with_indicators = add_indicators(df)
+                self.last_df = df_with_indicators
+                self.last_markets = markets_with_prices
 
                 # 3.5 Сесійний алерт при зміні торгової сесії
                 if NOTIFY_SESSION_CHANGE:

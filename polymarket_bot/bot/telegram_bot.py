@@ -90,12 +90,18 @@ bot = Bot(token=TELEGRAM_TOKEN) if TELEGRAM_TOKEN else None
 dp = Dispatcher()
 
 _execution_client = None
+_scanner = None
 _pending_signals: dict[int, dict] = {}
 
 
 def set_execution_client(client):
     global _execution_client
     _execution_client = client
+
+
+def set_scanner(scanner):
+    global _scanner
+    _scanner = scanner
 
 
 def store_pending_signal(signal_id: int, signal: dict):
@@ -106,33 +112,20 @@ def store_pending_signal(signal_id: int, signal: dict):
 
 @dp.message(Command("diagnose"))
 async def cmd_diagnose(message: types.Message):
-    """Показати стан всіх фільтрів для поточного маркету."""
-    from bot.exchange_client import ExchangeClient
-    from bot.polymarket_client import PolymarketClient
-    from bot.indicators import add_indicators
+    """Показати стан всіх фільтрів на основі останніх даних сканера."""
     from bot.signals import diagnose_signals
 
-    await message.answer("🔍 Збираю дані...", parse_mode="HTML")
-
-    exchange = ExchangeClient()
-    poly = PolymarketClient()
-    try:
-        markets = await poly.get_active_btc_markets()
-        df_raw = await exchange.get_btc_1m_candles(limit=100)
-    finally:
-        await exchange.close()
-        await poly.close()
-
-    if df_raw.empty:
-        await message.answer("❌ Не вдалося отримати свічки Binance.")
+    if _scanner is None or _scanner.last_df.empty:
+        await message.answer("⏳ Сканер ще не запустив перший цикл. Зачекай кілька секунд.")
         return
 
-    df = add_indicators(df_raw)
+    df = _scanner.last_df
+    markets = _scanner.last_markets
 
     if not markets:
         await message.answer(
             "❌ Активних BTC 15m маркетів не знайдено.\n"
-            "<i>Ринок відкривається кожні 15 хв. Спробуй на початку нового вікна.</i>",
+            "<i>Ринок відкривається кожні 15 хв.</i>",
             parse_mode="HTML",
         )
         return

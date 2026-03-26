@@ -100,11 +100,15 @@ class Scanner:
                                 levels=OBI_LEVELS
                             )
                             # UP: потрібен bid > ask (bullish); DOWN: потрібен ask > bid
-                            obi_pass = (
-                                obi >= OBI_MIN_RATIO
-                                if direction == "UP"
-                                else obi <= (1.0 / OBI_MIN_RATIO)
-                            )
+                            # OBI_MIN_RATIO=0 → фільтр вимкнено
+                            if OBI_MIN_RATIO <= 0:
+                                obi_pass = True
+                            else:
+                                obi_pass = (
+                                    obi >= OBI_MIN_RATIO
+                                    if direction == "UP"
+                                    else obi <= (1.0 / OBI_MIN_RATIO)
+                                )
                             if not obi_pass:
                                 logger.debug(
                                     "OBI %.3f не відповідає напрямку %s (threshold=%.2f) — skip",

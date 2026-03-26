@@ -215,23 +215,20 @@ def check_signals(market_info: dict, df: pd.DataFrame) -> dict | None:
     delta = price - start_price
     delta_percent = (delta / start_price) * 100 if start_price > 0 else 0
 
-    # --- GAP filter: BTC vs PTB (страйк-ціна маркету) ---
-    ptb = market_info.get("ptb")
+    # --- GAP filter: BTC vs PTB ---
+    # Для btc-updown-15m маркетів PTB = ціна BTC на початку вікна (start_price).
+    # Немає фіксованого страйку в питанні — GAP = delta = current - window_open.
+    ptb = start_price
+    gap_val = round(delta, 2)  # позитивний = BTC вище ніж на старті вікна
+
     if state.mode != "test":
-        if ptb:
-            gap = price - ptb  # позитивний = BTC вище страйку
-            gap_ok = (gap >= GAP_MIN_USD) if direction == "UP" else (gap <= -GAP_MIN_USD)
-            if not gap_ok:
-                logger.debug(
-                    "GAP %.1f недостатній для %s (PTB=%.0f, threshold=%.0f) — skip",
-                    gap, direction, ptb, GAP_MIN_USD,
-                )
-                return None
-        else:
-            # PTB не спарсився — fallback на старий delta-GAP
-            if abs(delta) < GAP_MIN_USD:
-                logger.debug("GAP fallback: delta %.1f < %.1f — skip", abs(delta), GAP_MIN_USD)
-                return None
+        gap_ok = (gap_val >= GAP_MIN_USD) if direction == "UP" else (gap_val <= -GAP_MIN_USD)
+        if not gap_ok:
+            logger.debug(
+                "GAP %.1f недостатній для %s (threshold=%.0f) — skip",
+                gap_val, direction, GAP_MIN_USD,
+            )
+            return None
 
     chg_1h = last.get("chg_1h", 0)
     chg_1h_val = float(chg_1h) if not pd.isna(chg_1h) else 0
@@ -240,8 +237,6 @@ def check_signals(market_info: dict, df: pd.DataFrame) -> dict | None:
     # backwards-compat fields for storage columns
     ema_pos = "above" if ema_vote == "UP" else "below" if ema_vote == "DOWN" else "at"
     ema_position = f"{ema_pos} EMA9 ({ema_9_slope:+.1f})"
-
-    gap_val = round(price - ptb, 2) if ptb else round(delta, 2)
 
     # --- Strict time-GAP filter: <5 min left → must have GAP ≥ $100 ---
     if state.mode != "test" and time_left_min < TIME_STRICT_MAX_MIN:
@@ -296,14 +291,6 @@ def diagnose_signals(market_info: dict, df: pd.DataFrame) -> str:
     th = state.get_thresholds()
 
     lines.append(f"💹 BTC: <b>${price:,.0f}</b> | режим: <b>{state.mode.upper()}</b>")
-    ptb_raw = market_info.get("ptb")
-    lines.append(f"🎯 PTB: <b>{'$' + str(ptb_raw) if ptb_raw else '❌ не спарсено'}</b>")
-    # Show all string fields to find where PTB hides
-    skip_keys = {"token_yes_id", "token_no_id", "market_id", "event_id"}
-    for k, v in market_info.items():
-        if k in skip_keys or v is None:
-            continue
-        lines.append(f"  <code>{_html.escape(k)}</code>: {_html.escape(str(v)[:100])}")
     lines.append("")
 
     # ATR
@@ -398,20 +385,17 @@ def diagnose_signals(market_info: dict, df: pd.DataFrame) -> str:
         f"<b>{contract_price:.2f}</b> (зона {th['CONTRACT_PRICE_MIN']:.2f}–{th['CONTRACT_PRICE_MAX']:.2f})"
     )
 
-    # GAP
-    ptb = market_info.get("ptb")
-    if ptb:
-        gap = price - ptb
-        gap_needed = GAP_MIN_USD if direction == "UP" else -GAP_MIN_USD
-        gap_ok = (gap >= GAP_MIN_USD) if direction == "UP" else (gap <= -GAP_MIN_USD)
-        lines.append(
-            f"{'✅' if gap_ok else '❌'} GAP: BTC ${price:,.0f} vs PTB ${ptb:,.0f} "
-            f"= <b>{gap:+.0f}$</b> (мін {GAP_MIN_USD:+.0f}$)"
-        )
-        gap_val = round(gap, 2)
-    else:
-        lines.append("⚠️ PTB не спарсився — GAP через delta")
-        gap_val = 0.0
+    # GAP = delta від початку вікна (PTB = BTC price at window open)
+    event_start_iso = market_info.get("event_start_time")
+    start_price = _binance_open_at_polymarket_window_start(df, event_start_iso)
+    if start_price is None:
+        start_price = float(df.iloc[-15]["open"]) if len(df) >= 15 else price
+    gap_val = round(price - start_price, 2)
+    gap_ok = (gap_val >= GAP_MIN_USD) if direction == "UP" else (gap_val <= -GAP_MIN_USD)
+    lines.append(
+        f"{'✅' if gap_ok else '❌'} GAP: BTC ${price:,.0f} vs вікно-старт ${start_price:,.0f} "
+        f"= <b>{gap_val:+.0f}$</b> (мін {GAP_MIN_USD:+.0f}$)"
+    )
 
     # Strict time-GAP
     strict_ok = True

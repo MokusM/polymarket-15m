@@ -77,13 +77,7 @@ class PolymarketClient:
             if r.status_code == httpx.codes.NOT_FOUND:
                 return None
             r.raise_for_status()
-            data = r.json()
-            # Temporary: log all string fields to find where PTB hides
-            if data and slug.startswith(BTC_15M_SLUG_PREFIX):
-                str_fields = {k: v for k, v in data.items()
-                              if isinstance(v, (str, int, float)) and v}
-                logger.info("RAW MARKET FIELDS: %s", str_fields)
-            return data
+            return r.json()
         except httpx.HTTPError as e:
             logger.warning("markets/slug/%s: %s", slug, e)
             return None
@@ -143,12 +137,6 @@ class PolymarketClient:
             )
 
             event_start = market.get("eventStartTime") or event.get("startTime")
-            question = market.get("question") or ""
-            ptb = _parse_ptb(question)
-            if ptb:
-                logger.debug("PTB parsed: $%.0f from '%s'", ptb, question)
-            else:
-                logger.warning("PTB not parsed from question: '%s'", question)
 
             btc_markets.append(
                 {
@@ -157,14 +145,12 @@ class PolymarketClient:
                     "market_slug": market.get("slug") or slug,
                     "neg_risk": bool(market.get("negRisk", False)),
                     "title": title,
-                    "question": question,
                     "price_yes": price_yes,
                     "price_no": price_no,
                     "end_date_iso": end_str,
                     "event_start_time": event_start,
                     "token_yes_id": token_yes_id,
                     "token_no_id": token_no_id,
-                    "ptb": ptb,
                 }
             )
 

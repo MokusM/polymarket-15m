@@ -77,7 +77,13 @@ class PolymarketClient:
             if r.status_code == httpx.codes.NOT_FOUND:
                 return None
             r.raise_for_status()
-            return r.json()
+            data = r.json()
+            # Temporary: log all string fields to find where PTB hides
+            if data and slug.startswith(BTC_15M_SLUG_PREFIX):
+                str_fields = {k: v for k, v in data.items()
+                              if isinstance(v, (str, int, float)) and v}
+                logger.info("RAW MARKET FIELDS: %s", str_fields)
+            return data
         except httpx.HTTPError as e:
             logger.warning("markets/slug/%s: %s", slug, e)
             return None

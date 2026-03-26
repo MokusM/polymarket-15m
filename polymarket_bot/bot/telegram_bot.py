@@ -15,6 +15,7 @@ from bot.config import (
     AUTO_APPROVE_LIVE,
     CLOB_TRADE_HISTORY_LIMIT,
     CLOB_TRADE_HISTORY_MAX_PAGES,
+    TELEGRAM_ENABLED,
 )
 from bot.execution_client import trade_timestamp
 from bot.storage import (
@@ -400,6 +401,10 @@ async def process_mode_change(callback_query: types.CallbackQuery):
 
 
 async def send_alert(signal_id: int, signal: dict):
+    if not TELEGRAM_ENABLED:
+        update_decision(signal_id, "approve")
+        logger.debug("Telegram вимкнено — сигнал #%s авто-approve (DB only)", signal_id)
+        return
     if not bot or not CHAT_ID:
         logger.warning("Telegram не налаштований.")
         return
@@ -629,7 +634,7 @@ async def _execute_live_order(signal_id: int) -> str:
 
 
 async def send_info_message(text: str):
-    if not bot or not CHAT_ID:
+    if not TELEGRAM_ENABLED or not bot or not CHAT_ID:
         return
     try:
         await bot.send_message(chat_id=CHAT_ID, text=text, parse_mode="HTML")
@@ -709,6 +714,9 @@ async def daily_report_scheduler():
 
 
 async def start_telegram_polling():
+    if not TELEGRAM_ENABLED:
+        logger.info("Telegram вимкнено (TELEGRAM_ENABLED=false) — polling не запускається.")
+        return
     if bot:
         logger.info("Запуск Telegram бота (polling)...")
         await dp.start_polling(bot)

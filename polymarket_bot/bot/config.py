@@ -126,10 +126,19 @@ CLOB_SPREAD_MAX = float(os.getenv("CLOB_SPREAD_MAX", "0.03"))
 # Session change notifications
 NOTIFY_SESSION_CHANGE = True
 
+# Default mode at startup (light / medium / strict / test)
+DEFAULT_MODE = os.getenv("DEFAULT_MODE", "medium")
+
+# Telegram: set to false to disable all Telegram messages and polling (DB-only mode)
+TELEGRAM_ENABLED = os.getenv("TELEGRAM_ENABLED", "true").lower() in ("1", "true", "yes")
+
 # DB — two databases: test mode vs live/other modes
+# DB_LABEL lets each bot instance write to its own file (e.g. "light" → live_light.db)
 _BOT_DIR = os.path.dirname(__file__)
-DB_PATH_TEST = os.path.join(_BOT_DIR, "..", "test.db")
-DB_PATH_LIVE = os.path.join(_BOT_DIR, "..", "live.db")
+_DB_LABEL = os.getenv("DB_LABEL", "")
+_db_suffix = f"_{_DB_LABEL}" if _DB_LABEL else ""
+DB_PATH_TEST = os.path.join(_BOT_DIR, "..", f"test{_db_suffix}.db")
+DB_PATH_LIVE = os.path.join(_BOT_DIR, "..", f"live{_db_suffix}.db")
 
 # Position monitor: 1s when position is open, POSITION_MONITOR_INTERVAL when idle
 POSITION_MONITOR_INTERVAL_ACTIVE = 1

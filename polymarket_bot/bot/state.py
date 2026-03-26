@@ -1,13 +1,13 @@
 import logging
 
-from bot.config import CIRCUIT_BREAKER_LOSSES, LIVE_TRADING
+from bot.config import CIRCUIT_BREAKER_LOSSES, LIVE_TRADING, DEFAULT_MODE
 
 logger = logging.getLogger(__name__)
 
 
 class BotState:
     def __init__(self):
-        self.mode = "medium"
+        self.mode = DEFAULT_MODE
         self._live_enabled = LIVE_TRADING
         self._consecutive_losses = 0
         self._circuit_breaker_triggered = False

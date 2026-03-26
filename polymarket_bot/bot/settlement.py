@@ -61,9 +61,13 @@ async def settle_markets():
                         )
                         tg_msg_id = sig.get("telegram_message_id")
                         if tg_msg_id:
+                            cp = sig.get("contract_price") or 0.0
+                            direction = sig.get("direction") or ""
+                            side = "YES" if direction == "UP" else "NO"
                             await send_info_message(
                                 f"💤 <b>Сигнал #{sig['id']} — без позиції</b>\n"
-                                f"Live-ордер не дав fill або скасовано.\n"
+                                f"{direction} {side} @ {cp:.2f} (Gamma)\n"
+                                f"CLOB ціна перевищила ліміт або ордер не виконано.\n"
                                 f"<i>{_market_title(sig)}</i>"
                             )
                         continue

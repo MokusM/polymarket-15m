@@ -104,6 +104,33 @@ def store_pending_signal(signal_id: int, signal: dict):
 
 # ── Commands ──
 
+@dp.message(Command("list"))
+async def cmd_list(message: types.Message):
+    """Список всіх доступних команд."""
+    text = (
+        "🤖 <b>Команди бота</b>\n"
+        "\n"
+        "📋 <b>Інформація</b>\n"
+        "/status — повний статус бота (режим, live, баланс, позиції)\n"
+        "/positions — відкриті позиції\n"
+        "/balance — баланс Polymarket USDC\n"
+        "/history — остання угоди з CLOB API\n"
+        "\n"
+        "⚙️ <b>Управління</b>\n"
+        "/mode — змінити режим (Light / Medium / Strict / Test)\n"
+        "/reset — скинути circuit breaker і відновити live trading\n"
+        "\n"
+        "📖 <b>Режими сканера</b>\n"
+        "🟢 <b>Light</b> — гнучкі фільтри, більше сигналів\n"
+        "🟡 <b>Medium</b> — збалансовані (рекомендовано)\n"
+        "🔴 <b>Strict</b> — снайперський підхід, мінімум сигналів\n"
+        "🔥 <b>Test</b> — всі фільтри вимкнено, live trading недоступний\n"
+        "\n"
+        "/list — ця довідка"
+    )
+    await message.answer(text, parse_mode="HTML")
+
+
 @dp.message(Command("mode"))
 async def cmd_mode(message: types.Message):
     builder = InlineKeyboardBuilder()

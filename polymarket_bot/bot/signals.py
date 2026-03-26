@@ -9,7 +9,7 @@ Indicators (кожен голосує UP / DOWN / NEUTRAL):
   5. Pivots HL (10)     — breakout above → UP, breakdown below → DOWN
 
 Signal = мінімум MIN_CONFLUENCE (3/5) індикаторів в одному напрямку.
-Фільтри: ATR zone, contract price 50-72¢, time left.
+Фільтри: ATR zone, GAP ($), time left. Ціна контракту перевіряється у scanner по CLOB ask.
 """
 
 import pandas as pd
@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 import logging
 from typing import Optional
 
-from bot.config import IGNORE_IF_TIME_LEFT_LT_MIN, IGNORE_IF_CONTRACT_PRICE_GT, ATR_MIN_USD, GAP_MIN_USD
+from bot.config import IGNORE_IF_TIME_LEFT_LT_MIN, ATR_MIN_USD, GAP_MIN_USD
 from bot.state import state
 
 logger = logging.getLogger(__name__)
@@ -150,8 +150,6 @@ def check_signals(market_info: dict, df: pd.DataFrame) -> dict | None:
     if state.mode != "test":
         if time_left_min < IGNORE_IF_TIME_LEFT_LT_MIN:
             return None
-        if price_yes > IGNORE_IF_CONTRACT_PRICE_GT or price_no > IGNORE_IF_CONTRACT_PRICE_GT:
-            return None
 
     if not (th["TIME_LEFT_MIN_MINUTES"] <= time_left_min <= th["TIME_LEFT_MAX_MINUTES"]):
         return None
@@ -194,11 +192,6 @@ def check_signals(market_info: dict, df: pd.DataFrame) -> dict | None:
     else:
         return None
 
-    # --- Contract price filter ---
-    contract_price = price_yes if direction == "UP" else price_no
-    if not (th["CONTRACT_PRICE_MIN"] <= contract_price <= th["CONTRACT_PRICE_MAX"]):
-        return None
-
     # --- Start price ---
     event_start_iso = market_info.get("event_start_time")
     start_price = _binance_open_at_polymarket_window_start(df, event_start_iso)
@@ -218,6 +211,9 @@ def check_signals(market_info: dict, df: pd.DataFrame) -> dict | None:
     if state.mode != "test" and abs(delta) < GAP_MIN_USD:
         logger.debug("GAP %.1f < %.1f — skip", abs(delta), GAP_MIN_USD)
         return None
+
+    # Gamma ціна — placeholder; scanner перезапише реальною CLOB ask
+    contract_price = price_yes if direction == "UP" else price_no
 
     chg_1h = last.get("chg_1h", 0)
     chg_1h_val = float(chg_1h) if not pd.isna(chg_1h) else 0

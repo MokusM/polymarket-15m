@@ -20,6 +20,8 @@ from bot.config import (
 from bot.execution_client import trade_timestamp
 from bot.storage import (
     mark_signal_live_no_position,
+    mark_signal_live_pending,
+    save_pending_order,
     update_decision,
     update_signal_live_fill,
     update_telegram_message_id,
@@ -587,15 +589,24 @@ async def _execute_live_order(signal_id: int) -> str:
 
     st_ord = (result.get("status") or "").lower() if isinstance(result, dict) else ""
     if isinstance(result, dict) and result.get("success") and st_ord == "live":
-        await _mark_no_fill()
-        oid = html.escape(str(result.get("orderID", "")))
+        oid = str(result.get("orderID", ""))
         ep = float(result.get("_effective_price", cp))
+        shares_pending = float(result.get("_order_size", 0)) or round(stake / ep, 2)
+        time_left_min = float(signal.get("time_left", 5) or 5)
+        from datetime import timedelta
+        expires_at = (
+            datetime.now(timezone.utc) + timedelta(seconds=time_left_min * 60)
+        ).strftime("%Y-%m-%d %H:%M:%S")
+        await asyncio.to_thread(
+            save_pending_order,
+            signal_id, oid, token_id, market_id, slug or "",
+            direction, ep, shares_pending, stake, neg_risk, expires_at,
+        )
+        await asyncio.to_thread(mark_signal_live_pending, signal_id)
         return (
-            f"\u26a0\ufe0f <b>\u041b\u0456\u043c\u0456\u0442 \u0443 \u0441\u0442\u0430\u043a\u0430\u043d\u0456</b> "
-            f"(\u0449\u0435 \u043d\u0435 \u0432\u0438\u043a\u043e\u043d\u0430\u043d\u043e).\n"
-            f"orderID: <code>{oid}</code> | \u0446\u0456\u043d\u0430 \u043b\u0456\u043c\u0456\u0442\u0443: {ep:.2f}\n"
-            f"\u041d\u0430 Polymarket: \u0412\u0456\u0434\u043a\u0440\u0438\u0442\u0456 \u0437\u0430\u044f\u0432\u043a\u0438 \u2014 \u043c\u043e\u0436\u043d\u0430 \u0441\u043a\u0430\u0441\u0443\u0432\u0430\u0442\u0438.\n"
-            f"\u041f\u043e\u0437\u0438\u0446\u0456\u044e \u0432 \u0431\u043e\u0442\u0456 \u043d\u0435 \u0441\u0442\u0432\u043e\u0440\u0435\u043d\u043e (\u0434\u043e \u0440\u0435\u0430\u043b\u044c\u043d\u043e\u0433\u043e fill)."
+            f"⏳ <b>Ліміт у стакані</b> — очікує fill\n"
+            f"orderID: <code>{html.escape(oid)}</code> | ціна: {ep:.2f}\n"
+            f"Бот перевірить fill кожні 5с до {expires_at[11:16]} UTC"
         )
 
     ep = float(result.get("_effective_price", cp)) if isinstance(result, dict) else cp

@@ -490,3 +490,30 @@ class ExecutionClient:
         except Exception as e:
             logger.error("Помилка get_token_price: %s", e)
             return 0.0
+
+    async def get_order_status(self, order_id: str) -> dict:
+        """Повертає статус ордера з CLOB. Поля: status, size_matched, price."""
+        if not self.ready:
+            return {}
+        try:
+            loop = asyncio.get_event_loop()
+            result = await loop.run_in_executor(None, self.client.get_order, order_id)
+            if isinstance(result, dict):
+                return result
+            return {}
+        except Exception as e:
+            logger.debug("get_order_status(%s): %s", order_id[:12], e)
+            return {}
+
+    async def cancel_order(self, order_id: str) -> bool:
+        """Скасовує ордер у CLOB. Повертає True якщо успішно."""
+        if not self.ready:
+            return False
+        try:
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, self.client.cancel, order_id)
+            logger.info("Ордер %s скасовано", order_id[:12])
+            return True
+        except Exception as e:
+            logger.warning("cancel_order(%s): %s", order_id[:12], e)
+            return False

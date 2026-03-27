@@ -13,7 +13,7 @@ from bot.config import LIVE_TRADING, DB_PATH_TEST, DB_PATH_LIVE
 from bot.scanner import Scanner
 from bot.settlement import settle_markets
 from bot.telegram_bot import start_telegram_polling, set_execution_client, set_scanner, daily_report_scheduler
-from bot.storage import init_db
+from bot.storage import init_db, init_pending_orders_table
 from bot.position_manager import init_positions_table
 
 
@@ -32,6 +32,8 @@ async def main():
     init_db(DB_PATH_LIVE)
     init_positions_table(DB_PATH_TEST)
     init_positions_table(DB_PATH_LIVE)
+    init_pending_orders_table(DB_PATH_TEST)
+    init_pending_orders_table(DB_PATH_LIVE)
 
     execution_client = None
     if LIVE_TRADING:
@@ -61,8 +63,9 @@ async def main():
     ]
 
     if LIVE_TRADING and execution_client and execution_client.ready:
-        from bot.position_manager import monitor_positions_loop
+        from bot.position_manager import monitor_positions_loop, monitor_pending_orders_loop
         tasks.append(asyncio.create_task(monitor_positions_loop(execution_client)))
+        tasks.append(asyncio.create_task(monitor_pending_orders_loop(execution_client)))
 
     try:
         await asyncio.gather(*tasks)

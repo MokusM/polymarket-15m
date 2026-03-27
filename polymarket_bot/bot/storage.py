@@ -262,6 +262,108 @@ def get_unresolved_signals() -> list:
         conn.close()
 
 
+def init_pending_orders_table(db_path: str | None = None):
+    path = db_path if db_path is not None else get_db_path()
+    try:
+        conn = sqlite3.connect(path)
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS pending_orders (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                signal_id INTEGER NOT NULL,
+                order_id TEXT NOT NULL UNIQUE,
+                token_id TEXT NOT NULL,
+                market_id TEXT,
+                market_slug TEXT,
+                direction TEXT,
+                limit_price REAL,
+                shares REAL,
+                stake_usd REAL,
+                neg_risk INTEGER DEFAULT 0,
+                expires_at TEXT,
+                created_at TEXT DEFAULT (datetime('now'))
+            )
+            """
+        )
+        conn.commit()
+    except Exception as e:
+        logger.error("Помилка init_pending_orders_table: %s", e)
+    finally:
+        conn.close()
+
+
+def save_pending_order(
+    signal_id: int,
+    order_id: str,
+    token_id: str,
+    market_id: str,
+    market_slug: str,
+    direction: str,
+    limit_price: float,
+    shares: float,
+    stake_usd: float,
+    neg_risk: bool,
+    expires_at: str,
+):
+    try:
+        conn = get_connection()
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO pending_orders
+            (signal_id, order_id, token_id, market_id, market_slug,
+             direction, limit_price, shares, stake_usd, neg_risk, expires_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (signal_id, order_id, token_id, market_id, market_slug,
+             direction, limit_price, shares, stake_usd, int(neg_risk), expires_at),
+        )
+        conn.commit()
+        logger.info("Збережено pending order: signal #%s order_id=%s", signal_id, order_id[:12])
+    except Exception as e:
+        logger.error("Помилка save_pending_order: %s", e)
+    finally:
+        conn.close()
+
+
+def get_pending_orders() -> list:
+    try:
+        conn = get_connection()
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute("SELECT * FROM pending_orders").fetchall()
+        return [dict(r) for r in rows]
+    except Exception as e:
+        logger.error("Помилка get_pending_orders: %s", e)
+        return []
+    finally:
+        conn.close()
+
+
+def delete_pending_order(order_id: str):
+    try:
+        conn = get_connection()
+        conn.execute("DELETE FROM pending_orders WHERE order_id = ?", (order_id,))
+        conn.commit()
+    except Exception as e:
+        logger.error("Помилка delete_pending_order: %s", e)
+    finally:
+        conn.close()
+
+
+def mark_signal_live_pending(signal_id: int):
+    try:
+        conn = get_connection()
+        conn.execute(
+            "UPDATE signals SET live_entry_status = 'pending_fill' WHERE id = ?",
+            (signal_id,),
+        )
+        conn.commit()
+        logger.info("Сигнал #%s: live_entry_status=pending_fill", signal_id)
+    except Exception as e:
+        logger.error("Помилка mark_signal_live_pending: %s", e)
+    finally:
+        conn.close()
+
+
 if __name__ == "__main__":
     init_db()
     print("БД успішно ініціалізована.")

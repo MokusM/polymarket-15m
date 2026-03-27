@@ -459,3 +459,97 @@ async def monitor_positions_loop(execution_client):
 
         sleep_sec = 1 if count_open_positions() > 0 else POSITION_MONITOR_INTERVAL
         await asyncio.sleep(sleep_sec)
+
+
+PENDING_POLL_INTERVAL = 5  # секунд між перевірками pending ордерів
+
+
+async def monitor_pending_orders_loop(execution_client) -> None:
+    """Кожні 5с перевіряє pending limit orders: fill → відкриває позицію; expire → скасовує."""
+    from bot.storage import (
+        get_pending_orders, delete_pending_order,
+        mark_signal_live_no_position, update_signal_live_fill,
+    )
+    from bot.telegram_bot import send_info_message
+
+    logger.info("Запущено моніторинг pending ордерів (інтервал %ss)", PENDING_POLL_INTERVAL)
+
+    while True:
+        try:
+            pending = await asyncio.to_thread(get_pending_orders)
+            now = datetime.now(timezone.utc)
+
+            for po in pending:
+                order_id = po["order_id"]
+                signal_id = po["signal_id"]
+
+                # --- Перевіряємо чи не вийшов час ---
+                expires_at_str = po.get("expires_at") or ""
+                if expires_at_str:
+                    try:
+                        exp = datetime.fromisoformat(expires_at_str).replace(tzinfo=timezone.utc)
+                        if now > exp:
+                            logger.info("Pending order %s expired — cancel", order_id[:12])
+                            await execution_client.cancel_order(order_id)
+                            await asyncio.to_thread(delete_pending_order, order_id)
+                            await asyncio.to_thread(mark_signal_live_no_position, signal_id)
+                            await send_info_message(
+                                f"⏱ <b>Ордер скасовано</b> (час вийшов)\n"
+                                f"Сигнал #{signal_id} | orderID: <code>{order_id[:16]}</code>"
+                            )
+                            continue
+                    except Exception:
+                        pass
+
+                # --- Перевіряємо статус ордера ---
+                info = await execution_client.get_order_status(order_id)
+                if not info:
+                    continue
+
+                status = (info.get("status") or "").upper()
+
+                if status == "CANCELLED":
+                    await asyncio.to_thread(delete_pending_order, order_id)
+                    await asyncio.to_thread(mark_signal_live_no_position, signal_id)
+                    await send_info_message(
+                        f"❌ <b>Ордер скасовано на біржі</b>\n"
+                        f"Сигнал #{signal_id} | orderID: <code>{order_id[:16]}</code>"
+                    )
+                    continue
+
+                if status == "MATCHED":
+                    # Ордер виконано — відкриваємо позицію
+                    ep = float(info.get("price") or po["limit_price"])
+                    size_matched = float(info.get("size_matched") or po["shares"])
+                    stake_eff = round(ep * size_matched, 2)
+
+                    pos_id = open_position(
+                        signal_id=signal_id,
+                        market_id=po["market_id"] or "",
+                        market_slug=po["market_slug"] or "",
+                        token_id=po["token_id"],
+                        direction=po["direction"],
+                        entry_price=ep,
+                        shares=size_matched,
+                        stake_usd=stake_eff,
+                        order_result=info,
+                    )
+                    await asyncio.to_thread(update_signal_live_fill, signal_id, stake_eff, ep)
+                    await asyncio.to_thread(delete_pending_order, order_id)
+
+                    side = "YES" if po["direction"] == "UP" else "NO"
+                    logger.info(
+                        "Pending order FILLED: signal #%s pos #%s %s @ %.2f %s shares",
+                        signal_id, pos_id, side, ep, size_matched,
+                    )
+                    await send_info_message(
+                        f"✅ <b>Ордер виконано!</b>\n"
+                        f"Pos #{pos_id} | {side} @ {ep:.2f} | "
+                        f"{size_matched:.1f} shares | ~${stake_eff:.2f}\n"
+                        f"Сигнал #{signal_id}"
+                    )
+
+        except Exception as e:
+            logger.error("Помилка monitor_pending_orders: %s", e, exc_info=True)
+
+        await asyncio.sleep(PENDING_POLL_INTERVAL)

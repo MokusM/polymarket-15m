@@ -475,10 +475,10 @@ class ExecutionClient:
             )
         return None
 
-    async def get_token_price(self, token_id: str, side: str = "BUY") -> float:
-        """Поточна ціна token через CLOB (best price for side)."""
+    async def get_token_price(self, token_id: str, side: str = "BUY") -> float | None:
+        """Поточна ціна token через CLOB. Повертає None при помилці API, 0.0 якщо ціна справді 0."""
         if not self.ready:
-            return 0.0
+            return None
         try:
             loop = asyncio.get_event_loop()
             result = await loop.run_in_executor(
@@ -486,10 +486,10 @@ class ExecutionClient:
             )
             if isinstance(result, dict):
                 return float(result.get("price", 0))
-            return float(result) if result else 0.0
+            return float(result) if result is not None else None
         except Exception as e:
             logger.debug("get_token_price(%s): %s", token_id[:12], e)
-            return 0.0
+            return None
 
     async def get_order_status(self, order_id: str) -> dict:
         """Повертає статус ордера з CLOB. Поля: status, size_matched, price."""

@@ -278,8 +278,9 @@ async def monitor_positions_loop(execution_client):
                 current_price = await execution_client.get_token_price(
                     pos["token_id"], "SELL",
                 )
-                if current_price <= 0:
-                    continue
+                if current_price is None:
+                    continue  # API помилка — пропускаємо, не закриваємо
+                # current_price == 0.0 — ціна справді впала до нуля, дозволяємо SL спрацювати
 
                 entry = pos["entry_price"]
                 remaining = pos["remaining_shares"]
@@ -316,16 +317,20 @@ async def monitor_positions_loop(execution_client):
                     logger.warning(
                         "SL TRIGGERED #%s: %.2f <= %.2f", pos_id, current_price, sl,
                     )
+                    sell_price = max(current_price, 0.01)  # мінімальна ціна для ордера
                     sell_result = await execution_client.sell_shares(
-                        pos["token_id"], current_price, remaining,
+                        pos["token_id"], sell_price, remaining,
                     )
-                    if not sell_result or sell_result.get("success") is False:
-                        logger.error("SL SELL failed #%s: %s — позиція залишається відкритою", pos_id, sell_result)
-                        continue
+                    sell_ok = sell_result and sell_result.get("success") is not False
+                    if not sell_ok:
+                        logger.warning(
+                            "SL SELL failed #%s (ціна %.2f) — закриваємо позицію в БД, settlement підтвердить PnL",
+                            pos_id, sell_price,
+                        )
                     pnl = _pnl_total_on_full_close(
                         stake_u, shares_init, remaining, current_price, realized_accum,
                     )
-                    close_position(pos_id, "stop_loss", pnl)
+                    close_position(pos_id, "stop_loss" if sell_ok else "stop_loss_no_fill", pnl)
 
                     sl_text = (
                         f"\U0001f6d1 <b>Stop-Loss #{pos_id}</b>\n"

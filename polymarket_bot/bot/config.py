@@ -8,9 +8,9 @@ load_dotenv(dotenv_path)
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN", "")
 CHAT_ID = os.getenv("CHAT_ID", "")
 
-# Contract price zone (course: 50-72¢)
-CONTRACT_PRICE_MIN = 0.50
-CONTRACT_PRICE_MAX = 0.72
+# Contract price zone (course: 35-72¢)
+CONTRACT_PRICE_MIN = float(os.getenv("CONTRACT_PRICE_MIN", "0.35"))
+CONTRACT_PRICE_MAX = float(os.getenv("CONTRACT_PRICE_MAX", "0.72"))
 
 # Time left window (minutes)
 TIME_LEFT_MIN_MINUTES = 3

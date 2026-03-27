@@ -615,6 +615,12 @@ async def _execute_live_order(signal_id: int) -> str:
         shares = round(stake / ep, 2)
     stake_eff = round(shares * ep, 2)
 
+    time_left_min = float(signal.get("time_left", 10) or 10)
+    from datetime import timedelta
+    mkt_expires_at = (
+        datetime.now(timezone.utc) + timedelta(seconds=time_left_min * 60)
+    ).strftime("%Y-%m-%d %H:%M:%S")
+
     pos_id = open_position(
         signal_id=signal_id,
         market_id=market_id,
@@ -625,6 +631,7 @@ async def _execute_live_order(signal_id: int) -> str:
         shares=shares,
         stake_usd=stake_eff,
         order_result=result,
+        market_expires_at=mkt_expires_at,
     )
 
     if pos_id is None:

@@ -64,6 +64,10 @@ def _migrate_positions_columns(cursor: sqlite3.Cursor) -> None:
         cursor.execute(
             "ALTER TABLE positions ADD COLUMN realized_pnl REAL DEFAULT 0",
         )
+    if "market_expires_at" not in existing:
+        cursor.execute(
+            "ALTER TABLE positions ADD COLUMN market_expires_at TEXT",
+        )
 
 
 def init_positions_table(db_path: str | None = None):
@@ -113,6 +117,7 @@ def open_position(
     shares: float,
     stake_usd: float,
     order_result: dict | None = None,
+    market_expires_at: str | None = None,
 ) -> int | None:
     """Зберегти нову відкриту позицію."""
     side = "YES" if direction == "UP" else "NO"
@@ -129,13 +134,13 @@ def open_position(
             INSERT INTO positions (
                 signal_id, market_id, market_slug, token_id, direction, side,
                 entry_price, shares, stake_usd, remaining_shares,
-                sl_price, order_result, realized_pnl
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+                sl_price, order_result, realized_pnl, market_expires_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
             """,
             (
                 signal_id, market_id, market_slug, token_id,
                 direction, side, entry_price, shares, stake_usd,
-                shares, sl_price, order_json,
+                shares, sl_price, order_json, market_expires_at,
             ),
         )
         conn.commit()
@@ -290,6 +295,35 @@ async def monitor_positions_loop(execution_client):
                 realized_accum = float(pos.get("realized_pnl") or 0)
                 sl = float(pos.get("sl_price") or 0)
                 partial_level = int(pos.get("partial_exit_done") or 0)
+
+                # ── Time-based exit: ціна ≥ 0.95 і до закриття < 3 хв — продати все ──
+                expires_str = pos.get("market_expires_at") or ""
+                if expires_str and current_price >= TP_FULL_PRICE and remaining > 0:
+                    try:
+                        exp = datetime.fromisoformat(expires_str).replace(tzinfo=timezone.utc)
+                        secs_left = (exp - datetime.now(timezone.utc)).total_seconds()
+                        if secs_left < 180:
+                            logger.info(
+                                "TIME EXIT #%s: price %.2f >= %.2f, %.0fs left — sell all",
+                                pos_id, current_price, TP_FULL_PRICE, secs_left,
+                            )
+                            sell_result = await execution_client.sell_shares(
+                                pos["token_id"], current_price, remaining,
+                            )
+                            if sell_result and sell_result.get("success") is not False:
+                                pnl = _pnl_total_on_full_close(
+                                    stake_u, shares_init, remaining, current_price, realized_accum,
+                                )
+                                close_position(pos_id, "time_exit", pnl)
+                                await send_info_message(
+                                    f"⏰ <b>Time Exit #{pos_id} @ {current_price:.2f}</b>\n"
+                                    f"{pos['direction']} {pos['side']} | "
+                                    f"{remaining:.0f} shares | {secs_left:.0f}с до закриття\n"
+                                    f"PnL: <b>{pnl:+.2f} USD</b>"
+                                )
+                                continue
+                    except Exception:
+                        pass
 
                 # ── Після +X% нереалізованого прибутку (від ставки на залишок) — SL на вхід ──
                 if (

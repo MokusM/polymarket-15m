@@ -488,7 +488,7 @@ class ExecutionClient:
                 return float(result.get("price", 0))
             return float(result) if result else 0.0
         except Exception as e:
-            logger.error("Помилка get_token_price: %s", e)
+            logger.debug("get_token_price(%s): %s", token_id[:12], e)
             return 0.0
 
     async def get_order_status(self, order_id: str) -> dict:

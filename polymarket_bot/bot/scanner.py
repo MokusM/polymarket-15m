@@ -15,6 +15,7 @@ from bot.config import (
     OBI_LEVELS,
     CLOB_SPREAD_MAX,
     CONTRACT_PRICE_HIGH_MIN,
+    CONTRACT_PRICE_MAX,
     GAP_STRICT_USD,
 )
 from bot.exchange_client import ExchangeClient
@@ -151,6 +152,14 @@ class Scanner:
                                             clob_ask, CONTRACT_PRICE_HIGH_MIN, gap, GAP_STRICT_USD,
                                         )
                                         continue
+
+                                # Skip if CLOB ask above max entry price (bad risk/reward)
+                                if clob_ask > CONTRACT_PRICE_MAX:
+                                    logger.debug(
+                                        "CLOB ask %.2f > CONTRACT_PRICE_MAX %.2f — skip",
+                                        clob_ask, CONTRACT_PRICE_MAX,
+                                    )
+                                    continue
 
                                 # Replace Gamma price with real CLOB ask as entry price
                                 if clob_ask > 0:

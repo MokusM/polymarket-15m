@@ -77,6 +77,8 @@ CLOB_CROSS_SPREAD_BUY = os.getenv("CLOB_CROSS_SPREAD_BUY", "true").lower() in (
 )
 # Поріг «зсуву від сигналу» для логу-попередження; жорстка межа BUY = CONTRACT_PRICE_MAX (сканер)
 CLOB_MAX_BUY_SLIPPAGE_ABS = float(os.getenv("CLOB_MAX_BUY_SLIPPAGE_ABS", "0.05"))
+# Буфер поверх best ask щоб ордер заповнився навіть якщо ask трохи виросте до моменту виконання
+CLOB_BUY_BUFFER = float(os.getenv("CLOB_BUY_BUFFER", "0.02"))
 
 # Bankroll & Kelly sizing
 BANKROLL_USD = float(os.getenv("BANKROLL_USD", "20"))

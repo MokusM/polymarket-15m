@@ -17,6 +17,7 @@ from bot.config import (
     CONTRACT_PRICE_MAX,
     CLOB_CROSS_SPREAD_BUY,
     CLOB_MAX_BUY_SLIPPAGE_ABS,
+    CLOB_BUY_BUFFER,
     CLOB_TRADE_HISTORY_LIMIT,
     CLOB_TRADE_HISTORY_MAX_PAGES,
 )
@@ -267,7 +268,7 @@ class ExecutionClient:
                     ap, reference, CLOB_MAX_BUY_SLIPPAGE_ABS, hard_cap,
                 )
 
-        p = max(reference, min(ap, hard_cap))
+        p = max(reference, min(ap + CLOB_BUY_BUFFER, hard_cap))
         return tick_up(p), None
 
     async def buy_shares(

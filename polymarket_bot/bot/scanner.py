@@ -152,6 +152,11 @@ class Scanner:
                                         )
                                         continue
 
+                                # Replace Gamma price with real CLOB ask as entry price
+                                if clob_ask > 0:
+                                    signal["contract_price"] = clob_ask
+                                    signal["clob_bid"] = clob_bid
+
                         key = f"{market_id}_{direction}"
                         now = datetime.now().timestamp()
                         last_time = self.last_signal_time.get(key, 0)

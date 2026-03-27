@@ -10,6 +10,7 @@ from bot.storage import (
     signal_live_position_already_closed,
     update_result,
 )
+from bot.position_manager import get_open_positions, close_position
 from bot.telegram_bot import send_info_message
 
 _NO_POSITION = "no_position"
@@ -114,6 +115,13 @@ async def settle_markets():
                         result_str = "LOSS"
 
                     update_result(sig["id"], result_str, pnl)
+
+                    # Закрити відкриту позицію якщо ще не закрита монітором
+                    for pos in get_open_positions():
+                        if pos.get("signal_id") == sig["id"]:
+                            close_position(pos["id"], f"settlement_{result_str}", pnl)
+                            break
+
                     logger.info(
                         "Маркет #%s (Сигнал %s) закрито. %s, PnL: %.2f",
                         market_id, sig["id"], result_str, pnl,

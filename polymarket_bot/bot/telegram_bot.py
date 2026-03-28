@@ -68,15 +68,23 @@ def _format_signal_history_html(idx: int, sig: dict) -> str:
     # Direction icon
     dir_icon = "⬆️" if direction == "UP" else "⬇️"
 
-    # Result
-    if result == "win":
-        result_line = f"✅ WIN  <b>+${pnl:.2f}</b>" if pnl is not None else "✅ WIN"
-    elif result == "loss":
-        result_line = f"❌ LOSS  <b>-${abs(pnl):.2f}</b>" if pnl is not None else "❌ LOSS"
+    # Result with color circle
+    result_up = (result or "").upper()
+    if result_up == "WIN":
+        status_icon = "🟢"
+        result_line = f"WIN  <b>+${pnl:.2f}</b>" if pnl is not None else "WIN"
+    elif result_up == "LOSS":
+        status_icon = "🔴"
+        result_line = f"LOSS  <b>-${abs(pnl):.2f}</b>" if pnl is not None else "LOSS"
+    elif result_up == "CLOSED_EARLY":
+        status_icon = "🔴"
+        result_line = html.escape(result)
     elif result is not None:
-        result_line = f"⚪ {html.escape(result)}"
+        status_icon = "🟡"
+        result_line = html.escape(result)
     else:
-        result_line = "⏳ pending"
+        status_icon = "🟡"
+        result_line = "pending"
 
     # Details
     details = []
@@ -89,7 +97,7 @@ def _format_signal_history_html(idx: int, sig: dict) -> str:
     details_str = "  ·  ".join(details)
 
     parts = [
-        f"<b>#{sig['id']}</b>  {dir_icon} <b>{direction}</b>  @{_history_price_txt(contract_price)}  ·  {result_line}",
+        f"{status_icon} <b>#{sig['id']}</b>  {dir_icon} <b>{direction}</b>  @{_history_price_txt(contract_price)}  ·  {result_line}",
         f"📌 {title}",
         f"🕑 <code>{html.escape(str(ts_raw)[:16])}</code>  ·  ставка ${stake_usd:.2f}",
     ]

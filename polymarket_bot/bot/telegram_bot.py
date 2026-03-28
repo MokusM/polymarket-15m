@@ -324,30 +324,56 @@ async def cmd_reset(message: types.Message):
 @dp.message(Command("status"))
 async def cmd_status(message: types.Message):
     """Повний статус бота."""
-    from bot.position_manager import count_open_positions
+    from bot.position_manager import get_open_positions
 
     client_ready = bool(_execution_client and _execution_client.ready)
-    live_status = "\U0001f7e2 ON" if (state.is_live_allowed and client_ready) else "\U0001f534 OFF"
-    cb = "\U0001f6a8 ACTIVE" if state.circuit_breaker_active else "\u2705 OK"
-    open_pos = count_open_positions()
+    is_live = state.is_live_allowed and client_ready
+    cb_active = state.circuit_breaker_active
+    positions = get_open_positions()
 
-    text = (
-        f"\U0001f916 <b>Bot Status</b>\n\n"
-        f"Mode: <b>{state.mode.upper()}</b>\n"
-        f"Live trading: {live_status}\n"
-        f"Live guard (state): {'\U0001f7e2 OK' if state.is_live_allowed else '\U0001f534 BLOCKED'}\n"
-        f"Execution client: {'\U0001f7e2 READY' if client_ready else '\U0001f534 NOT READY'}\n"
-        f"Auto-approve live: {'\U0001f7e2 ON' if AUTO_APPROVE_LIVE else '\U0001f534 OFF'}\n"
-        f"Circuit breaker: {cb}\n"
-        f"Losses streak: {state.consecutive_losses}\n"
-        f"Open positions: {open_pos}/{MAX_OPEN_POSITIONS}\n"
-    )
+    # ── Core status ──
+    live_icon = "🟢" if is_live else "🔴"
+    client_icon = "🟢" if client_ready else "🔴"
+    cb_icon = "🚨" if cb_active else "✅"
+    approve_icon = "🟢" if AUTO_APPROVE_LIVE else "🔴"
+
+    lines = [
+        f"🤖 <b>Bot Status — {state.mode.upper()}</b>",
+        "",
+        f"{live_icon} Live trading: <b>{'ON' if is_live else 'OFF'}</b>  ·  {client_icon} Client: <b>{'READY' if client_ready else 'NOT READY'}</b>",
+        f"{approve_icon} Auto-approve: <b>{'ON' if AUTO_APPROVE_LIVE else 'OFF'}</b>  ·  {cb_icon} Circuit breaker: <b>{'ACTIVE' if cb_active else 'OK'}</b>",
+        f"📉 Loss streak: <b>{state.consecutive_losses}</b>",
+        f"📂 Open positions: <b>{len(positions)}/{MAX_OPEN_POSITIONS}</b>",
+    ]
 
     if client_ready:
-        balance = await _execution_client.get_balance()
-        text += f"Balance: ${balance:.2f} USDC\n"
+        try:
+            balance = await _execution_client.get_balance()
+            lines.insert(2, f"💰 Balance: <b>${balance:.2f} USDC</b>")
+        except Exception:
+            pass
 
-    await message.answer(text, parse_mode="HTML")
+    # ── Open positions detail ──
+    if positions:
+        lines.append("")
+        lines.append("──────────────────")
+        lines.append("📍 <b>Відкриті позиції</b>")
+        for pos in positions:
+            direction = pos.get("direction", "?")
+            dir_icon = "⬆️" if direction == "UP" else "⬇️"
+            slug = html.escape((pos.get("market_slug") or "")[:50])
+            entry = pos.get("entry_price", 0)
+            sl = pos.get("sl_price", 0)
+            shares = pos.get("remaining_shares") or pos.get("shares", 0)
+            expires = (pos.get("market_expires_at") or "")[:16]
+            lines.append("")
+            lines.append(f"{dir_icon} <b>{direction}</b>  @{_history_price_txt(entry)}  ·  SL: {_history_price_txt(sl)}  ·  {shares:.1f} shares")
+            if slug:
+                lines.append(f"📌 {slug}")
+            if expires:
+                lines.append(f"⏱ Expires: <code>{html.escape(expires)}</code>")
+
+    await message.answer("\n".join(lines), parse_mode="HTML")
 
 
 @dp.message(Command("history"))

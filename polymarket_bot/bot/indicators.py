@@ -129,4 +129,16 @@ def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
     else:
         df["taker_ratio"] = float("nan")
 
+    # MTF RSI: resample 1m → 3m/5m, forward-fill back to 1m resolution
+    for tf_min, col in [(3, "rsi_3m"), (5, "rsi_5m")]:
+        try:
+            close_tf = df["close"].resample(f"{tf_min}min").last().dropna()
+            if len(close_tf) >= RSI_PERIOD:
+                rsi_tf = calculate_rsi(close_tf, RSI_PERIOD)
+                df[col] = rsi_tf.reindex(df.index, method="ffill")
+            else:
+                df[col] = float("nan")
+        except Exception:
+            df[col] = float("nan")
+
     return df.reset_index()

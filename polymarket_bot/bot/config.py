@@ -117,6 +117,9 @@ CONTRACT_PRICE_HIGH_MIN = float(os.getenv("CONTRACT_PRICE_HIGH_MIN", "0.75"))
 # Time left below this (min) → require GAP_STRICT_USD
 TIME_STRICT_MAX_MIN = float(os.getenv("TIME_STRICT_MAX_MIN", "5.0"))
 
+# MTF RSI filter: require 3m and 5m RSI to align with signal direction (both > 50 for UP, both < 50 for DOWN)
+MTF_RSI_FILTER_ENABLED = os.getenv("MTF_RSI_FILTER_ENABLED", "false").lower() in ("1", "true", "yes")
+
 # Taker ratio filter: skip signal when taker is in neutral zone (buyers/sellers not yet dominant)
 # Set TAKER_FILTER_ENABLED=false to disable (light mode collects data only)
 TAKER_FILTER_ENABLED = os.getenv("TAKER_FILTER_ENABLED", "false").lower() in ("1", "true", "yes")

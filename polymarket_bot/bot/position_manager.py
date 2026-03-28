@@ -54,7 +54,9 @@ def _pnl_total_on_full_close(
 
 
 def _get_conn(db_path: str | None = None):
-    return sqlite3.connect(db_path if db_path is not None else get_db_path())
+    conn = sqlite3.connect(db_path if db_path is not None else get_db_path())
+    conn.execute("PRAGMA busy_timeout=5000")
+    return conn
 
 
 def _migrate_positions_columns(cursor: sqlite3.Cursor) -> None:
@@ -279,219 +281,222 @@ async def monitor_positions_loop(execution_client):
             for pos in positions:
                 if not pos.get("token_id"):
                     continue
+                try:
+                    current_price = await execution_client.get_token_price(
+                        pos["token_id"], "SELL",
+                    )
+                    if current_price is None:
+                        continue  # API помилка — пропускаємо, не закриваємо
+                    # current_price == 0.0 — ціна справді впала до нуля, дозволяємо SL спрацювати
 
-                current_price = await execution_client.get_token_price(
-                    pos["token_id"], "SELL",
-                )
-                if current_price is None:
-                    continue  # API помилка — пропускаємо, не закриваємо
-                # current_price == 0.0 — ціна справді впала до нуля, дозволяємо SL спрацювати
+                    entry = pos["entry_price"]
+                    remaining = pos["remaining_shares"]
+                    pos_id = pos["id"]
+                    shares_init = float(pos["shares"] or 0)
+                    stake_u = float(pos["stake_usd"] or 0)
+                    realized_accum = float(pos.get("realized_pnl") or 0)
+                    sl = float(pos.get("sl_price") or 0)
+                    partial_level = int(pos.get("partial_exit_done") or 0)
 
-                entry = pos["entry_price"]
-                remaining = pos["remaining_shares"]
-                pos_id = pos["id"]
-                shares_init = float(pos["shares"] or 0)
-                stake_u = float(pos["stake_usd"] or 0)
-                realized_accum = float(pos.get("realized_pnl") or 0)
-                sl = float(pos.get("sl_price") or 0)
-                partial_level = int(pos.get("partial_exit_done") or 0)
+                    # ── Time-based exit: ціна ≥ 0.95 і до закриття < 3 хв — продати все ──
+                    expires_str = pos.get("market_expires_at") or ""
+                    if expires_str and current_price >= TP_FULL_PRICE and remaining > 0:
+                        try:
+                            exp = datetime.fromisoformat(expires_str).replace(tzinfo=timezone.utc)
+                            secs_left = (exp - datetime.now(timezone.utc)).total_seconds()
+                            if secs_left < 180:
+                                logger.info(
+                                    "TIME EXIT #%s: price %.2f >= %.2f, %.0fs left — sell all",
+                                    pos_id, current_price, TP_FULL_PRICE, secs_left,
+                                )
+                                sell_result = await execution_client.sell_shares(
+                                    pos["token_id"], current_price, remaining,
+                                )
+                                if sell_result and sell_result.get("success") is not False:
+                                    pnl = _pnl_total_on_full_close(
+                                        stake_u, shares_init, remaining, current_price, realized_accum,
+                                    )
+                                    close_position(pos_id, "time_exit", pnl)
+                                    await send_info_message(
+                                        f"⏰ <b>Time Exit #{pos_id} @ {current_price:.2f}</b>\n"
+                                        f"{pos['direction']} {pos['side']} | "
+                                        f"{remaining:.0f} shares | {secs_left:.0f}с до закриття\n"
+                                        f"PnL: <b>{pnl:+.2f} USD</b>"
+                                    )
+                                    continue
+                        except Exception:
+                            pass
 
-                # ── Time-based exit: ціна ≥ 0.95 і до закриття < 3 хв — продати все ──
-                expires_str = pos.get("market_expires_at") or ""
-                if expires_str and current_price >= TP_FULL_PRICE and remaining > 0:
-                    try:
-                        exp = datetime.fromisoformat(expires_str).replace(tzinfo=timezone.utc)
-                        secs_left = (exp - datetime.now(timezone.utc)).total_seconds()
-                        if secs_left < 180:
+                    # ── Після +X% нереалізованого прибутку (від ставки на залишок) — SL на вхід ──
+                    if (
+                        BREAKEVEN_AFTER_ROI_PCT > 0
+                        and shares_init > 0
+                        and remaining > 0
+                        and sl + 1e-9 < entry
+                    ):
+                        alloc_stake = stake_u * (remaining / shares_init)
+                        unreal = (current_price - entry) * remaining
+                        if alloc_stake > 1e-9:
+                            roi_frac = unreal / alloc_stake
+                            if roi_frac >= BREAKEVEN_AFTER_ROI_PCT / 100.0:
+                                update_sl_price(pos_id, entry)
+                                await send_info_message(
+                                    f"\U0001f504 <b>SL \u2192 беззбиток #{pos_id}</b>\n"
+                                    f"{pos['direction']} {pos['side']} | "
+                                    f"~{BREAKEVEN_AFTER_ROI_PCT:.0f}%+ від ставки на залишок, "
+                                    f"SL @ {entry:.2f}"
+                                )
+                                sl = entry
+
+                    # ── Stop-loss ──
+                    if sl > 0 and current_price <= sl:
+                        logger.warning(
+                            "SL TRIGGERED #%s: %.2f <= %.2f", pos_id, current_price, sl,
+                        )
+                        sell_price = 0.01  # агресивна ціна — перетинає будь-який bid (quasi market order)
+                        sell_result = await execution_client.sell_shares(
+                            pos["token_id"], sell_price, remaining,
+                        )
+                        sell_ok = bool(sell_result and sell_result.get("success") is True)
+                        if not sell_ok:
+                            logger.warning(
+                                "SL SELL failed #%s (ціна %.2f) — закриваємо позицію в БД, settlement підтвердить PnL",
+                                pos_id, sell_price,
+                            )
+                        pnl = _pnl_total_on_full_close(
+                            stake_u, shares_init, remaining, current_price, realized_accum,
+                        )
+                        close_position(pos_id, "stop_loss" if sell_ok else "stop_loss_no_fill", pnl)
+
+                        sl_text = (
+                            f"\U0001f6d1 <b>Stop-Loss #{pos_id}</b>\n"
+                            f"{pos['direction']} {pos['side']} | "
+                            f"Entry: {entry:.2f} \u2192 Exit: {current_price:.2f}\n"
+                            f"PnL: <b>{pnl:+.2f} USD</b>"
+                        )
+                        if state.circuit_breaker_active:
+                            sl_text += (
+                                f"\n\n\U0001f6a8 <b>CIRCUIT BREAKER!</b>\n"
+                                f"{state.consecutive_losses} losses підряд \u2014 "
+                                f"live trading вимкнено.\n/reset щоб відновити."
+                            )
+                        await send_info_message(sl_text)
+                        continue
+
+                    # ── Take-Profit FINAL @ 0.97 — sell all remaining ──
+                    if current_price >= TP_FINAL_PRICE:
+                        logger.info(
+                            "TP FINAL #%s: price %.2f >= %.2f",
+                            pos_id, current_price, TP_FINAL_PRICE,
+                        )
+                        sell_result = await execution_client.sell_shares(
+                            pos["token_id"], current_price, remaining,
+                        )
+                        if not (sell_result and sell_result.get("success") is True):
+                            logger.error("TP FINAL SELL failed #%s: %s — позиція залишається відкритою", pos_id, sell_result)
+                            continue
+                        pnl = _pnl_total_on_full_close(
+                            stake_u, shares_init, remaining, current_price, realized_accum,
+                        )
+                        close_position(pos_id, "tp_final", pnl)
+
+                        await send_info_message(
+                            f"\U0001f3af <b>Full Exit #{pos_id} @ {current_price:.2f}</b>\n"
+                            f"{pos['direction']} {pos['side']} | "
+                            f"Entry: {entry:.2f} \u2192 {current_price:.2f}\n"
+                            f"Sold {remaining:.0f} shares\n"
+                            f"PnL: <b>{pnl:+.2f} USD</b>"
+                        )
+                        continue
+
+                    # ── Take-Profit LEVEL 3 @ 0.95 — sell 50% of remaining ──
+                    if partial_level < 3 and current_price >= TP_FULL_PRICE:
+                        sell_amount = remaining * 0.5
+                        if sell_amount >= 1:
                             logger.info(
-                                "TIME EXIT #%s: price %.2f >= %.2f, %.0fs left — sell all",
-                                pos_id, current_price, TP_FULL_PRICE, secs_left,
+                                "TP L3 #%s: price %.2f >= %.2f, selling %.1f",
+                                pos_id, current_price, TP_FULL_PRICE, sell_amount,
                             )
                             sell_result = await execution_client.sell_shares(
-                                pos["token_id"], current_price, remaining,
+                                pos["token_id"], current_price, sell_amount,
                             )
-                            if sell_result and sell_result.get("success") is not False:
-                                pnl = _pnl_total_on_full_close(
-                                    stake_u, shares_init, remaining, current_price, realized_accum,
-                                )
-                                close_position(pos_id, "time_exit", pnl)
-                                await send_info_message(
-                                    f"⏰ <b>Time Exit #{pos_id} @ {current_price:.2f}</b>\n"
-                                    f"{pos['direction']} {pos['side']} | "
-                                    f"{remaining:.0f} shares | {secs_left:.0f}с до закриття\n"
-                                    f"PnL: <b>{pnl:+.2f} USD</b>"
-                                )
+                            if not (sell_result and sell_result.get("success") is True):
+                                logger.error("TP L3 SELL failed #%s: %s — позиція залишається відкритою", pos_id, sell_result)
                                 continue
-                    except Exception:
-                        pass
-
-                # ── Після +X% нереалізованого прибутку (від ставки на залишок) — SL на вхід ──
-                if (
-                    BREAKEVEN_AFTER_ROI_PCT > 0
-                    and shares_init > 0
-                    and remaining > 0
-                    and sl + 1e-9 < entry
-                ):
-                    alloc_stake = stake_u * (remaining / shares_init)
-                    unreal = (current_price - entry) * remaining
-                    if alloc_stake > 1e-9:
-                        roi_frac = unreal / alloc_stake
-                        if roi_frac >= BREAKEVEN_AFTER_ROI_PCT / 100.0:
-                            update_sl_price(pos_id, entry)
-                            await send_info_message(
-                                f"\U0001f504 <b>SL \u2192 беззбиток #{pos_id}</b>\n"
-                                f"{pos['direction']} {pos['side']} | "
-                                f"~{BREAKEVEN_AFTER_ROI_PCT:.0f}%+ від ставки на залишок, "
-                                f"SL @ {entry:.2f}"
+                            new_remaining = remaining - sell_amount
+                            leg_pnl = _pnl_partial_leg_usd(
+                                stake_u, shares_init, sell_amount, current_price,
                             )
-                            sl = entry
+                            update_partial_exit(pos_id, sell_amount, new_remaining, leg_pnl, level=3)
 
-                # ── Stop-loss ──
-                if sl > 0 and current_price <= sl:
-                    logger.warning(
-                        "SL TRIGGERED #%s: %.2f <= %.2f", pos_id, current_price, sl,
-                    )
-                    sell_price = 0.01  # агресивна ціна — перетинає будь-який bid (quasi market order)
-                    sell_result = await execution_client.sell_shares(
-                        pos["token_id"], sell_price, remaining,
-                    )
-                    sell_ok = bool(sell_result and sell_result.get("success") is True)
-                    if not sell_ok:
-                        logger.warning(
-                            "SL SELL failed #%s (ціна %.2f) — закриваємо позицію в БД, settlement підтвердить PnL",
-                            pos_id, sell_price,
-                        )
-                    pnl = _pnl_total_on_full_close(
-                        stake_u, shares_init, remaining, current_price, realized_accum,
-                    )
-                    close_position(pos_id, "stop_loss" if sell_ok else "stop_loss_no_fill", pnl)
-
-                    sl_text = (
-                        f"\U0001f6d1 <b>Stop-Loss #{pos_id}</b>\n"
-                        f"{pos['direction']} {pos['side']} | "
-                        f"Entry: {entry:.2f} \u2192 Exit: {current_price:.2f}\n"
-                        f"PnL: <b>{pnl:+.2f} USD</b>"
-                    )
-                    if state.circuit_breaker_active:
-                        sl_text += (
-                            f"\n\n\U0001f6a8 <b>CIRCUIT BREAKER!</b>\n"
-                            f"{state.consecutive_losses} losses підряд \u2014 "
-                            f"live trading вимкнено.\n/reset щоб відновити."
-                        )
-                    await send_info_message(sl_text)
-                    continue
-
-                # ── Take-Profit FINAL @ 0.97 — sell all remaining ──
-                if current_price >= TP_FINAL_PRICE:
-                    logger.info(
-                        "TP FINAL #%s: price %.2f >= %.2f",
-                        pos_id, current_price, TP_FINAL_PRICE,
-                    )
-                    sell_result = await execution_client.sell_shares(
-                        pos["token_id"], current_price, remaining,
-                    )
-                    if not (sell_result and sell_result.get("success") is True):
-                        logger.error("TP FINAL SELL failed #%s: %s — позиція залишається відкритою", pos_id, sell_result)
+                            await send_info_message(
+                                f"\U0001f4b0 <b>TP L3 #{pos_id} @ {current_price:.2f}</b>\n"
+                                f"Sold {sell_amount:.0f} / {remaining:.0f} shares\n"
+                                f"Locked: <b>{leg_pnl:+.2f} USD</b>\n"
+                                f"Remaining: {new_remaining:.0f} shares \u2192 "
+                                f"final exit @ {TP_FINAL_PRICE:.2f}"
+                            )
                         continue
-                    pnl = _pnl_total_on_full_close(
-                        stake_u, shares_init, remaining, current_price, realized_accum,
-                    )
-                    close_position(pos_id, "tp_final", pnl)
 
-                    await send_info_message(
-                        f"\U0001f3af <b>Full Exit #{pos_id} @ {current_price:.2f}</b>\n"
-                        f"{pos['direction']} {pos['side']} | "
-                        f"Entry: {entry:.2f} \u2192 {current_price:.2f}\n"
-                        f"Sold {remaining:.0f} shares\n"
-                        f"PnL: <b>{pnl:+.2f} USD</b>"
-                    )
-                    continue
+                    # ── Take-Profit LEVEL 2 @ 0.93 — sell 33% of remaining ──
+                    if partial_level < 2 and current_price >= TP_MID_PRICE:
+                        sell_amount = remaining / 3
+                        if sell_amount >= 1:
+                            logger.info(
+                                "TP L2 #%s: price %.2f >= %.2f, selling %.1f",
+                                pos_id, current_price, TP_MID_PRICE, sell_amount,
+                            )
+                            sell_result = await execution_client.sell_shares(
+                                pos["token_id"], current_price, sell_amount,
+                            )
+                            if not (sell_result and sell_result.get("success") is True):
+                                logger.error("TP L2 SELL failed #%s: %s — позиція залишається відкритою", pos_id, sell_result)
+                                continue
+                            new_remaining = remaining - sell_amount
+                            leg_pnl = _pnl_partial_leg_usd(
+                                stake_u, shares_init, sell_amount, current_price,
+                            )
+                            update_partial_exit(pos_id, sell_amount, new_remaining, leg_pnl, level=2)
 
-                # ── Take-Profit LEVEL 3 @ 0.95 — sell 50% of remaining ──
-                if partial_level < 3 and current_price >= TP_FULL_PRICE:
-                    sell_amount = remaining * 0.5
-                    if sell_amount >= 1:
-                        logger.info(
-                            "TP L3 #%s: price %.2f >= %.2f, selling %.1f",
-                            pos_id, current_price, TP_FULL_PRICE, sell_amount,
-                        )
-                        sell_result = await execution_client.sell_shares(
-                            pos["token_id"], current_price, sell_amount,
-                        )
-                        if not (sell_result and sell_result.get("success") is True):
-                            logger.error("TP L3 SELL failed #%s: %s — позиція залишається відкритою", pos_id, sell_result)
-                            continue
-                        new_remaining = remaining - sell_amount
-                        leg_pnl = _pnl_partial_leg_usd(
-                            stake_u, shares_init, sell_amount, current_price,
-                        )
-                        update_partial_exit(pos_id, sell_amount, new_remaining, leg_pnl, level=3)
+                            await send_info_message(
+                                f"\U0001f4b0 <b>TP L2 #{pos_id} @ {current_price:.2f}</b>\n"
+                                f"Sold {sell_amount:.0f} / {remaining:.0f} shares\n"
+                                f"Locked: <b>{leg_pnl:+.2f} USD</b>\n"
+                                f"Remaining: {new_remaining:.0f} shares \u2192 "
+                                f"L3 exit @ {TP_FULL_PRICE:.2f}"
+                            )
+                        continue
 
-                        await send_info_message(
-                            f"\U0001f4b0 <b>TP L3 #{pos_id} @ {current_price:.2f}</b>\n"
-                            f"Sold {sell_amount:.0f} / {remaining:.0f} shares\n"
-                            f"Locked: <b>{leg_pnl:+.2f} USD</b>\n"
-                            f"Remaining: {new_remaining:.0f} shares \u2192 "
-                            f"final exit @ {TP_FINAL_PRICE:.2f}"
-                        )
-                    continue
+                    # ── Take-Profit LEVEL 1 @ 0.90 — sell 25% of remaining ──
+                    if partial_level < 1 and current_price >= TP_PARTIAL_PRICE:
+                        sell_amount = remaining * (TP_PARTIAL_SELL_PCT / 100)
+                        if sell_amount >= 1:
+                            logger.info(
+                                "TP L1 #%s: price %.2f >= %.2f, selling %.1f",
+                                pos_id, current_price, TP_PARTIAL_PRICE, sell_amount,
+                            )
+                            sell_result = await execution_client.sell_shares(
+                                pos["token_id"], current_price, sell_amount,
+                            )
+                            if not (sell_result and sell_result.get("success") is True):
+                                logger.error("TP L1 SELL failed #%s: %s — позиція залишається відкритою", pos_id, sell_result)
+                                continue
+                            new_remaining = remaining - sell_amount
+                            leg_pnl = _pnl_partial_leg_usd(
+                                stake_u, shares_init, sell_amount, current_price,
+                            )
+                            update_partial_exit(pos_id, sell_amount, new_remaining, leg_pnl, level=1)
 
-                # ── Take-Profit LEVEL 2 @ 0.93 — sell 33% of remaining ──
-                if partial_level < 2 and current_price >= TP_MID_PRICE:
-                    sell_amount = remaining / 3
-                    if sell_amount >= 1:
-                        logger.info(
-                            "TP L2 #%s: price %.2f >= %.2f, selling %.1f",
-                            pos_id, current_price, TP_MID_PRICE, sell_amount,
-                        )
-                        sell_result = await execution_client.sell_shares(
-                            pos["token_id"], current_price, sell_amount,
-                        )
-                        if not (sell_result and sell_result.get("success") is True):
-                            logger.error("TP L2 SELL failed #%s: %s — позиція залишається відкритою", pos_id, sell_result)
-                            continue
-                        new_remaining = remaining - sell_amount
-                        leg_pnl = _pnl_partial_leg_usd(
-                            stake_u, shares_init, sell_amount, current_price,
-                        )
-                        update_partial_exit(pos_id, sell_amount, new_remaining, leg_pnl, level=2)
+                            await send_info_message(
+                                f"\U0001f4b0 <b>TP L1 #{pos_id} @ {current_price:.2f}</b>\n"
+                                f"Sold {sell_amount:.0f} / {remaining:.0f} shares\n"
+                                f"Locked: <b>{leg_pnl:+.2f} USD</b>\n"
+                                f"Remaining: {new_remaining:.0f} shares \u2192 "
+                                f"L2 exit @ {TP_MID_PRICE:.2f}"
+                            )
 
-                        await send_info_message(
-                            f"\U0001f4b0 <b>TP L2 #{pos_id} @ {current_price:.2f}</b>\n"
-                            f"Sold {sell_amount:.0f} / {remaining:.0f} shares\n"
-                            f"Locked: <b>{leg_pnl:+.2f} USD</b>\n"
-                            f"Remaining: {new_remaining:.0f} shares \u2192 "
-                            f"L3 exit @ {TP_FULL_PRICE:.2f}"
-                        )
-                    continue
-
-                # ── Take-Profit LEVEL 1 @ 0.90 — sell 25% of remaining ──
-                if partial_level < 1 and current_price >= TP_PARTIAL_PRICE:
-                    sell_amount = remaining * (TP_PARTIAL_SELL_PCT / 100)
-                    if sell_amount >= 1:
-                        logger.info(
-                            "TP L1 #%s: price %.2f >= %.2f, selling %.1f",
-                            pos_id, current_price, TP_PARTIAL_PRICE, sell_amount,
-                        )
-                        sell_result = await execution_client.sell_shares(
-                            pos["token_id"], current_price, sell_amount,
-                        )
-                        if not (sell_result and sell_result.get("success") is True):
-                            logger.error("TP L1 SELL failed #%s: %s — позиція залишається відкритою", pos_id, sell_result)
-                            continue
-                        new_remaining = remaining - sell_amount
-                        leg_pnl = _pnl_partial_leg_usd(
-                            stake_u, shares_init, sell_amount, current_price,
-                        )
-                        update_partial_exit(pos_id, sell_amount, new_remaining, leg_pnl, level=1)
-
-                        await send_info_message(
-                            f"\U0001f4b0 <b>TP L1 #{pos_id} @ {current_price:.2f}</b>\n"
-                            f"Sold {sell_amount:.0f} / {remaining:.0f} shares\n"
-                            f"Locked: <b>{leg_pnl:+.2f} USD</b>\n"
-                            f"Remaining: {new_remaining:.0f} shares \u2192 "
-                            f"L2 exit @ {TP_MID_PRICE:.2f}"
-                        )
+                except Exception as e:
+                    logger.error("Помилка обробки позиції #%s: %s", pos.get("id"), e, exc_info=True)
 
         except Exception as e:
             logger.error("Помилка monitor_positions: %s", e, exc_info=True)

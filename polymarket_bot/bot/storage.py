@@ -15,7 +15,9 @@ def get_db_path() -> str:
 
 
 def get_connection(db_path: str | None = None) -> sqlite3.Connection:
-    return sqlite3.connect(db_path if db_path is not None else get_db_path())
+    conn = sqlite3.connect(db_path if db_path is not None else get_db_path())
+    conn.execute("PRAGMA busy_timeout=5000")
+    return conn
 
 
 def _migrate_signals_columns(cursor: sqlite3.Cursor) -> None:

@@ -17,11 +17,7 @@ from bot.config import (
     CONTRACT_PRICE_HIGH_MIN,
     CONTRACT_PRICE_MAX,
     GAP_STRICT_USD,
-    TAKER_FILTER_ENABLED,
-    TAKER_UP_NEUTRAL_MIN,
-    TAKER_UP_NEUTRAL_MAX,
-    TAKER_DOWN_NEUTRAL_MIN,
-    TAKER_DOWN_NEUTRAL_MAX,
+    MTF_RSI_FILTER_ENABLED,
 )
 from bot.exchange_client import ExchangeClient
 from bot.polymarket_client import PolymarketClient
@@ -104,20 +100,21 @@ class Scanner:
                         direction = signal["direction"]
                         market_id = str(market_prices["market_id"])
 
-                        # ── Taker ratio filter (skip in test mode) ──
-                        if TAKER_FILTER_ENABLED and state.mode != "test":
-                            tr = signal.get("taker_ratio")
-                            if tr is not None:
-                                if direction == "UP" and TAKER_UP_NEUTRAL_MIN <= tr < TAKER_UP_NEUTRAL_MAX:
+                        # ── MTF RSI filter: 3m and 5m must align with direction ──
+                        if MTF_RSI_FILTER_ENABLED and state.mode != "test":
+                            rsi_3m = signal.get("rsi_3m")
+                            rsi_5m = signal.get("rsi_5m")
+                            if rsi_3m is not None and rsi_5m is not None:
+                                if direction == "UP" and not (rsi_3m > 50 and rsi_5m > 50):
                                     logger.debug(
-                                        "Taker %.3f in UP neutral zone [%.2f,%.2f) — skip",
-                                        tr, TAKER_UP_NEUTRAL_MIN, TAKER_UP_NEUTRAL_MAX,
+                                        "MTF RSI UP fail: rsi_3m=%.1f rsi_5m=%.1f — skip",
+                                        rsi_3m, rsi_5m,
                                     )
                                     continue
-                                if direction == "DOWN" and TAKER_DOWN_NEUTRAL_MIN <= tr < TAKER_DOWN_NEUTRAL_MAX:
+                                if direction == "DOWN" and not (rsi_3m < 50 and rsi_5m < 50):
                                     logger.debug(
-                                        "Taker %.3f in DOWN neutral zone [%.2f,%.2f) — skip",
-                                        tr, TAKER_DOWN_NEUTRAL_MIN, TAKER_DOWN_NEUTRAL_MAX,
+                                        "MTF RSI DOWN fail: rsi_3m=%.1f rsi_5m=%.1f — skip",
+                                        rsi_3m, rsi_5m,
                                     )
                                     continue
 

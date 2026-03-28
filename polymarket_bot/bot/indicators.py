@@ -121,14 +121,6 @@ def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
     choices = ["spike", "stabilization"]
     df["volume_state"] = np.select(conditions, choices, default="normal")
 
-    # Taker ratio: rolling 5-bar taker_buy / total_volume (measures buyer aggression)
-    if "taker_buy_base_asset_volume" in df.columns:
-        taker_5 = df["taker_buy_base_asset_volume"].rolling(5).sum()
-        vol_5 = df["volume"].rolling(5).sum()
-        df["taker_ratio"] = taker_5 / vol_5.replace(0, float("nan"))
-    else:
-        df["taker_ratio"] = float("nan")
-
     # MTF RSI: resample 1m → 3m/5m, forward-fill back to 1m resolution
     for tf_min, col in [(3, "rsi_3m"), (5, "rsi_5m")]:
         try:

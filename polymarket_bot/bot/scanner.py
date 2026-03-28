@@ -17,11 +17,6 @@ from bot.config import (
     CONTRACT_PRICE_HIGH_MIN,
     CONTRACT_PRICE_MAX,
     GAP_STRICT_USD,
-    TAKER_FILTER_ENABLED,
-    TAKER_UP_NEUTRAL_MIN,
-    TAKER_UP_NEUTRAL_MAX,
-    TAKER_DOWN_NEUTRAL_MIN,
-    TAKER_DOWN_NEUTRAL_MAX,
     MTF_RSI_FILTER_ENABLED,
 )
 from bot.exchange_client import ExchangeClient
@@ -120,23 +115,6 @@ class Scanner:
                                     logger.debug(
                                         "MTF RSI DOWN fail: rsi_3m=%.1f rsi_5m=%.1f — skip",
                                         rsi_3m, rsi_5m,
-                                    )
-                                    continue
-
-                        # ── Taker ratio filter (skip in test mode) ──
-                        if TAKER_FILTER_ENABLED and state.mode != "test":
-                            tr = signal.get("taker_ratio")
-                            if tr is not None:
-                                if direction == "UP" and TAKER_UP_NEUTRAL_MIN <= tr < TAKER_UP_NEUTRAL_MAX:
-                                    logger.debug(
-                                        "Taker %.3f in UP neutral zone [%.2f,%.2f) — skip",
-                                        tr, TAKER_UP_NEUTRAL_MIN, TAKER_UP_NEUTRAL_MAX,
-                                    )
-                                    continue
-                                if direction == "DOWN" and TAKER_DOWN_NEUTRAL_MIN <= tr < TAKER_DOWN_NEUTRAL_MAX:
-                                    logger.debug(
-                                        "Taker %.3f in DOWN neutral zone [%.2f,%.2f) — skip",
-                                        tr, TAKER_DOWN_NEUTRAL_MIN, TAKER_DOWN_NEUTRAL_MAX,
                                     )
                                     continue
 

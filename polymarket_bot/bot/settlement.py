@@ -40,7 +40,8 @@ async def settle_markets():
     poly = PolymarketClient()
     logger.info("Запущено фоновий процес розрахунку (Settlement) для завершених маркетів.")
 
-    while True:
+    try:
+      while True:
         try:
             unresolved = get_unresolved_signals()
             for sig in unresolved:
@@ -155,4 +156,5 @@ async def settle_markets():
 
         await asyncio.sleep(SETTLEMENT_INTERVAL_SECONDS)
 
-    await poly.close()
+    finally:
+        await poly.close()

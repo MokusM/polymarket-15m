@@ -355,7 +355,7 @@ async def monitor_positions_loop(execution_client):
                     sell_result = await execution_client.sell_shares(
                         pos["token_id"], sell_price, remaining,
                     )
-                    sell_ok = sell_result and sell_result.get("success") is not False
+                    sell_ok = bool(sell_result and sell_result.get("success") is True)
                     if not sell_ok:
                         logger.warning(
                             "SL SELL failed #%s (ціна %.2f) — закриваємо позицію в БД, settlement підтвердить PnL",
@@ -390,7 +390,7 @@ async def monitor_positions_loop(execution_client):
                     sell_result = await execution_client.sell_shares(
                         pos["token_id"], current_price, remaining,
                     )
-                    if not sell_result or sell_result.get("success") is False:
+                    if not (sell_result and sell_result.get("success") is True):
                         logger.error("TP FINAL SELL failed #%s: %s — позиція залишається відкритою", pos_id, sell_result)
                         continue
                     pnl = _pnl_total_on_full_close(
@@ -418,7 +418,7 @@ async def monitor_positions_loop(execution_client):
                         sell_result = await execution_client.sell_shares(
                             pos["token_id"], current_price, sell_amount,
                         )
-                        if not sell_result or sell_result.get("success") is False:
+                        if not (sell_result and sell_result.get("success") is True):
                             logger.error("TP L3 SELL failed #%s: %s — позиція залишається відкритою", pos_id, sell_result)
                             continue
                         new_remaining = remaining - sell_amount
@@ -447,7 +447,7 @@ async def monitor_positions_loop(execution_client):
                         sell_result = await execution_client.sell_shares(
                             pos["token_id"], current_price, sell_amount,
                         )
-                        if not sell_result or sell_result.get("success") is False:
+                        if not (sell_result and sell_result.get("success") is True):
                             logger.error("TP L2 SELL failed #%s: %s — позиція залишається відкритою", pos_id, sell_result)
                             continue
                         new_remaining = remaining - sell_amount
@@ -476,7 +476,7 @@ async def monitor_positions_loop(execution_client):
                         sell_result = await execution_client.sell_shares(
                             pos["token_id"], current_price, sell_amount,
                         )
-                        if not sell_result or sell_result.get("success") is False:
+                        if not (sell_result and sell_result.get("success") is True):
                             logger.error("TP L1 SELL failed #%s: %s — позиція залишається відкритою", pos_id, sell_result)
                             continue
                         new_remaining = remaining - sell_amount
@@ -557,7 +557,9 @@ async def monitor_pending_orders_loop(execution_client) -> None:
                     continue
 
                 if status == "MATCHED":
-                    # Ордер виконано — відкриваємо позицію
+                    # Ордер виконано — спочатку видаляємо з pending (щоб уникнути дублікату позиції)
+                    await asyncio.to_thread(delete_pending_order, order_id)
+
                     ep = float(info.get("price") or po["limit_price"])
                     size_matched = float(info.get("size_matched") or po["shares"])
                     stake_eff = round(ep * size_matched, 2)
@@ -574,7 +576,6 @@ async def monitor_pending_orders_loop(execution_client) -> None:
                         order_result=info,
                     )
                     await asyncio.to_thread(update_signal_live_fill, signal_id, stake_eff, ep)
-                    await asyncio.to_thread(delete_pending_order, order_id)
 
                     side = "YES" if po["direction"] == "UP" else "NO"
                     logger.info(

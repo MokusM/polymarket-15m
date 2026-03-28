@@ -36,8 +36,8 @@ class ExchangeClient:
             ])
             
             # Залишаємо тільки потрібні колонки та приводимо до правильних типів
-            df = df[["timestamp", "open", "high", "low", "close", "volume"]]
-            for col in ["open", "high", "low", "close", "volume"]:
+            df = df[["timestamp", "open", "high", "low", "close", "volume", "taker_buy_base_asset_volume"]]
+            for col in ["open", "high", "low", "close", "volume", "taker_buy_base_asset_volume"]:
                 df[col] = df[col].astype(float)
                 
             # Перетворюємо timestamp в datetime об'єкти

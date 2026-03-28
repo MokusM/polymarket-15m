@@ -117,6 +117,16 @@ CONTRACT_PRICE_HIGH_MIN = float(os.getenv("CONTRACT_PRICE_HIGH_MIN", "0.75"))
 # Time left below this (min) → require GAP_STRICT_USD
 TIME_STRICT_MAX_MIN = float(os.getenv("TIME_STRICT_MAX_MIN", "5.0"))
 
+# Taker ratio filter: skip signal when taker is in neutral zone (buyers/sellers not yet dominant)
+# Set TAKER_FILTER_ENABLED=false to disable (light mode collects data only)
+TAKER_FILTER_ENABLED = os.getenv("TAKER_FILTER_ENABLED", "false").lower() in ("1", "true", "yes")
+# UP signal: skip if taker_ratio in [TAKER_UP_NEUTRAL_MIN, TAKER_UP_NEUTRAL_MAX)
+TAKER_UP_NEUTRAL_MIN = float(os.getenv("TAKER_UP_NEUTRAL_MIN", "0.40"))
+TAKER_UP_NEUTRAL_MAX = float(os.getenv("TAKER_UP_NEUTRAL_MAX", "0.50"))
+# DOWN signal: skip if taker_ratio in [TAKER_DOWN_NEUTRAL_MIN, TAKER_DOWN_NEUTRAL_MAX)
+TAKER_DOWN_NEUTRAL_MIN = float(os.getenv("TAKER_DOWN_NEUTRAL_MIN", "0.50"))
+TAKER_DOWN_NEUTRAL_MAX = float(os.getenv("TAKER_DOWN_NEUTRAL_MAX", "0.60"))
+
 # OBI filter: bid_volume / ask_volume must exceed this ratio (1.0 = neutral)
 OBI_MIN_RATIO = float(os.getenv("OBI_MIN_RATIO", "1.2"))
 # Number of top orderbook levels to sum for OBI calculation

@@ -267,6 +267,7 @@ def check_signals(market_info: dict, df: pd.DataFrame) -> dict | None:
         "atr_zone": atr_zone,
         "chg_1h": round(chg_1h_val, 3),
         "obi": 1.0,  # placeholder; scanner overwrites with real value
+        "taker_ratio": round(float(last["taker_ratio"]), 3) if "taker_ratio" in last.index and not pd.isna(last.get("taker_ratio")) else None,
     }
 
 

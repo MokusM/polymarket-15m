@@ -245,6 +245,44 @@ def signal_live_position_already_closed(signal_id: int) -> bool:
         conn.close()
 
 
+def get_recent_signals(limit: int = 10) -> list:
+    """Повертає останні N сигналів з decision=approve, з market_title з payload_json."""
+    try:
+        conn = get_connection()
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT id, timestamp, direction, contract_price, result, pnl,
+                   stake_usd, time_left, payload_json
+            FROM signals
+            WHERE decision = 'approve'
+            ORDER BY id DESC
+            LIMIT ?
+            """,
+            (limit,),
+        )
+        rows = cursor.fetchall()
+        out = []
+        for row in rows:
+            d = dict(row)
+            try:
+                payload = json.loads(d.get("payload_json") or "{}")
+            except Exception:
+                payload = {}
+            d["market_title"] = payload.get("market_title") or payload.get("market_slug") or d.get("market_id", "")
+            d["gap"] = payload.get("gap")
+            d["confluence"] = payload.get("confluence")
+            d["taker_ratio"] = payload.get("taker_ratio")
+            out.append(d)
+        return out
+    except Exception as e:
+        logger.error("Помилка get_recent_signals: %s", e)
+        return []
+    finally:
+        conn.close()
+
+
 def get_unresolved_signals() -> list:
     try:
         conn = get_connection()

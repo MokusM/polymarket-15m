@@ -19,6 +19,7 @@ from bot.config import (
 )
 from bot.execution_client import trade_timestamp
 from bot.storage import (
+    get_recent_signals,
     mark_signal_live_no_position,
     mark_signal_live_pending,
     save_pending_order,
@@ -51,41 +52,49 @@ def _history_price_txt(price: float) -> str:
     return f"${price:.2f}"
 
 
-def _format_clob_trade_html(idx: int, tr: dict) -> str:
-    side_raw = str(tr.get("side", "?")).upper()
-    if side_raw == "BUY":
-        head = "\U0001f7e2 <b>\u041a\u0443\u043f\u0456\u0432\u043b\u044f</b>"
-    elif side_raw == "SELL":
-        head = "\U0001f534 <b>\u041f\u0440\u043e\u0434\u0430\u0436</b>"
-    else:
-        head = f"\u26aa <b>{html.escape(side_raw)}</b>"
+def _format_signal_history_html(idx: int, sig: dict) -> str:
+    direction = sig.get("direction", "?")
+    result = sig.get("result")
+    pnl = sig.get("pnl")
+    contract_price = sig.get("contract_price") or 0.0
+    stake_usd = sig.get("stake_usd") or 0.0
+    title_raw = (sig.get("market_title") or "").strip()
+    title = html.escape(title_raw[:80]) if title_raw else "—"
+    ts_raw = sig.get("timestamp", "")
+    gap = sig.get("gap")
+    confluence = sig.get("confluence")
+    taker = sig.get("taker_ratio")
 
-    try:
-        price = float(tr.get("price", 0))
-        size = float(tr.get("size", 0))
-    except (TypeError, ValueError):
-        price, size = 0.0, 0.0
-    notional = price * size
-    outcome = html.escape(str(tr.get("outcome") or "").strip())
-    title_raw = (tr.get("title") or tr.get("slug") or "").strip()
-    title = html.escape(title_raw[:75])
-    t_human = _history_ts_human(trade_timestamp(tr))
+    # Direction icon
+    dir_icon = "⬆️" if direction == "UP" else "⬇️"
+
+    # Result
+    if result == "win":
+        result_line = f"✅ WIN  <b>+${pnl:.2f}</b>" if pnl is not None else "✅ WIN"
+    elif result == "loss":
+        result_line = f"❌ LOSS  <b>-${abs(pnl):.2f}</b>" if pnl is not None else "❌ LOSS"
+    elif result is not None:
+        result_line = f"⚪ {html.escape(result)}"
+    else:
+        result_line = "⏳ pending"
+
+    # Details
+    details = []
+    if gap is not None:
+        details.append(f"gap={gap:+.0f}$")
+    if confluence is not None:
+        details.append(f"conf={confluence}/5")
+    if taker is not None:
+        details.append(f"taker={taker:.2f}")
+    details_str = "  ·  ".join(details)
 
     parts = [
-        f"<b>#{idx}</b>  {head}",
-        f"\U0001f551 <code>{html.escape(t_human)}</code>",
-        (
-            f"\U0001f4b0 \u041a\u0456\u043b\u044c\u043a\u0456\u0441\u0442\u044c: <b>{size:.2f}</b> shares"
-            f"  \u00b7  \u0426\u0456\u043d\u0430: <b>{_history_price_txt(price)}</b>"
-            f"  \u00b7  \u0412\u0430\u0440\u0442\u0456\u0441\u0442\u044c: <b>~${notional:.2f}</b>"
-        ),
+        f"<b>#{sig['id']}</b>  {dir_icon} <b>{direction}</b>  @{_history_price_txt(contract_price)}  ·  {result_line}",
+        f"📌 {title}",
+        f"🕑 <code>{html.escape(str(ts_raw)[:16])}</code>  ·  ставка ${stake_usd:.2f}",
     ]
-    if outcome:
-        parts.append(
-            f"\U0001f3af \u041a\u043e\u043d\u0442\u0440\u0430\u043a\u0442 (\u0441\u0442\u043e\u0440\u043e\u043d\u0430): {outcome}",
-        )
-    if title:
-        parts.append(f"\U0001f4cc {title}")
+    if details_str:
+        parts.append(f"<i>{html.escape(details_str)}</i>")
     return _SEP + "\n".join(parts)
 
 
@@ -335,33 +344,22 @@ async def cmd_status(message: types.Message):
 
 @dp.message(Command("history"))
 async def cmd_history(message: types.Message):
-    """Останні угоди з Polymarket CLOB API (/data/trades), не з локальної БД."""
-    if not _execution_client or not _execution_client.ready:
-        await message.answer(
-            "\u26a0\ufe0f CLOB не налаштований \u2014 потрібні ключі для історії угод.",
-        )
+    """Останні сигнали з локальної БД з назвою ринку, напрямком та результатом."""
+    signals = get_recent_signals(limit=CLOB_TRADE_HISTORY_LIMIT)
+    if not signals:
+        await message.answer("📋 Немає сигналів у локальній БД.")
         return
 
-    trades = await _execution_client.get_recent_trades(
-        CLOB_TRADE_HISTORY_LIMIT,
-        max_pages=CLOB_TRADE_HISTORY_MAX_PAGES,
-    )
-    if not trades:
-        await message.answer(
-            f"\U0001f4cb \u041d\u0435\u043c\u0430\u0454 \u0443\u0433\u043e\u0434 \u0443 \u0432\u0456\u0434\u043f\u043e\u0432\u0456\u0434\u0456 CLOB "
-            f"(\u043b\u0456\u043c\u0456\u0442 {CLOB_TRADE_HISTORY_LIMIT}, "
-            f"\u0441\u0442\u043e\u0440\u0456\u043d\u043e\u043a {CLOB_TRADE_HISTORY_MAX_PAGES}).",
-        )
-        return
+    wins = sum(1 for s in signals if s.get("result") == "win")
+    losses = sum(1 for s in signals if s.get("result") == "loss")
+    total_pnl = sum(s.get("pnl") or 0.0 for s in signals if s.get("result") in ("win", "loss"))
+    pnl_sign = "+" if total_pnl >= 0 else ""
 
     intro = (
-        f"\U0001f4ca <b>\u0406\u0441\u0442\u043e\u0440\u0456\u044f \u0443\u0433\u043e\u0434 Polymarket</b>\n"
-        f"\u0417\u043d\u0438\u0437\u0443: CLOB API (\u043e\u0441\u0442\u0430\u043d\u043d\u0456 <b>{len(trades)}</b> "
-        f"\u0437 \u0434\u043e {CLOB_TRADE_HISTORY_MAX_PAGES} \u0441\u0442\u043e\u0440\u0456\u043d\u043e\u043a). "
-        f"\u0426\u0435 \u043d\u0435 paper \u0456 \u043d\u0435 \u0440\u043e\u0437\u0440\u0430\u0445\u0443\u043d\u043e\u043a \u0431\u043e\u0442\u0430 \u0432 SQLite.\n"
-        f"<i>\u0427\u0430\u0441 \u2014 UTC. \u00ab\u0412\u0430\u0440\u0442\u0456\u0441\u0442\u044c\u00bb = \u0446\u0456\u043d\u0430 \u00d7 \u043a\u0456\u043b\u044c\u043a\u0456\u0441\u0442\u044c shares.</i>"
+        f"📊 <b>Історія сигналів</b> (останні {len(signals)})\n"
+        f"✅ {wins}W / ❌ {losses}L  ·  PnL: <b>{pnl_sign}${total_pnl:.2f}</b>"
     )
-    blocks = [_format_clob_trade_html(i, tr) for i, tr in enumerate(trades, start=1)]
+    blocks = [_format_signal_history_html(i, sig) for i, sig in enumerate(signals, start=1)]
     text = intro + "".join(blocks)
 
     if len(text) <= 4096:
@@ -371,8 +369,7 @@ async def cmd_history(message: types.Message):
     half = max(1, len(blocks) // 2)
     await message.answer(intro + "".join(blocks[:half]), parse_mode="HTML")
     await message.answer(
-        f"<b>\u041f\u0440\u043e\u0434\u043e\u0432\u0436\u0435\u043d\u043d\u044f (\u0443\u0433\u043e\u0434\u0438 {half + 1}\u2013{len(trades)})</b>"
-        + "".join(blocks[half:]),
+        f"<b>Продовження ({half + 1}–{len(signals)})</b>" + "".join(blocks[half:]),
         parse_mode="HTML",
     )
 

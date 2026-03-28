@@ -351,7 +351,7 @@ async def monitor_positions_loop(execution_client):
                     logger.warning(
                         "SL TRIGGERED #%s: %.2f <= %.2f", pos_id, current_price, sl,
                     )
-                    sell_price = max(current_price, 0.01)  # мінімальна ціна для ордера
+                    sell_price = 0.01  # агресивна ціна — перетинає будь-який bid (quasi market order)
                     sell_result = await execution_client.sell_shares(
                         pos["token_id"], sell_price, remaining,
                     )

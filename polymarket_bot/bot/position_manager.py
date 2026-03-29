@@ -419,10 +419,13 @@ async def monitor_positions_loop(execution_client):
                             )
                             sell_result = await execution_client.sell_shares(
                                 pos["token_id"], current_price, sell_amount,
+                                fallback_size=remaining,
                             )
                             if not (sell_result and sell_result.get("success") is True):
                                 logger.error("TP L3 SELL failed #%s: %s — позиція залишається відкритою", pos_id, sell_result)
                                 continue
+                            if sell_result.get("_used_fallback_size"):
+                                sell_amount = remaining
                             new_remaining = remaining - sell_amount
                             leg_pnl = _pnl_partial_leg_usd(
                                 stake_u, shares_init, sell_amount, current_price,
@@ -448,10 +451,13 @@ async def monitor_positions_loop(execution_client):
                             )
                             sell_result = await execution_client.sell_shares(
                                 pos["token_id"], current_price, sell_amount,
+                                fallback_size=remaining,
                             )
                             if not (sell_result and sell_result.get("success") is True):
                                 logger.error("TP L2 SELL failed #%s: %s — позиція залишається відкритою", pos_id, sell_result)
                                 continue
+                            if sell_result.get("_used_fallback_size"):
+                                sell_amount = remaining
                             new_remaining = remaining - sell_amount
                             leg_pnl = _pnl_partial_leg_usd(
                                 stake_u, shares_init, sell_amount, current_price,
@@ -477,10 +483,13 @@ async def monitor_positions_loop(execution_client):
                             )
                             sell_result = await execution_client.sell_shares(
                                 pos["token_id"], current_price, sell_amount,
+                                fallback_size=remaining,
                             )
                             if not (sell_result and sell_result.get("success") is True):
                                 logger.error("TP L1 SELL failed #%s: %s — позиція залишається відкритою", pos_id, sell_result)
                                 continue
+                            if sell_result.get("_used_fallback_size"):
+                                sell_amount = remaining
                             new_remaining = remaining - sell_amount
                             leg_pnl = _pnl_partial_leg_usd(
                                 stake_u, shares_init, sell_amount, current_price,

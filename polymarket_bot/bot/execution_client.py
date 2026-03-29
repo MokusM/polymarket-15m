@@ -429,21 +429,23 @@ class ExecutionClient:
         err_str = str(result.get("error", "")) if result else ""
 
         # Retry with fallback_size if CLOB minimum size rejected
-        if (
-            result
-            and result.get("success") is False
-            and fallback_size is not None
-            and fallback_size > size
-            and "lower than the min" in err_str
-        ):
-            logger.warning(
-                "sell_shares: size %.2f нижче мінімуму CLOB — повторюємо з fallback %.2f",
-                size, fallback_size,
-            )
-            result = await _attempt(fallback_size)
-            if result and "_exception" not in result:
-                result["_used_fallback_size"] = fallback_size
-            err_str = str(result.get("error", "")) if result else ""
+        if result and result.get("success") is False and "lower than the min" in err_str:
+            if fallback_size is not None and fallback_size > size:
+                logger.warning(
+                    "sell_shares: size %.2f нижче мінімуму CLOB — повторюємо з fallback %.2f",
+                    size, fallback_size,
+                )
+                result = await _attempt(fallback_size)
+                if result and "_exception" not in result:
+                    result["_used_fallback_size"] = fallback_size
+                err_str = str(result.get("error", "")) if result else ""
+            else:
+                # Вже продаємо все що є, але CLOB мінімум більший — settlement закриє позицію
+                logger.warning(
+                    "sell_shares: size %.2f нижче мінімуму CLOB і fallback недоступний — settlement закриє позицію",
+                    size,
+                )
+                return {"success": False, "error": "below_clob_minimum", "_market_resolved": True}
 
         # Retry with actual on-chain balance if "not enough balance" error
         if result and result.get("success") is False and "not enough balance" in err_str:

@@ -1,0 +1,54 @@
+# ══════════════════════════════════════════════
+#  Режим: STRICT
+# ══════════════════════════════════════════════
+[mode]
+default          = "strict"
+db_label         = "strict"
+telegram_enabled = true
+
+[trading]
+live_trading              = true
+auto_approve_paper        = true
+auto_approve_live         = true
+stake_usd                 = 10.0
+clob_cross_spread_buy     = true
+clob_max_buy_slippage_abs = 0.05
+clob_buy_buffer           = 0.02
+
+[sizing]
+bankroll_usd       = 50.0
+kelly_fraction     = 0.5
+min_stake_usd      = 1.0
+max_stake_usd      = 7.0
+max_open_positions = 1
+
+[filters]
+contract_price_min      = 0.52
+contract_price_max      = 0.68
+time_left_min_minutes   = 4
+time_left_max_minutes   = 9
+atr_min_usd             = 40.0
+gap_min_usd             = 100.0
+gap_strict_usd          = 140.0
+contract_price_high_min = 0.75
+time_strict_max_min     = 5.0
+obi_min_ratio           = 2.3
+obi_levels              = 20
+clob_spread_max         = 1.0
+mtf_rsi_filter_enabled  = true
+min_confluence          = 4
+
+[sl_tp]
+sl_percent                = 25.0
+tp_partial_price          = 0.90
+tp_partial_sell_pct       = 25.0
+tp_mid_price              = 0.93
+tp_full_price             = 0.95
+tp_final_price            = 0.97
+position_monitor_interval = 3
+breakeven_after_roi_pct   = 50.0
+
+[misc]
+clob_trade_history_limit     = 10
+clob_trade_history_max_pages = 3
+circuit_breaker_losses       = 3

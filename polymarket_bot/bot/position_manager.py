@@ -282,12 +282,26 @@ async def monitor_positions_loop(execution_client):
                 if not pos.get("token_id"):
                     continue
                 try:
-                    current_price = await execution_client.get_token_price(
-                        pos["token_id"], "SELL",
-                    )
+                    # Використовуємо CLOB REST bid — реальна ціна продажу (те що ми отримаємо)
+                    import httpx as _httpx
+                    try:
+                        async with _httpx.AsyncClient(timeout=3.0) as _c:
+                            _r = await _c.get(
+                                "https://clob.polymarket.com/book",
+                                params={"token_id": pos["token_id"]},
+                            )
+                            if _r.status_code == 200:
+                                _bids = _r.json().get("bids") or []
+                                current_price = float(_bids[-1]["price"]) if _bids else 0.0
+                            else:
+                                current_price = None
+                    except Exception:
+                        current_price = await execution_client.get_token_price(
+                            pos["token_id"], "SELL",
+                        )
                     if current_price is None:
                         continue  # API помилка — пропускаємо, не закриваємо
-                    # current_price == 0.0 — ціна справді впала до нуля, дозволяємо SL спрацювати
+                    logger.debug("Position #%s current bid: %.4f", pos.get("id"), current_price)
 
                     entry = pos["entry_price"]
                     remaining = pos["remaining_shares"]
@@ -353,20 +367,44 @@ async def monitor_positions_loop(execution_client):
                         logger.warning(
                             "SL TRIGGERED #%s: %.2f <= %.2f", pos_id, current_price, sl,
                         )
-                        sell_price = 0.01  # агресивна ціна — перетинає будь-який bid (quasi market order)
+                        # Quasi market order: crosses any real bid.
+                        # Must satisfy CLOB $1 notional min (price * shares >= 1.0)
+                        import math
+                        _min_p = math.ceil(100.0 / max(remaining, 0.01)) / 100.0
+                        sell_price = min(0.99, max(0.10, _min_p))
                         sell_result = await execution_client.sell_shares(
                             pos["token_id"], sell_price, remaining,
                         )
                         sell_ok = bool(sell_result and sell_result.get("success") is True)
                         if not sell_ok:
-                            logger.warning(
-                                "SL SELL failed #%s (ціна %.2f) — закриваємо позицію в БД, settlement підтвердить PnL",
-                                pos_id, sell_price,
-                            )
+                            if sell_result and sell_result.get("_market_resolved"):
+                                # Не можемо продати (мінімум CLOB або маркет закрився)
+                                # Закриваємо в БД — settlement запише фінальний PnL
+                                pnl = _pnl_total_on_full_close(
+                                    stake_u, shares_init, remaining, current_price, realized_accum,
+                                )
+                                close_position(pos_id, "stop_loss_no_fill", pnl)
+                                logger.warning(
+                                    "SL #%s: CLOB sell неможливий (мінімум/резолв) — закрито в БД, settlement підтвердить",
+                                    pos_id,
+                                )
+                                await send_info_message(
+                                    f"\U0001f6d1 <b>Stop-Loss #{pos_id} (no fill)</b>\n"
+                                    f"{pos['direction']} {pos['side']} | "
+                                    f"Entry: {entry:.2f} \u2192 {current_price:.2f}\n"
+                                    f"CLOB sell неможливий ({remaining:.1f} shares < мінімум)\n"
+                                    f"PnL: <b>{pnl:+.2f} USD</b>"
+                                )
+                            else:
+                                logger.error(
+                                    "SL SELL failed #%s (ціна %.2f, shares %.2f) — %s. Повторимо наступного циклу.",
+                                    pos_id, sell_price, remaining, sell_result,
+                                )
+                            continue
                         pnl = _pnl_total_on_full_close(
                             stake_u, shares_init, remaining, current_price, realized_accum,
                         )
-                        close_position(pos_id, "stop_loss" if sell_ok else "stop_loss_no_fill", pnl)
+                        close_position(pos_id, "stop_loss", pnl)
 
                         sl_text = (
                             f"\U0001f6d1 <b>Stop-Loss #{pos_id}</b>\n"
@@ -393,7 +431,10 @@ async def monitor_positions_loop(execution_client):
                             pos["token_id"], current_price, remaining,
                         )
                         if not (sell_result and sell_result.get("success") is True):
-                            logger.error("TP FINAL SELL failed #%s: %s — позиція залишається відкритою", pos_id, sell_result)
+                            if sell_result and sell_result.get("_market_resolved"):
+                                logger.info("TP FINAL #%s: маркет вже резолвнувся — settlement закриє позицію", pos_id)
+                            else:
+                                logger.error("TP FINAL SELL failed #%s: %s — позиція залишається відкритою", pos_id, sell_result)
                             continue
                         pnl = _pnl_total_on_full_close(
                             stake_u, shares_init, remaining, current_price, realized_accum,
@@ -412,6 +453,9 @@ async def monitor_positions_loop(execution_client):
                     # ── Take-Profit LEVEL 3 @ 0.95 — sell 50% of remaining ──
                     if partial_level < 3 and current_price >= TP_FULL_PRICE:
                         sell_amount = remaining * 0.5
+                        # Якщо залишок після продажу < мінімуму CLOB — продаємо все
+                        if remaining - sell_amount < 5:
+                            sell_amount = remaining
                         if sell_amount >= 1:
                             logger.info(
                                 "TP L3 #%s: price %.2f >= %.2f, selling %.1f",
@@ -419,10 +463,13 @@ async def monitor_positions_loop(execution_client):
                             )
                             sell_result = await execution_client.sell_shares(
                                 pos["token_id"], current_price, sell_amount,
+                                fallback_size=remaining,
                             )
                             if not (sell_result and sell_result.get("success") is True):
                                 logger.error("TP L3 SELL failed #%s: %s — позиція залишається відкритою", pos_id, sell_result)
                                 continue
+                            if sell_result.get("_used_fallback_size"):
+                                sell_amount = remaining
                             new_remaining = remaining - sell_amount
                             leg_pnl = _pnl_partial_leg_usd(
                                 stake_u, shares_init, sell_amount, current_price,
@@ -441,6 +488,8 @@ async def monitor_positions_loop(execution_client):
                     # ── Take-Profit LEVEL 2 @ 0.93 — sell 33% of remaining ──
                     if partial_level < 2 and current_price >= TP_MID_PRICE:
                         sell_amount = remaining / 3
+                        if remaining - sell_amount < 5:
+                            sell_amount = remaining
                         if sell_amount >= 1:
                             logger.info(
                                 "TP L2 #%s: price %.2f >= %.2f, selling %.1f",
@@ -448,10 +497,13 @@ async def monitor_positions_loop(execution_client):
                             )
                             sell_result = await execution_client.sell_shares(
                                 pos["token_id"], current_price, sell_amount,
+                                fallback_size=remaining,
                             )
                             if not (sell_result and sell_result.get("success") is True):
                                 logger.error("TP L2 SELL failed #%s: %s — позиція залишається відкритою", pos_id, sell_result)
                                 continue
+                            if sell_result.get("_used_fallback_size"):
+                                sell_amount = remaining
                             new_remaining = remaining - sell_amount
                             leg_pnl = _pnl_partial_leg_usd(
                                 stake_u, shares_init, sell_amount, current_price,
@@ -470,6 +522,8 @@ async def monitor_positions_loop(execution_client):
                     # ── Take-Profit LEVEL 1 @ 0.90 — sell 25% of remaining ──
                     if partial_level < 1 and current_price >= TP_PARTIAL_PRICE:
                         sell_amount = remaining * (TP_PARTIAL_SELL_PCT / 100)
+                        if remaining - sell_amount < 5:
+                            sell_amount = remaining
                         if sell_amount >= 1:
                             logger.info(
                                 "TP L1 #%s: price %.2f >= %.2f, selling %.1f",
@@ -477,10 +531,13 @@ async def monitor_positions_loop(execution_client):
                             )
                             sell_result = await execution_client.sell_shares(
                                 pos["token_id"], current_price, sell_amount,
+                                fallback_size=remaining,
                             )
                             if not (sell_result and sell_result.get("success") is True):
                                 logger.error("TP L1 SELL failed #%s: %s — позиція залишається відкритою", pos_id, sell_result)
                                 continue
+                            if sell_result.get("_used_fallback_size"):
+                                sell_amount = remaining
                             new_remaining = remaining - sell_amount
                             leg_pnl = _pnl_partial_leg_usd(
                                 stake_u, shares_init, sell_amount, current_price,

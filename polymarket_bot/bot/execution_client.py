@@ -383,41 +383,98 @@ class ExecutionClient:
         size: float,
         neg_risk: bool = False,
         tick_size: str = "0.01",
+        fallback_size: float | None = None,
     ) -> Optional[dict]:
-        """Продати shares (для partial exit / stop-loss)."""
+        """Продати shares (для partial exit / stop-loss).
+
+        fallback_size — якщо CLOB відхилив через мінімальний розмір,
+        повторити з цією кількістю (зазвичай = всі remaining shares).
+        """
         if not self.ready:
             logger.error("ExecutionClient не готовий — ордер не розміщено")
             return {"success": False, "error": "ExecutionClient not ready"}
 
-        try:
-            loop = asyncio.get_event_loop()
-            order_args = OrderArgs(
-                token_id=token_id,
-                price=price,
-                size=size,
-                side="SELL",
-            )
-            options = PartialCreateOrderOptions(
-                tick_size=tick_size,
-                neg_risk=neg_risk,
-            )
+        # CLOB не приймає ціну >= 1.0 — кепуємо до 0.99
+        price = min(price, 0.99)
 
-            def _post():
-                return self.client.create_and_post_order(order_args, options)
+        async def _attempt(sell_size: float) -> Optional[dict]:
+            try:
+                loop = asyncio.get_event_loop()
+                order_args = OrderArgs(
+                    token_id=token_id,
+                    price=price,
+                    size=sell_size,
+                    side="SELL",
+                )
+                options = PartialCreateOrderOptions(
+                    tick_size=tick_size,
+                    neg_risk=neg_risk,
+                )
 
-            signed = await loop.run_in_executor(None, _post)
+                def _post():
+                    return self.client.create_and_post_order(order_args, options)
 
-            logger.info(
-                "ORDER PLACED: SELL %s shares @ %.2f | token=%s | result=%s",
-                size, price, token_id[:12], signed,
-            )
-            if isinstance(signed, dict):
-                return signed
-            return {"success": True, "order_id": str(signed)}
+                signed = await loop.run_in_executor(None, _post)
+                logger.info(
+                    "ORDER PLACED: SELL %s shares @ %.2f | token=%s | result=%s",
+                    sell_size, price, token_id[:12], signed,
+                )
+                if isinstance(signed, dict):
+                    return signed
+                return {"success": True, "order_id": str(signed)}
+            except Exception as e:
+                return {"success": False, "error": str(e), "_exception": e}
 
-        except Exception as e:
-            logger.error("Помилка sell_shares: %s", e, exc_info=True)
-            return {"success": False, "error": str(e)}
+        result = await _attempt(size)
+        err_str = str(result.get("error", "")) if result else ""
+
+        # Retry with fallback_size if CLOB minimum size rejected
+        if result and result.get("success") is False and "lower than the min" in err_str:
+            if fallback_size is not None and fallback_size > size:
+                logger.warning(
+                    "sell_shares: size %.2f нижче мінімуму CLOB — повторюємо з fallback %.2f",
+                    size, fallback_size,
+                )
+                result = await _attempt(fallback_size)
+                if result and "_exception" not in result:
+                    result["_used_fallback_size"] = fallback_size
+                err_str = str(result.get("error", "")) if result else ""
+            else:
+                # Вже продаємо все що є, але CLOB мінімум більший — settlement закриє позицію
+                logger.warning(
+                    "sell_shares: size %.2f нижче мінімуму CLOB і fallback недоступний — settlement закриє позицію",
+                    size,
+                )
+                return {"success": False, "error": "below_clob_minimum", "_market_resolved": True}
+
+        # Retry with actual on-chain balance if "not enough balance" error
+        if result and result.get("success") is False and "not enough balance" in err_str:
+            import re
+            m = re.search(r"balance:\s*(\d+)", err_str)
+            if m:
+                import math as _math
+                actual_size = _math.floor(int(m.group(1)) / 10_000) / 100  # floor до 2 знаків
+                if actual_size < 0.5:
+                    # Маркет вже резолвнувся і токени редімнули — settlement закриє позицію
+                    logger.warning(
+                        "sell_shares: on-chain balance %.4f < 0.5 — маркет вже резолвнувся, пропускаємо продаж",
+                        actual_size,
+                    )
+                    return {"success": False, "error": "market_resolved", "_market_resolved": True}
+                if actual_size > 0:
+                    logger.warning(
+                        "sell_shares: not enough balance — повторюємо з реальним балансом %.4f (запитували %.4f)",
+                        actual_size, size,
+                    )
+                    result = await _attempt(actual_size)
+                    if result and result.get("success") is True:
+                        result["_used_actual_size"] = actual_size
+
+        if result and result.get("success") is False:
+            exc = result.pop("_exception", None)
+            logger.error("Помилка sell_shares: %s", result.get("error"), exc_info=exc)
+
+        return result
 
     async def get_market_token_ids(
         self,

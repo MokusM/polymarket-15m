@@ -453,6 +453,9 @@ async def monitor_positions_loop(execution_client):
                     # ── Take-Profit LEVEL 3 @ 0.95 — sell 50% of remaining ──
                     if partial_level < 3 and current_price >= TP_FULL_PRICE:
                         sell_amount = remaining * 0.5
+                        # Якщо залишок після продажу < мінімуму CLOB — продаємо все
+                        if remaining - sell_amount < 5:
+                            sell_amount = remaining
                         if sell_amount >= 1:
                             logger.info(
                                 "TP L3 #%s: price %.2f >= %.2f, selling %.1f",
@@ -485,6 +488,8 @@ async def monitor_positions_loop(execution_client):
                     # ── Take-Profit LEVEL 2 @ 0.93 — sell 33% of remaining ──
                     if partial_level < 2 and current_price >= TP_MID_PRICE:
                         sell_amount = remaining / 3
+                        if remaining - sell_amount < 5:
+                            sell_amount = remaining
                         if sell_amount >= 1:
                             logger.info(
                                 "TP L2 #%s: price %.2f >= %.2f, selling %.1f",
@@ -517,6 +522,8 @@ async def monitor_positions_loop(execution_client):
                     # ── Take-Profit LEVEL 1 @ 0.90 — sell 25% of remaining ──
                     if partial_level < 1 and current_price >= TP_PARTIAL_PRICE:
                         sell_amount = remaining * (TP_PARTIAL_SELL_PCT / 100)
+                        if remaining - sell_amount < 5:
+                            sell_amount = remaining
                         if sell_amount >= 1:
                             logger.info(
                                 "TP L1 #%s: price %.2f >= %.2f, selling %.1f",

@@ -231,6 +231,7 @@ async def cmd_list(message: types.Message):
         "\n"
         "⚙️ <b>Управління</b>\n"
         "/buy — ручна купівля UP/DOWN для поточного маркету\n"
+        "/logs — останні 50 рядків bot.log\n"
         "/mode — змінити режим (Light / Medium / Strict / Test)\n"
         "/reset — скинути circuit breaker і відновити live trading\n"
         "\n"
@@ -317,6 +318,26 @@ async def cmd_reset(message: types.Message):
         f"Live: <b>{'\U0001f7e2 ON' if state.is_live_allowed else '\U0001f534 OFF'}</b>",
         parse_mode="HTML",
     )
+
+
+@dp.message(Command("logs"))
+async def cmd_logs(message: types.Message):
+    """Останні 50 рядків з bot.log."""
+    import os
+    log_path = os.path.join(os.path.dirname(__file__), "..", "bot.log")
+    log_path = os.path.normpath(log_path)
+    if not os.path.exists(log_path):
+        await message.answer("📭 Файл bot.log ще не створено (перезапусти бота).")
+        return
+    try:
+        with open(log_path, "r", encoding="utf-8", errors="replace") as f:
+            lines = f.readlines()
+        tail = "".join(lines[-50:])
+        if len(tail) > 4000:
+            tail = tail[-4000:]
+        await message.answer(f"<pre>{html.escape(tail)}</pre>", parse_mode="HTML")
+    except Exception as e:
+        await message.answer(f"❌ Помилка читання логу: {e}")
 
 
 @dp.message(Command("buy"))

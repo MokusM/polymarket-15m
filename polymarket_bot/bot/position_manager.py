@@ -353,8 +353,11 @@ async def monitor_positions_loop(execution_client):
                         logger.warning(
                             "SL TRIGGERED #%s: %.2f <= %.2f", pos_id, current_price, sl,
                         )
-                        # 0.10 = quasi market order (crosses any real bid), satisfies CLOB $1 notional minimum
-                        sell_price = 0.10
+                        # Quasi market order: crosses any real bid.
+                        # Must satisfy CLOB $1 notional min (price * shares >= 1.0)
+                        import math
+                        _min_p = math.ceil(100.0 / max(remaining, 0.01)) / 100.0
+                        sell_price = min(0.99, max(0.10, _min_p))
                         sell_result = await execution_client.sell_shares(
                             pos["token_id"], sell_price, remaining,
                         )

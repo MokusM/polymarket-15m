@@ -63,7 +63,6 @@ def _format_signal_history_html(idx: int, sig: dict) -> str:
     ts_raw = sig.get("timestamp", "")
     gap = sig.get("gap")
     confluence = sig.get("confluence")
-    taker = sig.get("taker_ratio")
 
     # Direction icon
     dir_icon = "⬆️" if direction == "UP" else "⬇️"
@@ -92,8 +91,6 @@ def _format_signal_history_html(idx: int, sig: dict) -> str:
         details.append(f"gap={gap:+.0f}$")
     if confluence is not None:
         details.append(f"conf={confluence}/5")
-    if taker is not None:
-        details.append(f"taker={taker:.2f}")
     details_str = "  ·  ".join(details)
 
     parts = [
@@ -233,6 +230,7 @@ async def cmd_list(message: types.Message):
         "/history — остання угоди з CLOB API\n"
         "\n"
         "⚙️ <b>Управління</b>\n"
+        "/buy — ручна купівля UP/DOWN для поточного маркету\n"
         "/mode — змінити режим (Light / Medium / Strict / Test)\n"
         "/reset — скинути circuit breaker і відновити live trading\n"
         "\n"
@@ -319,6 +317,204 @@ async def cmd_reset(message: types.Message):
         f"Live: <b>{'\U0001f7e2 ON' if state.is_live_allowed else '\U0001f534 OFF'}</b>",
         parse_mode="HTML",
     )
+
+
+@dp.message(Command("buy"))
+async def cmd_buy(message: types.Message):
+    """Ручна купівля: показує поточний маркет і кнопки UP/DOWN."""
+    if _scanner is None or _scanner.last_df.empty:
+        await message.answer("⏳ Сканер ще не запустив перший цикл.")
+        return
+
+    markets = _scanner.last_markets
+    if not markets:
+        await message.answer("❌ Немає активних BTC 15m маркетів.")
+        return
+
+    market = markets[0]
+    df = _scanner.last_df
+    last = df.iloc[-1]
+    btc_price = float(last.get("close", 0))
+
+    from datetime import timezone as _tz
+    from bot.signals import _binance_open_at_polymarket_window_start
+    time_left_min = 0.0
+    end_date_str = market.get("end_date_iso")
+    if end_date_str:
+        try:
+            dt = datetime.fromisoformat(end_date_str.replace("Z", "+00:00"))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=_tz.utc)
+            time_left_min = (dt - datetime.now(_tz.utc)).total_seconds() / 60.0
+        except Exception:
+            pass
+
+    yes_ask = no_ask = 0.0
+    yes_tid = market.get("token_yes_id", "")
+    no_tid = market.get("token_no_id", "")
+    if yes_tid:
+        yes_ask, _ = await _scanner._fetch_clob_best_prices(yes_tid)
+    if no_tid:
+        no_ask, _ = await _scanner._fetch_clob_best_prices(no_tid)
+
+    title = market.get("title") or market.get("market_id", "?")
+    mid = str(market.get("market_id", ""))
+
+    text = (
+        f"📈 <b>Ручна купівля</b>\n"
+        f"📌 {html.escape(str(title)[:60])}\n"
+        f"⏱ Час: <b>{time_left_min:.1f} хв</b>  ·  BTC: <b>${btc_price:,.0f}</b>\n"
+        f"CLOB  YES ask: <b>{yes_ask:.2f}</b>  ·  NO ask: <b>{no_ask:.2f}</b>\n\n"
+        f"Вибери напрямок:"
+    )
+
+    builder = InlineKeyboardBuilder()
+    builder.button(text="⬆️ BUY UP", callback_data=f"manual_buy|{mid}|UP")
+    builder.button(text="⬇️ BUY DOWN", callback_data=f"manual_buy|{mid}|DOWN")
+    builder.adjust(2)
+    await message.answer(text, reply_markup=builder.as_markup(), parse_mode="HTML")
+
+
+@dp.callback_query(lambda c: c.data and c.data.startswith("manual_buy|"))
+async def process_manual_buy(callback_query: types.CallbackQuery):
+    parts = callback_query.data.split("|")
+    if len(parts) != 3:
+        await bot.answer_callback_query(callback_query.id)
+        return
+
+    _, market_id, direction = parts
+
+    try:
+        await bot.answer_callback_query(callback_query.id)
+
+        if _scanner is None or _scanner.last_df.empty:
+            await bot.send_message(callback_query.message.chat.id, "⏳ Немає даних сканера.")
+            return
+
+        markets = _scanner.last_markets
+        market = next((m for m in markets if str(m.get("market_id", "")) == market_id), None)
+        if not market:
+            market = markets[0] if markets else None
+        if not market:
+            await bot.send_message(callback_query.message.chat.id, "❌ Маркет не знайдено.")
+            return
+
+        df = _scanner.last_df
+        last = df.iloc[-1]
+        btc_price = float(last.get("close", 0))
+
+        from datetime import timezone as _tz
+        time_left_min = 5.0
+        end_date_str = market.get("end_date_iso")
+        if end_date_str:
+            try:
+                dt = datetime.fromisoformat(end_date_str.replace("Z", "+00:00"))
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=_tz.utc)
+                time_left_min = max(0.5, (dt - datetime.now(_tz.utc)).total_seconds() / 60.0)
+            except Exception:
+                pass
+
+        # Fetch CLOB ask for the selected side
+        token_id = market.get("token_yes_id") if direction == "UP" else market.get("token_no_id")
+        clob_ask = 0.0
+        if token_id:
+            clob_ask, _ = await _scanner._fetch_clob_best_prices(token_id)
+
+        # Fallback to Gamma price
+        if clob_ask <= 0:
+            clob_ask = market.get("price_yes") if direction == "UP" else market.get("price_no")
+            clob_ask = float(clob_ask or 0.5)
+
+        slug = market.get("market_slug") or ""
+        neg_risk = bool(market.get("neg_risk", False))
+        market_title = market.get("title") or market.get("question") or ""
+
+        from bot.signals import _binance_open_at_polymarket_window_start
+        event_start_iso = market.get("event_start_time")
+        start_price = _binance_open_at_polymarket_window_start(df, event_start_iso)
+        if start_price is None:
+            start_price = float(df.iloc[-15]["open"]) if len(df) >= 15 else btc_price
+        delta = btc_price - start_price
+
+        signal = {
+            "direction": direction,
+            "market_id": market_id,
+            "market_slug": slug,
+            "neg_risk": neg_risk,
+            "market_title": market_title,
+            "contract_price": clob_ask,
+            "time_left": round(time_left_min, 1),
+            "start_price": start_price,
+            "current_price": btc_price,
+            "delta": round(delta, 2),
+            "delta_percent": round((delta / start_price * 100) if start_price > 0 else 0, 3),
+            "gap": round(delta, 2),
+            "ptb": start_price,
+            "confluence": 0,
+            "votes": {},
+            "rsi_1m": float(last.get("rsi_1m", 50) or 50),
+            "rsi_3m": None,
+            "rsi_5m": None,
+            "ema_position": "manual",
+            "volume_state": str(last.get("volume_state", "normal")),
+            "atr": round(float(last.get("atr") or 0), 2),
+            "atr_zone": str(last.get("atr_zone", "golden")),
+            "chg_1h": round(float(last.get("chg_1h") or 0), 3),
+            "obi": 1.0,
+            "_manual": True,
+        }
+
+        from bot.storage import save_signal, update_decision as _upd_dec
+        from bot.risk import calculate_stake
+
+        sig_id = save_signal(signal)
+        if not sig_id:
+            await bot.send_message(callback_query.message.chat.id, "❌ Помилка збереження сигналу в БД.")
+            return
+
+        _upd_dec(sig_id, "approve")
+
+        side = "YES" if direction == "UP" else "NO"
+        dir_icon = "⬆️" if direction == "UP" else "⬇️"
+
+        if not (state.is_live_allowed and _execution_client and _execution_client.ready):
+            await bot.send_message(
+                callback_query.message.chat.id,
+                f"{dir_icon} <b>Ручний сигнал #{sig_id} збережено (paper)</b>\n"
+                f"BUY {side} @ {clob_ask:.2f}  ·  {time_left_min:.1f} хв\n"
+                f"<i>Settlement запише результат після закриття маркету.</i>",
+                parse_mode="HTML",
+            )
+            return
+
+        # Live: force risk with positive edge so _execute_live_order proceeds
+        bankroll = None
+        try:
+            bankroll = await _execution_client.get_balance()
+        except Exception:
+            pass
+        risk = calculate_stake(signal, bankroll=bankroll)
+        if risk.get("edge", 0) <= 0:
+            risk["edge"] = 0.01
+            risk["stake_usd"] = float(STAKE_USD)
+
+        store_pending_signal(sig_id, {**signal, "_risk": risk})
+        order_text = await _execute_live_order(sig_id)
+
+        await bot.send_message(
+            callback_query.message.chat.id,
+            f"{dir_icon} <b>Ручна купівля #{sig_id}</b>\n{order_text}",
+            parse_mode="HTML",
+        )
+
+    except Exception as e:
+        logger.error("process_manual_buy error: %s", e, exc_info=True)
+        await bot.send_message(
+            callback_query.message.chat.id,
+            f"❌ Помилка: <code>{html.escape(str(e))}</code>",
+            parse_mode="HTML",
+        )
 
 
 @dp.message(Command("status"))

@@ -499,7 +499,7 @@ async def process_manual_buy(callback_query: types.CallbackQuery):
         risk["stake_usd"] = 1.0
 
         store_pending_signal(sig_id, {**signal, "_risk": risk})
-        order_text = await _execute_live_order(sig_id)
+        order_text = await _execute_live_order(sig_id, skip_min_size=True)
 
         await bot.send_message(
             callback_query.message.chat.id,
@@ -752,7 +752,7 @@ async def process_decision(callback_query: types.CallbackQuery):
         pass
 
 
-async def _execute_live_order(signal_id: int) -> str:
+async def _execute_live_order(signal_id: int, skip_min_size: bool = False) -> str:
     from bot.position_manager import open_position, count_open_positions
 
     async def _mark_no_fill() -> None:
@@ -801,8 +801,8 @@ async def _execute_live_order(signal_id: int) -> str:
         price=cp,
         stake_usd=stake,
         neg_risk=neg_risk,
-        market_slug=slug or None,
-        market_id=mid or None,
+        market_slug=None if skip_min_size else (slug or None),
+        market_id=None if skip_min_size else (mid or None),
     )
     if not result or (isinstance(result, dict) and result.get("success") is False):
         await _mark_no_fill()

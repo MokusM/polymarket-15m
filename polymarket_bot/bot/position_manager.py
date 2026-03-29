@@ -377,10 +377,13 @@ async def monitor_positions_loop(execution_client):
                         )
                         sell_ok = bool(sell_result and sell_result.get("success") is True)
                         if not sell_ok:
-                            logger.error(
-                                "SL SELL failed #%s (ціна %.2f, shares %.2f) — %s. Повторимо наступного циклу.",
-                                pos_id, sell_price, remaining, sell_result,
-                            )
+                            if sell_result and sell_result.get("_market_resolved"):
+                                logger.info("SL #%s: маркет вже резолвнувся — settlement закриє позицію", pos_id)
+                            else:
+                                logger.error(
+                                    "SL SELL failed #%s (ціна %.2f, shares %.2f) — %s. Повторимо наступного циклу.",
+                                    pos_id, sell_price, remaining, sell_result,
+                                )
                             continue
                         pnl = _pnl_total_on_full_close(
                             stake_u, shares_init, remaining, current_price, realized_accum,
@@ -412,7 +415,10 @@ async def monitor_positions_loop(execution_client):
                             pos["token_id"], current_price, remaining,
                         )
                         if not (sell_result and sell_result.get("success") is True):
-                            logger.error("TP FINAL SELL failed #%s: %s — позиція залишається відкритою", pos_id, sell_result)
+                            if sell_result and sell_result.get("_market_resolved"):
+                                logger.info("TP FINAL #%s: маркет вже резолвнувся — settlement закриє позицію", pos_id)
+                            else:
+                                logger.error("TP FINAL SELL failed #%s: %s — позиція залишається відкритою", pos_id, sell_result)
                             continue
                         pnl = _pnl_total_on_full_close(
                             stake_u, shares_init, remaining, current_price, realized_accum,

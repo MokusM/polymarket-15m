@@ -451,6 +451,13 @@ class ExecutionClient:
             m = re.search(r"balance:\s*(\d+)", err_str)
             if m:
                 actual_size = round(int(m.group(1)) / 1_000_000, 2)
+                if actual_size < 0.5:
+                    # Маркет вже резолвнувся і токени редімнули — settlement закриє позицію
+                    logger.warning(
+                        "sell_shares: on-chain balance %.4f < 0.5 — маркет вже резолвнувся, пропускаємо продаж",
+                        actual_size,
+                    )
+                    return {"success": False, "error": "market_resolved", "_market_resolved": True}
                 if actual_size > 0:
                     logger.warning(
                         "sell_shares: not enough balance — повторюємо з реальним балансом %.4f (запитували %.4f)",

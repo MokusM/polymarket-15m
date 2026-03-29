@@ -148,7 +148,10 @@ async def cmd_diagnose(message: types.Message):
             )
             return
 
-        from bot.config import OBI_MIN_RATIO, OBI_LEVELS, CLOB_SPREAD_MAX, CONTRACT_PRICE_HIGH_MIN, GAP_STRICT_USD
+        from bot.config import CLOB_SPREAD_MAX
+        from bot.state import state as _state
+
+        _th = _state.get_thresholds()
 
         # Fetch OBI with more levels for stable reading
         obi = None
@@ -165,10 +168,11 @@ async def cmd_diagnose(message: types.Message):
             obi_lines = []
 
             # OBI line
-            if obi is not None and OBI_MIN_RATIO > 0:
+            obi_ratio = _th["OBI_MIN_RATIO"]
+            if obi is not None and obi_ratio > 0:
                 direction_guess = "UP" if market.get("price_yes", 0.5) > 0.5 else "DOWN"
-                obi_ok = obi >= OBI_MIN_RATIO if direction_guess == "UP" else obi <= (1.0 / OBI_MIN_RATIO)
-                obi_needed = f"≥{OBI_MIN_RATIO}" if direction_guess == "UP" else f"≤{1.0/OBI_MIN_RATIO:.2f}"
+                obi_ok = obi >= obi_ratio if direction_guess == "UP" else obi <= (1.0 / obi_ratio)
+                obi_needed = f"≥{obi_ratio}" if direction_guess == "UP" else f"≤{1.0/obi_ratio:.2f}"
                 obi_lines.append(
                     f"{'✅' if obi_ok else '❌'} OBI (Binance top-20): <b>{obi:.3f}</b> (потрібно {obi_needed} для {direction_guess})"
                 )
@@ -196,9 +200,9 @@ async def cmd_diagnose(message: types.Message):
                         f"{'✅' if spread_ok else '❌'} CLOB {token_label}: bid <b>{clob_bid:.2f}</b> ask <b>{clob_ask:.2f}</b>"
                         f" спред <b>{spread:.3f}</b> (макс {CLOB_SPREAD_MAX})"
                     )
-                    if clob_ask > CONTRACT_PRICE_HIGH_MIN:
+                    if clob_ask > _th["CONTRACT_PRICE_HIGH_MIN"]:
                         obi_lines.append(
-                            f"  ⚠️ Ask {clob_ask:.2f} &gt; {CONTRACT_PRICE_HIGH_MIN} → потрібен GAP ≥ {GAP_STRICT_USD:.0f}$"
+                            f"  ⚠️ Ask {clob_ask:.2f} &gt; {_th['CONTRACT_PRICE_HIGH_MIN']} → потрібен GAP ≥ {_th['GAP_STRICT_USD']:.0f}$"
                         )
                 except Exception:
                     pass

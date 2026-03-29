@@ -220,6 +220,35 @@ async def cmd_diagnose(message: types.Message):
         await message.answer(f"❌ Помилка діагностики:\n<code>{html.escape(str(e))}</code>", parse_mode="HTML")
 
 
+@dp.message(Command("filters"))
+async def cmd_filters(message: types.Message):
+    """Показати активні фільтри для поточного режиму."""
+    th = state.get_thresholds()
+    mode = state.mode.upper()
+    text = (
+        f"🔧 <b>Фільтри — режим {mode}</b>\n"
+        f"\n"
+        f"📍 <b>Час та ціна входу</b>\n"
+        f"Time left: <b>{th['TIME_LEFT_MIN_MINUTES']}–{th['TIME_LEFT_MAX_MINUTES']} хв</b>\n"
+        f"Contract price: <b>{th['CONTRACT_PRICE_MIN']:.2f}–{th['CONTRACT_PRICE_MAX']:.2f}</b>\n"
+        f"\n"
+        f"📊 <b>Волатильність</b>\n"
+        f"ATR min: <b>${th['ATR_MIN_USD']}</b>\n"
+        f"Confluence: <b>≥{th['MIN_CONFLUENCE']}/5</b>\n"
+        f"\n"
+        f"📏 <b>GAP (BTC від страйку)</b>\n"
+        f"GAP min: <b>${th['GAP_MIN_USD']:.0f}</b>\n"
+        f"GAP strict: <b>${th['GAP_STRICT_USD']:.0f}</b> (якщо час &lt;{th['TIME_STRICT_MAX_MIN']:.0f}хв або ціна &gt;{th['CONTRACT_PRICE_HIGH_MIN']:.2f})\n"
+        f"\n"
+        f"📚 <b>Стакан (OBI)</b>\n"
+        f"OBI ratio: <b>{'вимкнено' if th['OBI_MIN_RATIO'] <= 0 else th['OBI_MIN_RATIO']}</b>\n"
+        f"OBI levels: <b>{th['OBI_LEVELS']}</b>\n"
+        f"\n"
+        f"📈 <b>MTF RSI</b>: <b>{'✅ увімкнено' if th['MTF_RSI_FILTER_ENABLED'] else '❌ вимкнено'}</b>"
+    )
+    await message.answer(text, parse_mode="HTML")
+
+
 @dp.message(Command("list"))
 async def cmd_list(message: types.Message):
     """Список всіх доступних команд."""
@@ -228,6 +257,7 @@ async def cmd_list(message: types.Message):
         "\n"
         "📋 <b>Інформація</b>\n"
         "/status — повний статус бота (режим, live, баланс, позиції)\n"
+        "/filters — активні порогові значення фільтрів\n"
         "/diagnose — перевірити всі фільтри для поточного маркету\n"
         "/positions — відкриті позиції\n"
         "/balance — баланс Polymarket USDC\n"

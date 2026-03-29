@@ -363,14 +363,15 @@ async def monitor_positions_loop(execution_client):
                         )
                         sell_ok = bool(sell_result and sell_result.get("success") is True)
                         if not sell_ok:
-                            logger.warning(
-                                "SL SELL failed #%s (ціна %.2f) — закриваємо позицію в БД, settlement підтвердить PnL",
-                                pos_id, sell_price,
+                            logger.error(
+                                "SL SELL failed #%s (ціна %.2f, shares %.2f) — %s. Повторимо наступного циклу.",
+                                pos_id, sell_price, remaining, sell_result,
                             )
+                            continue
                         pnl = _pnl_total_on_full_close(
                             stake_u, shares_init, remaining, current_price, realized_accum,
                         )
-                        close_position(pos_id, "stop_loss" if sell_ok else "stop_loss_no_fill", pnl)
+                        close_position(pos_id, "stop_loss", pnl)
 
                         sl_text = (
                             f"\U0001f6d1 <b>Stop-Loss #{pos_id}</b>\n"

@@ -20384,3 +20384,963 @@
 2026-03-29 23:04:06,147 - aiogram.dispatcher - ERROR - Failed to fetch updates - TelegramNetworkError: HTTP Client says - ServerDisconnectedError: Server disconnected
 2026-03-29 23:04:06,147 - aiogram.dispatcher - WARNING - Sleep for 1.000000 seconds and try again... (tryings = 0, bot id = 8285310344)
 2026-03-29 23:04:06,147 - aiogram.dispatcher - INFO - Polling stopped for bot @predarbtest_bot id=8285310344 - 'PredArbTestBot'
+2026-03-29 23:31:44,617 - __main__ - INFO - Python: C:\Users\m_moi\AppData\Local\Python\pythoncore-3.14-64\python.exe
+2026-03-29 23:31:44,618 - __main__ - INFO - Ініціалізація баз даних (test.db + live.db)...
+2026-03-29 23:31:44,745 - httpx - INFO - HTTP Request: POST https://clob.polymarket.com/auth/api-key "HTTP/2 400 Bad Request"
+2026-03-29 23:31:44,813 - httpx - INFO - HTTP Request: GET https://clob.polymarket.com/auth/derive-api-key "HTTP/2 200 OK"
+2026-03-29 23:31:44,814 - bot.execution_client - INFO - API creds derived: ca0902e6-eae5-3e...
+2026-03-29 23:31:44,816 - bot.execution_client - INFO - ExecutionClient init OK (chain=137, sig_type=2, funder=0x0CbBC22f0D30dEED357730eA66c37947C10D24A3)
+2026-03-29 23:31:44,816 - __main__ - INFO - 🟢 LIVE TRADING увімкнено
+2026-03-29 23:31:45,257 - __main__ - INFO - 🚀 Запуск Polymarket BTC 15m Scanner Bot...
+2026-03-29 23:31:45,257 - bot.scanner - INFO - Пошук активних ринків BTC...
+2026-03-29 23:31:45,486 - bot.settlement - INFO - Запущено фоновий процес розрахунку (Settlement) для завершених маркетів.
+2026-03-29 23:31:45,487 - bot.telegram_bot - INFO - Запуск Telegram бота (polling)...
+2026-03-29 23:31:45,488 - aiogram.dispatcher - INFO - Start polling
+2026-03-29 23:31:45,489 - bot.telegram_bot - INFO - Планувальник щоденного звіту запущено (8:00 Київського часу)
+2026-03-29 23:31:45,489 - bot.telegram_bot - INFO - Наступний звіт через 508 хвилин
+2026-03-29 23:31:45,489 - bot.position_manager - INFO - Position monitor запущено (інтервал 3s, TP: 0.90/0.93/0.95/0.97)
+2026-03-29 23:31:45,490 - bot.position_manager - INFO - Запущено моніторинг pending ордерів (інтервал 5s)
+2026-03-29 23:31:45,533 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:31:45,551 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:31:45,552 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:31:45,569 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:31:45,570 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:31:45,600 - aiogram.dispatcher - INFO - Run polling for bot @predarbtest_bot id=8285310344 - 'PredArbTestBot'
+2026-03-29 23:31:45,872 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:31:45,888 - bot.scanner - INFO - Session change → PACIFIC
+2026-03-29 23:31:48,913 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:31:48,932 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:31:48,933 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:31:48,954 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:31:48,955 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:31:49,217 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:31:52,255 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:31:52,272 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:31:52,274 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:31:52,289 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:31:52,291 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:31:52,553 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:31:55,592 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:31:55,612 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:31:55,613 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:31:55,631 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:31:55,632 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:31:55,895 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:31:58,945 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:31:58,971 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:31:58,972 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:31:58,993 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:31:58,994 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:31:59,257 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:32:02,300 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:32:02,318 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:32:02,320 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:32:02,343 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:32:02,344 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:32:02,612 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:32:05,665 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:32:05,684 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:32:05,685 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:32:05,705 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:32:05,706 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:32:05,970 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:32:09,018 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:32:09,037 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:32:09,038 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:32:09,057 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:32:09,058 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:32:09,322 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:32:12,390 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:32:12,426 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:32:12,427 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:32:12,450 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:32:12,451 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:32:12,713 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:32:14,542 - aiogram.event - INFO - Update id=12003398 is handled. Duration 59 ms by bot id=8285310344
+2026-03-29 23:32:15,759 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:32:15,780 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:32:15,781 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:32:15,800 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:32:15,801 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:32:16,064 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:32:16,807 - httpx - INFO - HTTP Request: GET https://clob.polymarket.com/balance-allowance?asset_type=COLLATERAL&signature_type=2 "HTTP/2 200 OK"
+2026-03-29 23:32:16,869 - aiogram.event - INFO - Update id=12003399 is handled. Duration 210 ms by bot id=8285310344
+2026-03-29 23:32:19,102 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:32:19,118 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:32:19,119 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:32:19,135 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:32:19,136 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:32:19,397 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:32:20,981 - bot.telegram_bot - ERROR - cmd_diagnose error: cannot import name 'OBI_MIN_RATIO' from 'bot.config' (D:\plou\polymarket_bot\bot\config.py)
+Traceback (most recent call last):
+  File "D:\plou\polymarket_bot\bot\telegram_bot.py", line 151, in cmd_diagnose
+    from bot.config import OBI_MIN_RATIO, OBI_LEVELS, CLOB_SPREAD_MAX, CONTRACT_PRICE_HIGH_MIN, GAP_STRICT_USD
+ImportError: cannot import name 'OBI_MIN_RATIO' from 'bot.config' (D:\plou\polymarket_bot\bot\config.py)
+2026-03-29 23:32:21,040 - aiogram.event - INFO - Update id=12003400 is handled. Duration 60 ms by bot id=8285310344
+2026-03-29 23:32:22,436 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:32:22,455 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:32:22,456 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:32:22,477 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:32:22,479 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:32:22,741 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:32:25,797 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:32:25,814 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:32:25,815 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:32:25,832 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:32:25,834 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:32:26,098 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:32:29,134 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:32:29,149 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:32:29,150 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:32:29,167 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:32:29,168 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:32:29,431 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:32:32,463 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:32:32,481 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:32:32,482 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:32:32,498 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:32:32,499 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:32:32,762 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:32:35,798 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:32:35,821 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:32:35,822 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:32:35,845 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:32:35,846 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:32:36,111 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:32:39,149 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:32:39,169 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:32:39,170 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:32:39,186 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:32:39,188 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:32:39,450 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:32:42,487 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:32:42,505 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:32:42,506 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:32:42,529 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:32:42,531 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:32:42,794 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:32:45,841 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:32:45,873 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:32:45,875 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:32:45,893 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:32:45,894 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:32:46,157 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:32:49,206 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:32:49,228 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:32:49,229 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:32:49,257 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:32:49,258 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:32:49,522 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:32:52,554 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:32:52,573 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:32:52,574 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:32:52,590 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:32:52,591 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:32:52,853 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:32:55,899 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:32:55,915 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:32:55,916 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:32:55,930 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:32:55,931 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:32:56,194 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:32:59,230 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:32:59,247 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:32:59,248 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:32:59,265 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:32:59,267 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:32:59,531 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:33:02,589 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:33:02,631 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:33:02,633 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:33:02,677 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:33:02,678 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:33:02,944 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:33:06,002 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:33:06,042 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:33:06,044 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:33:06,070 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:33:06,071 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:33:06,334 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:33:09,391 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:33:09,407 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:33:09,408 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:33:09,426 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:33:09,427 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:33:09,693 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:33:12,743 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:33:12,764 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:33:12,765 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:33:12,790 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:33:12,792 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:33:13,055 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:33:16,097 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:33:16,118 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:33:16,119 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:33:16,135 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:33:16,136 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:33:16,400 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:33:19,459 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:33:19,481 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:33:19,483 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:33:19,523 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:33:19,524 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:33:19,789 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:33:22,835 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:33:22,860 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:33:22,861 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:33:22,881 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:33:22,883 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:33:23,146 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:33:26,187 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:33:26,205 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:33:26,206 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:33:26,220 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:33:26,223 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:33:26,485 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:33:29,517 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:33:29,532 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:33:29,533 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:33:29,549 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:33:29,550 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:33:29,813 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:33:32,852 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:33:32,867 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:33:32,869 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:33:32,887 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:33:32,888 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:33:33,151 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:33:36,193 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:33:36,213 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:33:36,213 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:33:36,232 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:33:36,233 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:33:36,497 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:33:39,556 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:33:39,578 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:33:39,579 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:33:39,604 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:33:39,605 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:33:39,868 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:33:42,918 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:33:42,949 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:33:42,951 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:33:42,978 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:33:42,979 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:33:43,244 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:33:46,289 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:33:46,308 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:33:46,309 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:33:46,329 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:33:46,330 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:33:46,592 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:33:49,629 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:33:49,648 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:33:49,648 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:33:49,672 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:33:49,673 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:33:49,937 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:33:52,982 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:33:53,009 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:33:53,010 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:33:53,031 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:33:53,032 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:33:53,300 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:33:56,343 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:33:56,358 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:33:56,359 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:33:56,378 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:33:56,380 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:33:56,644 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:33:59,687 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:33:59,716 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:33:59,717 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:33:59,737 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:33:59,738 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:34:00,002 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:34:03,057 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:34:03,094 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:34:03,095 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:34:03,121 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:34:03,122 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:34:03,395 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:34:06,442 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:34:06,470 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:34:06,471 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:34:06,493 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:34:06,495 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:34:06,758 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:34:09,804 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:34:09,830 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:34:09,833 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:34:09,851 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:34:09,852 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:34:10,116 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:34:13,164 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:34:13,190 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:34:13,191 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:34:13,212 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:34:13,213 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:34:13,478 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:34:16,523 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:34:16,542 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:34:16,544 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:34:16,561 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:34:16,563 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:34:16,826 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:34:19,889 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:34:19,927 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:34:19,928 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:34:19,959 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:34:19,961 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:34:20,225 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:34:23,266 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:34:23,284 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:34:23,285 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:34:23,304 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:34:23,305 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:34:23,569 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:34:26,614 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:34:26,635 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:34:26,636 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:34:26,659 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:34:26,660 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:34:26,924 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:34:29,958 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:34:29,979 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:34:29,980 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:34:30,001 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:34:30,002 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:34:30,267 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:34:33,293 - aiogram.dispatcher - INFO - Polling stopped
+2026-03-29 23:34:33,294 - __main__ - INFO - Бот зупинено.
+2026-03-29 23:34:33,295 - aiogram.dispatcher - ERROR - Failed to fetch updates - TelegramNetworkError: HTTP Client says - ServerDisconnectedError: Server disconnected
+2026-03-29 23:34:33,295 - aiogram.dispatcher - WARNING - Sleep for 1.000000 seconds and try again... (tryings = 0, bot id = 8285310344)
+2026-03-29 23:34:33,295 - aiogram.dispatcher - INFO - Polling stopped for bot @predarbtest_bot id=8285310344 - 'PredArbTestBot'
+2026-03-29 23:34:38,226 - __main__ - INFO - Python: C:\Users\m_moi\AppData\Local\Python\pythoncore-3.14-64\python.exe
+2026-03-29 23:34:38,226 - __main__ - INFO - Ініціалізація баз даних (test.db + live.db)...
+2026-03-29 23:34:38,327 - httpx - INFO - HTTP Request: POST https://clob.polymarket.com/auth/api-key "HTTP/2 400 Bad Request"
+2026-03-29 23:34:38,391 - httpx - INFO - HTTP Request: GET https://clob.polymarket.com/auth/derive-api-key "HTTP/2 200 OK"
+2026-03-29 23:34:38,391 - bot.execution_client - INFO - API creds derived: ca0902e6-eae5-3e...
+2026-03-29 23:34:38,393 - bot.execution_client - INFO - ExecutionClient init OK (chain=137, sig_type=2, funder=0x0CbBC22f0D30dEED357730eA66c37947C10D24A3)
+2026-03-29 23:34:38,394 - __main__ - INFO - 🟢 LIVE TRADING увімкнено
+2026-03-29 23:34:38,858 - __main__ - INFO - 🚀 Запуск Polymarket BTC 15m Scanner Bot...
+2026-03-29 23:34:38,858 - bot.scanner - INFO - Пошук активних ринків BTC...
+2026-03-29 23:34:39,091 - bot.settlement - INFO - Запущено фоновий процес розрахунку (Settlement) для завершених маркетів.
+2026-03-29 23:34:39,092 - bot.telegram_bot - INFO - Запуск Telegram бота (polling)...
+2026-03-29 23:34:39,092 - aiogram.dispatcher - INFO - Start polling
+2026-03-29 23:34:39,093 - bot.telegram_bot - INFO - Планувальник щоденного звіту запущено (8:00 Київського часу)
+2026-03-29 23:34:39,093 - bot.telegram_bot - INFO - Наступний звіт через 505 хвилин
+2026-03-29 23:34:39,093 - bot.position_manager - INFO - Position monitor запущено (інтервал 3s, TP: 0.90/0.93/0.95/0.97)
+2026-03-29 23:34:39,094 - bot.position_manager - INFO - Запущено моніторинг pending ордерів (інтервал 5s)
+2026-03-29 23:34:39,137 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:34:39,156 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:34:39,157 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:34:39,180 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:34:39,181 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:34:39,203 - aiogram.dispatcher - INFO - Run polling for bot @predarbtest_bot id=8285310344 - 'PredArbTestBot'
+2026-03-29 23:34:39,482 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:34:39,499 - bot.scanner - INFO - Session change → PACIFIC
+2026-03-29 23:34:42,526 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:34:42,547 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:34:42,548 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:34:42,565 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:34:42,566 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:34:42,831 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:34:45,872 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:34:45,895 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:34:45,896 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:34:45,924 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:34:45,925 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:34:46,188 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:34:47,411 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/depth?symbol=BTCUSDT&limit=20 "HTTP/1.1 200 OK"
+2026-03-29 23:34:47,905 - httpx - INFO - HTTP Request: GET https://clob.polymarket.com/book?token_id=97746078578666600179946560223830822856101645021102523005331081469319787247641 "HTTP/1.1 200 OK"
+2026-03-29 23:34:48,443 - httpx - INFO - HTTP Request: GET https://clob.polymarket.com/book?token_id=108674453245631510613127917357726877537900146705733920048969397070675847194431 "HTTP/1.1 200 OK"
+2026-03-29 23:34:48,501 - aiogram.event - INFO - Update id=12003401 is handled. Duration 1352 ms by bot id=8285310344
+2026-03-29 23:34:49,237 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:34:49,256 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:34:49,257 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:34:49,274 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:34:49,275 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:34:49,539 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:34:52,573 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:34:52,593 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:34:52,594 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:34:52,613 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:34:52,614 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:34:52,877 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:34:55,916 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:34:55,933 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:34:55,934 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:34:55,949 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:34:55,950 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:34:56,213 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:34:59,266 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:34:59,285 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:34:59,286 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:34:59,302 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:34:59,303 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:34:59,567 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:35:02,628 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:35:02,697 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:35:02,698 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:35:02,760 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:35:02,763 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:35:03,047 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:35:06,096 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:35:06,113 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:35:06,113 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:35:06,129 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:35:06,130 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:35:06,396 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:35:09,473 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:35:09,490 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:35:09,492 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:35:09,509 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:35:09,510 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:35:09,774 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:35:12,829 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:35:12,855 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:35:12,856 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:35:12,876 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:35:12,878 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:35:13,140 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:35:16,191 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:35:16,206 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:35:16,207 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:35:16,221 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:35:16,222 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:35:16,486 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:35:17,497 - httpx - INFO - HTTP Request: GET https://clob.polymarket.com/balance-allowance?asset_type=COLLATERAL&signature_type=2 "HTTP/2 200 OK"
+2026-03-29 23:35:17,553 - aiogram.event - INFO - Update id=12003402 is handled. Duration 147 ms by bot id=8285310344
+2026-03-29 23:35:19,531 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:35:19,549 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:35:19,551 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:35:19,565 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:35:19,566 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:35:19,838 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:35:22,892 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:35:22,912 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:35:22,913 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:35:22,927 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:35:22,928 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:35:23,193 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:35:23,917 - aiogram.event - INFO - Update id=12003403 is handled. Duration 57 ms by bot id=8285310344
+2026-03-29 23:35:26,246 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:35:26,264 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:35:26,265 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:35:26,282 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:35:26,283 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:35:26,548 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:35:29,589 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:35:29,619 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:35:29,621 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:35:29,657 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:35:29,658 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:35:29,921 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:35:31,400 - aiogram.event - INFO - Update id=12003404 is handled. Duration 56 ms by bot id=8285310344
+2026-03-29 23:35:32,973 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:35:32,989 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:35:32,990 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:35:33,007 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:35:33,009 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:35:33,272 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:35:34,387 - aiogram.event - INFO - Update id=12003405 is handled. Duration 315 ms by bot id=8285310344
+2026-03-29 23:35:36,308 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:35:36,324 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:35:36,326 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:35:36,342 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:35:36,343 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:35:36,607 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:35:36,910 - httpx - INFO - HTTP Request: GET https://clob.polymarket.com/balance-allowance?asset_type=COLLATERAL&signature_type=2 "HTTP/2 200 OK"
+2026-03-29 23:35:36,967 - aiogram.event - INFO - Update id=12003406 is handled. Duration 143 ms by bot id=8285310344
+2026-03-29 23:35:39,654 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:35:39,670 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:35:39,671 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:35:39,691 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:35:39,692 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:35:39,956 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:35:42,634 - aiogram.event - INFO - Update id=12003407 is handled. Duration 64 ms by bot id=8285310344
+2026-03-29 23:35:42,997 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:35:43,015 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:35:43,016 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:35:43,035 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:35:43,037 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:35:43,301 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:35:44,279 - aiogram.event - INFO - Update id=12003408 is handled. Duration 92 ms by bot id=8285310344
+2026-03-29 23:35:46,338 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:35:46,360 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:35:46,362 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:35:46,379 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:35:46,380 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:35:46,646 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:35:49,686 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:35:49,708 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:35:49,709 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:35:49,730 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:35:49,731 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:35:50,010 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:35:53,048 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:35:53,064 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:35:53,065 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:35:53,084 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:35:53,085 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:35:53,349 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:35:53,778 - aiogram.event - INFO - Update id=12003409 is handled. Duration 72 ms by bot id=8285310344
+2026-03-29 23:35:56,386 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:35:56,405 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:35:56,406 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:35:56,425 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:35:56,427 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:35:56,690 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:35:59,139 - aiogram.event - INFO - Update id=12003410 is handled. Duration 188 ms by bot id=8285310344
+2026-03-29 23:35:59,736 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:35:59,755 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:35:59,756 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:35:59,774 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:35:59,775 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:36:00,039 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:36:03,084 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:36:03,101 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:36:03,103 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:36:03,120 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:36:03,121 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:36:03,387 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:36:06,421 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:36:06,437 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:36:06,438 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:36:06,451 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:36:06,452 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:36:06,717 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:36:09,757 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:36:09,774 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:36:09,775 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:36:09,795 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:36:09,797 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:36:10,059 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:36:13,098 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:36:13,113 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:36:13,114 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:36:13,134 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:36:13,135 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:36:13,401 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:36:16,443 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:36:16,470 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:36:16,472 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:36:16,505 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:36:16,506 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:36:16,768 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:36:19,814 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:36:19,841 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:36:19,842 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:36:19,865 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:36:19,866 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:36:20,131 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:36:23,168 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:36:23,183 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:36:23,184 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:36:23,201 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:36:23,202 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:36:23,466 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:36:26,498 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:36:26,512 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:36:26,513 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:36:26,526 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:36:26,527 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:36:26,790 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:36:29,822 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:36:29,836 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:36:29,837 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:36:29,851 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:36:29,852 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:36:30,120 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:36:33,154 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:36:33,171 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:36:33,172 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:36:33,187 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:36:33,188 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:36:33,452 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:36:36,486 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:36:36,500 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:36:36,501 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:36:36,513 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:36:36,514 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:36:36,777 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:36:39,816 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:36:39,833 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:36:39,834 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:36:39,848 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:36:39,849 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:36:40,112 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:36:43,148 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:36:43,165 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:36:43,166 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:36:43,181 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:36:43,182 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:36:43,448 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:36:46,493 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:36:46,510 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:36:46,511 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:36:46,527 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:36:46,528 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:36:46,790 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:36:49,829 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:36:49,846 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:36:49,847 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:36:49,863 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:36:49,864 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:36:50,129 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:36:53,171 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:36:53,189 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:36:53,191 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:36:53,208 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:36:53,209 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:36:53,471 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:36:56,511 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:36:56,527 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:36:56,528 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:36:56,542 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:36:56,543 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:36:56,808 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:36:59,850 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:36:59,874 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:36:59,875 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:36:59,896 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:36:59,897 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:37:00,162 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:37:03,206 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:37:03,224 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:37:03,225 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:37:03,238 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:37:03,240 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:37:03,538 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:37:06,571 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:37:06,590 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:37:06,591 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:37:06,608 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:37:06,610 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:37:06,876 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:37:09,914 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:37:09,932 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:37:09,933 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:37:09,951 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:37:09,952 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:37:10,215 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:37:13,253 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:37:13,272 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:37:13,273 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:37:13,292 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:37:13,293 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:37:13,555 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:37:16,586 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:37:16,604 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:37:16,605 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:37:16,620 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:37:16,621 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:37:16,886 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:37:19,928 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:37:19,949 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:37:19,950 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:37:19,966 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:37:19,967 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:37:20,231 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:37:23,290 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:37:23,311 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:37:23,312 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:37:23,339 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:37:23,342 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:37:23,611 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:37:26,640 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:37:26,658 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:37:26,659 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:37:26,686 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:37:26,687 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:37:26,962 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:37:29,995 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:37:30,014 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:37:30,014 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:37:30,034 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:37:30,035 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:37:30,299 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:37:33,342 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:37:33,367 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:37:33,369 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:37:33,386 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:37:33,387 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:37:33,652 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:37:36,698 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:37:36,715 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:37:36,716 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:37:36,734 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:37:36,735 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:37:36,999 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:37:40,048 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:37:40,147 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:37:40,150 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:37:40,164 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:37:40,166 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:37:40,431 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:37:43,467 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:37:43,483 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:37:43,484 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:37:43,500 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:37:43,501 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:37:43,766 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:37:46,799 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:37:46,814 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:37:46,815 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:37:46,832 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:37:46,833 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:37:47,098 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:37:50,134 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:37:50,153 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:37:50,154 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:37:50,175 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:37:50,176 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:37:50,441 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:37:53,487 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:37:53,509 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:37:53,510 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:37:53,528 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:37:53,529 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:37:53,793 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:37:56,832 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:37:56,853 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:37:56,854 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:37:56,875 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:37:56,876 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:37:57,140 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:38:00,183 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:38:00,200 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:38:00,201 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:38:00,217 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:38:00,218 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:38:00,481 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:38:03,517 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:38:03,536 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:38:03,537 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:38:03,606 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:38:03,607 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:38:03,871 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:38:06,917 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:38:06,939 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:38:06,940 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:38:06,977 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:38:06,979 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:38:07,240 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:38:10,319 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:38:10,336 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:38:10,337 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:38:10,354 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:38:10,355 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:38:10,617 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:38:13,660 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:38:13,683 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:38:13,684 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:38:13,716 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:38:13,717 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:38:13,984 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:38:17,013 - aiogram.dispatcher - INFO - Polling stopped
+2026-03-29 23:38:17,014 - __main__ - INFO - Бот зупинено.
+2026-03-29 23:38:17,014 - aiogram.dispatcher - ERROR - Failed to fetch updates - TelegramNetworkError: HTTP Client says - ServerDisconnectedError: Server disconnected
+2026-03-29 23:38:17,014 - aiogram.dispatcher - WARNING - Sleep for 1.000000 seconds and try again... (tryings = 0, bot id = 8285310344)
+2026-03-29 23:38:17,015 - aiogram.dispatcher - INFO - Polling stopped for bot @predarbtest_bot id=8285310344 - 'PredArbTestBot'
+2026-03-29 23:38:22,436 - __main__ - INFO - Python: C:\Users\m_moi\AppData\Local\Python\pythoncore-3.14-64\python.exe
+2026-03-29 23:38:22,436 - __main__ - INFO - Ініціалізація баз даних (test.db + live.db)...
+2026-03-29 23:38:22,545 - httpx - INFO - HTTP Request: POST https://clob.polymarket.com/auth/api-key "HTTP/2 400 Bad Request"
+2026-03-29 23:38:22,613 - httpx - INFO - HTTP Request: GET https://clob.polymarket.com/auth/derive-api-key "HTTP/2 200 OK"
+2026-03-29 23:38:22,613 - bot.execution_client - INFO - API creds derived: ca0902e6-eae5-3e...
+2026-03-29 23:38:22,616 - bot.execution_client - INFO - ExecutionClient init OK (chain=137, sig_type=2, funder=0x0CbBC22f0D30dEED357730eA66c37947C10D24A3)
+2026-03-29 23:38:22,616 - __main__ - INFO - 🟢 LIVE TRADING увімкнено
+2026-03-29 23:38:23,134 - __main__ - INFO - 🚀 Запуск Polymarket BTC 15m Scanner Bot...
+2026-03-29 23:38:23,134 - bot.scanner - INFO - Пошук активних ринків BTC...
+2026-03-29 23:38:23,406 - bot.settlement - INFO - Запущено фоновий процес розрахунку (Settlement) для завершених маркетів.
+2026-03-29 23:38:23,407 - bot.telegram_bot - INFO - Запуск Telegram бота (polling)...
+2026-03-29 23:38:23,408 - aiogram.dispatcher - INFO - Start polling
+2026-03-29 23:38:23,409 - bot.telegram_bot - INFO - Планувальник щоденного звіту запущено (8:00 Київського часу)
+2026-03-29 23:38:23,409 - bot.telegram_bot - INFO - Наступний звіт через 502 хвилин
+2026-03-29 23:38:23,409 - bot.position_manager - INFO - Position monitor запущено (інтервал 3s, TP: 0.90/0.93/0.95/0.97)
+2026-03-29 23:38:23,410 - bot.position_manager - INFO - Запущено моніторинг pending ордерів (інтервал 5s)
+2026-03-29 23:38:23,458 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:38:23,478 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:38:23,480 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:38:23,494 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:38:23,495 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:38:23,519 - aiogram.dispatcher - INFO - Run polling for bot @predarbtest_bot id=8285310344 - 'PredArbTestBot'
+2026-03-29 23:38:23,793 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:38:23,810 - bot.scanner - INFO - Session change → PACIFIC
+2026-03-29 23:38:26,833 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:38:26,850 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:38:26,851 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:38:26,867 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:38:26,868 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:38:27,134 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:38:30,184 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:38:30,202 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:38:30,203 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:38:30,217 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:38:30,219 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:38:30,483 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:38:33,526 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:38:33,544 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:38:33,545 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:38:33,573 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:38:33,574 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:38:33,836 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:38:34,528 - aiogram.event - INFO - Update id=12003411 is handled. Duration 62 ms by bot id=8285310344
+2026-03-29 23:38:36,882 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:38:36,901 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:38:36,902 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:38:36,922 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:38:36,923 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:38:37,186 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:38:40,225 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:38:40,242 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:38:40,243 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:38:40,262 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:38:40,263 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:38:40,528 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:38:42,058 - httpx - INFO - HTTP Request: GET https://clob.polymarket.com/balance-allowance?asset_type=COLLATERAL&signature_type=2 "HTTP/2 200 OK"
+2026-03-29 23:38:42,162 - aiogram.event - INFO - Update id=12003412 is handled. Duration 202 ms by bot id=8285310344
+2026-03-29 23:38:43,575 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:38:43,593 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:38:43,594 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:38:43,612 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:38:43,614 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:38:43,881 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:38:44,364 - aiogram.event - INFO - Update id=12003413 is handled. Duration 71 ms by bot id=8285310344
+2026-03-29 23:38:45,898 - aiogram.event - INFO - Update id=12003414 is handled. Duration 55 ms by bot id=8285310344
+2026-03-29 23:38:46,913 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:38:46,928 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:38:46,929 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:38:46,948 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:38:46,949 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:38:47,211 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:38:50,257 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:38:50,274 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:38:50,275 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:38:50,291 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:38:50,292 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:38:50,555 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:38:53,590 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:38:53,611 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:38:53,612 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:38:53,640 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:38:53,642 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:38:53,905 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:38:56,934 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:38:56,953 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:38:56,954 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:38:56,971 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:38:56,972 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:38:57,236 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:39:00,266 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:39:00,281 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:39:00,282 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:39:00,298 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:39:00,299 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:39:00,564 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:39:03,615 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:39:03,644 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:39:03,656 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:39:03,680 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:39:03,681 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:39:03,945 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:39:05,272 - aiogram.event - INFO - Update id=12003415 is handled. Duration 58 ms by bot id=8285310344
+2026-03-29 23:39:06,606 - aiogram.event - INFO - Update id=12003416 is handled. Duration 166 ms by bot id=8285310344
+2026-03-29 23:39:06,992 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:39:07,013 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:39:07,014 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:39:07,036 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:39:07,037 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:39:07,299 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:39:09,178 - aiogram.event - INFO - Update id=12003417 is handled. Duration 59 ms by bot id=8285310344
+2026-03-29 23:39:10,333 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:39:10,349 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:39:10,351 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:39:10,369 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:39:10,370 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:39:10,633 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:39:13,694 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:39:13,732 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:39:13,733 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:39:13,762 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:39:13,763 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:39:14,026 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:39:17,061 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:39:17,083 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:39:17,084 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:39:17,099 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:39:17,100 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:39:17,363 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:39:18,005 - aiogram.event - INFO - Update id=12003418 is handled. Duration 58 ms by bot id=8285310344
+2026-03-29 23:39:20,021 - httpx - INFO - HTTP Request: GET https://clob.polymarket.com/balance-allowance?asset_type=COLLATERAL&signature_type=2 "HTTP/2 200 OK"
+2026-03-29 23:39:20,186 - aiogram.event - INFO - Update id=12003419 is handled. Duration 264 ms by bot id=8285310344
+2026-03-29 23:39:20,406 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:39:20,423 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:39:20,424 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:39:20,442 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:39:20,443 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:39:20,707 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:39:23,218 - aiogram.event - INFO - Update id=12003420 is handled. Duration 57 ms by bot id=8285310344
+2026-03-29 23:39:23,754 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:39:23,774 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:39:23,774 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:39:23,794 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:39:23,795 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:39:24,060 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:39:24,714 - aiogram.event - INFO - Update id=12003421 is handled. Duration 115 ms by bot id=8285310344
+2026-03-29 23:39:26,157 - aiogram.event - INFO - Update id=12003422 is handled. Duration 56 ms by bot id=8285310344
+2026-03-29 23:39:27,092 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:39:27,108 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:39:27,109 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:39:27,124 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:39:27,125 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:39:27,388 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:39:30,425 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:39:30,447 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:39:30,448 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:39:30,465 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:39:30,466 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:39:30,636 - aiogram.event - INFO - Update id=12003423 is handled. Duration 60 ms by bot id=8285310344
+2026-03-29 23:39:30,729 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:39:33,782 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:39:33,802 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:39:33,803 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:39:33,825 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:39:33,826 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:39:34,093 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:39:37,151 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:39:37,174 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:39:37,175 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:39:37,197 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:39:37,198 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:39:37,461 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:39:40,503 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:39:40,520 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:39:40,521 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:39:40,540 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:39:40,541 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:39:40,804 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:39:43,850 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:39:43,876 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:39:43,877 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:39:43,911 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:39:43,912 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:39:44,177 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:39:47,226 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:39:47,251 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:39:47,252 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:39:47,285 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:39:47,287 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:39:47,555 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:39:50,603 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774815300 "HTTP/1.1 200 OK"
+2026-03-29 23:39:50,626 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774816200 "HTTP/1.1 200 OK"
+2026-03-29 23:39:50,628 - bot.polymarket_client - INFO - 🟢 BTC 15m маркет: Bitcoin Up or Down - March 29, 4:30PM-4:45PM ET (ID: 1765863, slug: btc-updown-15m-1774816200)
+2026-03-29 23:39:50,647 - httpx - INFO - HTTP Request: GET https://gamma-api.polymarket.com/markets/slug/btc-updown-15m-1774817100 "HTTP/1.1 200 OK"
+2026-03-29 23:39:50,648 - bot.scanner - INFO - ✅ В логіку індикаторів передано 1 маркетів.
+2026-03-29 23:39:50,911 - httpx - INFO - HTTP Request: GET https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100 "HTTP/1.1 200 OK"
+2026-03-29 23:39:53,932 - aiogram.dispatcher - INFO - Polling stopped
+2026-03-29 23:39:53,934 - __main__ - INFO - Бот зупинено.
+2026-03-29 23:39:53,934 - aiogram.dispatcher - ERROR - Failed to fetch updates - TelegramNetworkError: HTTP Client says - ServerDisconnectedError: Server disconnected
+2026-03-29 23:39:53,934 - aiogram.dispatcher - WARNING - Sleep for 1.000000 seconds and try again... (tryings = 0, bot id = 8285310344)
+2026-03-29 23:39:53,934 - aiogram.dispatcher - INFO - Polling stopped for bot @predarbtest_bot id=8285310344 - 'PredArbTestBot'

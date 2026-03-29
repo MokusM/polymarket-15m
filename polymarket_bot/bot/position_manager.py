@@ -478,7 +478,7 @@ async def monitor_positions_loop(execution_client):
                             )
                             if new_remaining <= 0:
                                 total_pnl = _pnl_total_on_full_close(
-                                    stake_u, shares_init, sell_amount, current_price, realized_accum,
+                                    stake_u, shares_init, remaining, current_price, realized_accum,
                                 )
                                 close_position(pos_id, "tp_l3_full", total_pnl)
                                 await send_info_message(
@@ -524,7 +524,7 @@ async def monitor_positions_loop(execution_client):
                             )
                             if new_remaining <= 0:
                                 total_pnl = _pnl_total_on_full_close(
-                                    stake_u, shares_init, sell_amount, current_price, realized_accum,
+                                    stake_u, shares_init, remaining, current_price, realized_accum,
                                 )
                                 close_position(pos_id, "tp_l2_full", total_pnl)
                                 await send_info_message(
@@ -570,7 +570,7 @@ async def monitor_positions_loop(execution_client):
                             )
                             if new_remaining <= 0:
                                 total_pnl = _pnl_total_on_full_close(
-                                    stake_u, shares_init, sell_amount, current_price, realized_accum,
+                                    stake_u, shares_init, remaining, current_price, realized_accum,
                                 )
                                 close_position(pos_id, "tp_l1_full", total_pnl)
                                 await send_info_message(

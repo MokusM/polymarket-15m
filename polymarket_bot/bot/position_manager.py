@@ -378,7 +378,23 @@ async def monitor_positions_loop(execution_client):
                         sell_ok = bool(sell_result and sell_result.get("success") is True)
                         if not sell_ok:
                             if sell_result and sell_result.get("_market_resolved"):
-                                logger.info("SL #%s: маркет вже резолвнувся — settlement закриє позицію", pos_id)
+                                # Не можемо продати (мінімум CLOB або маркет закрився)
+                                # Закриваємо в БД — settlement запише фінальний PnL
+                                pnl = _pnl_total_on_full_close(
+                                    stake_u, shares_init, remaining, current_price, realized_accum,
+                                )
+                                close_position(pos_id, "stop_loss_no_fill", pnl)
+                                logger.warning(
+                                    "SL #%s: CLOB sell неможливий (мінімум/резолв) — закрито в БД, settlement підтвердить",
+                                    pos_id,
+                                )
+                                await send_info_message(
+                                    f"\U0001f6d1 <b>Stop-Loss #{pos_id} (no fill)</b>\n"
+                                    f"{pos['direction']} {pos['side']} | "
+                                    f"Entry: {entry:.2f} \u2192 {current_price:.2f}\n"
+                                    f"CLOB sell неможливий ({remaining:.1f} shares < мінімум)\n"
+                                    f"PnL: <b>{pnl:+.2f} USD</b>"
+                                )
                             else:
                                 logger.error(
                                     "SL SELL failed #%s (ціна %.2f, shares %.2f) — %s. Повторимо наступного циклу.",

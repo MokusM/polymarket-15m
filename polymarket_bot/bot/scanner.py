@@ -11,13 +11,7 @@ from bot.config import (
     MAX_SIGNALS_PER_ROUND_PER_SIDE,
     REPEAT_ALERTS_AFTER_COOLDOWN,
     NOTIFY_SESSION_CHANGE,
-    OBI_MIN_RATIO,
-    OBI_LEVELS,
     CLOB_SPREAD_MAX,
-    CONTRACT_PRICE_HIGH_MIN,
-    CONTRACT_PRICE_MAX,
-    GAP_STRICT_USD,
-    MTF_RSI_FILTER_ENABLED,
 )
 from bot.exchange_client import ExchangeClient
 from bot.polymarket_client import PolymarketClient
@@ -93,15 +87,16 @@ class Scanner:
                     await self._check_session_change(df_with_indicators)
 
                 # 4. Перевіряємо ринки
+                th = state.get_thresholds()
                 for market_prices in markets_with_prices:
                     signal = check_signals(market_prices, df_with_indicators)
-                    
+
                     if signal:
                         direction = signal["direction"]
                         market_id = str(market_prices["market_id"])
 
                         # ── MTF RSI filter: 3m and 5m must align with direction ──
-                        if MTF_RSI_FILTER_ENABLED and state.mode != "test":
+                        if th["MTF_RSI_FILTER_ENABLED"] and state.mode != "test":
                             rsi_3m = signal.get("rsi_3m")
                             rsi_5m = signal.get("rsi_5m")
                             if rsi_3m is not None and rsi_5m is not None:
@@ -122,22 +117,21 @@ class Scanner:
                         obi = 1.0
                         if state.mode != "test":
                             obi = await self.exchange.get_order_book_imbalance(
-                                levels=OBI_LEVELS
+                                levels=th["OBI_LEVELS"]
                             )
-                            # UP: потрібен bid > ask (bullish); DOWN: потрібен ask > bid
-                            # OBI_MIN_RATIO=0 → фільтр вимкнено
-                            if OBI_MIN_RATIO <= 0:
+                            obi_ratio = th["OBI_MIN_RATIO"]
+                            if obi_ratio <= 0:
                                 obi_pass = True
                             else:
                                 obi_pass = (
-                                    obi >= OBI_MIN_RATIO
+                                    obi >= obi_ratio
                                     if direction == "UP"
-                                    else obi <= (1.0 / OBI_MIN_RATIO)
+                                    else obi <= (1.0 / obi_ratio)
                                 )
                             if not obi_pass:
                                 logger.debug(
                                     "OBI %.3f не відповідає напрямку %s (threshold=%.2f) — skip",
-                                    obi, direction, OBI_MIN_RATIO,
+                                    obi, direction, obi_ratio,
                                 )
                                 continue
                         signal["obi"] = obi
@@ -163,20 +157,20 @@ class Scanner:
                                         continue
 
                                 # Priority 1: high-price GAP gate
-                                if clob_ask > CONTRACT_PRICE_HIGH_MIN:
+                                if clob_ask > th["CONTRACT_PRICE_HIGH_MIN"]:
                                     gap = signal.get("gap", 0)
-                                    if abs(gap) < GAP_STRICT_USD:
+                                    if abs(gap) < th["GAP_STRICT_USD"]:
                                         logger.debug(
                                             "CLOB ask %.2f > %.2f (FLB zone) but GAP %.1f < %.0f — skip",
-                                            clob_ask, CONTRACT_PRICE_HIGH_MIN, gap, GAP_STRICT_USD,
+                                            clob_ask, th["CONTRACT_PRICE_HIGH_MIN"], gap, th["GAP_STRICT_USD"],
                                         )
                                         continue
 
                                 # Skip if CLOB ask above max entry price (bad risk/reward)
-                                if clob_ask > CONTRACT_PRICE_MAX:
+                                if clob_ask > th["CONTRACT_PRICE_MAX"]:
                                     logger.debug(
                                         "CLOB ask %.2f > CONTRACT_PRICE_MAX %.2f — skip",
-                                        clob_ask, CONTRACT_PRICE_MAX,
+                                        clob_ask, th["CONTRACT_PRICE_MAX"],
                                     )
                                     continue
 

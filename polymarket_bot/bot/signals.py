@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 import logging
 from typing import Optional
 
-from bot.config import IGNORE_IF_TIME_LEFT_LT_MIN, IGNORE_IF_CONTRACT_PRICE_GT, ATR_MIN_USD, GAP_MIN_USD, GAP_STRICT_USD, TIME_STRICT_MAX_MIN
+from bot.config import IGNORE_IF_TIME_LEFT_LT_MIN, IGNORE_IF_CONTRACT_PRICE_GT
 from bot.state import state
 
 logger = logging.getLogger(__name__)
@@ -124,7 +124,7 @@ def check_signals(market_info: dict, df: pd.DataFrame) -> dict | None:
     # --- ATR zone filter ---
     atr = last.get("atr", 0)
     atr_zone = last.get("atr_zone", "dead")
-    atr_threshold = th.get("ATR_MIN_USD", ATR_MIN_USD)
+    atr_threshold = th["ATR_MIN_USD"]
     if not pd.isna(atr) and atr < atr_threshold and state.mode != "test":
         logger.debug("ATR %.1f < %.1f — skip", atr, atr_threshold)
         return None
@@ -222,11 +222,12 @@ def check_signals(market_info: dict, df: pd.DataFrame) -> dict | None:
     gap_val = round(delta, 2)  # позитивний = BTC вище ніж на старті вікна
 
     if state.mode != "test":
-        gap_ok = (gap_val >= GAP_MIN_USD) if direction == "UP" else (gap_val <= -GAP_MIN_USD)
+        gap_min = th["GAP_MIN_USD"]
+        gap_ok = (gap_val >= gap_min) if direction == "UP" else (gap_val <= -gap_min)
         if not gap_ok:
             logger.debug(
                 "GAP %.1f недостатній для %s (threshold=%.0f) — skip",
-                gap_val, direction, GAP_MIN_USD,
+                gap_val, direction, gap_min,
             )
             return None
 
@@ -239,11 +240,11 @@ def check_signals(market_info: dict, df: pd.DataFrame) -> dict | None:
     ema_position = f"{ema_pos} EMA9 ({ema_9_slope:+.1f})"
 
     # --- Strict time-GAP filter: <5 min left → must have GAP ≥ $100 ---
-    if state.mode != "test" and time_left_min < TIME_STRICT_MAX_MIN:
-        if abs(gap_val) < GAP_STRICT_USD:
+    if state.mode != "test" and time_left_min < th["TIME_STRICT_MAX_MIN"]:
+        if abs(gap_val) < th["GAP_STRICT_USD"]:
             logger.debug(
                 "Time %.1f min < %.0f min, GAP %.1f < %.0f — skip",
-                time_left_min, TIME_STRICT_MAX_MIN, abs(gap_val), GAP_STRICT_USD,
+                time_left_min, th["TIME_STRICT_MAX_MIN"], abs(gap_val), th["GAP_STRICT_USD"],
             )
             return None
 
@@ -298,7 +299,7 @@ def diagnose_signals(market_info: dict, df: pd.DataFrame) -> str:
     # ATR
     atr = last.get("atr", 0)
     atr_zone = last.get("atr_zone", "dead")
-    atr_threshold = th.get("ATR_MIN_USD", ATR_MIN_USD)
+    atr_threshold = th["ATR_MIN_USD"]
     atr_ok = pd.isna(atr) or float(atr) >= atr_threshold or state.mode == "test"
     zone_ok = atr_zone != "dead" or th.get("ALLOW_DEAD_ZONE", False) or state.mode == "test"
     atr_v = float(atr) if not pd.isna(atr) else 0
@@ -320,7 +321,7 @@ def diagnose_signals(market_info: dict, df: pd.DataFrame) -> str:
         except Exception:
             pass
     time_window_ok = th["TIME_LEFT_MIN_MINUTES"] <= time_left_min <= th["TIME_LEFT_MAX_MINUTES"]
-    time_hard_ok = state.mode == "test" or time_left_min >= IGNORE_IF_TIME_LEFT_LT_MIN
+    time_hard_ok = state.mode == "test" or time_left_min >= IGNORE_IF_TIME_LEFT_LT_MIN  # fixed threshold
     lines.append(
         f"{'✅' if time_window_ok and time_hard_ok else '❌'} Час: <b>{time_left_min:.1f} хв</b> "
         f"(вікно {th['TIME_LEFT_MIN_MINUTES']}–{th['TIME_LEFT_MAX_MINUTES']} хв)"
@@ -393,8 +394,8 @@ def diagnose_signals(market_info: dict, df: pd.DataFrame) -> str:
     if start_price is None:
         start_price = float(df.iloc[-15]["open"]) if len(df) >= 15 else price
     gap_val = round(price - start_price, 2)
-    gap_ok = (gap_val >= GAP_MIN_USD) if direction == "UP" else (gap_val <= -GAP_MIN_USD)
-    needed = f"+{GAP_MIN_USD:.0f}$" if direction == "UP" else f"-{GAP_MIN_USD:.0f}$"
+    gap_ok = (gap_val >= th["GAP_MIN_USD"]) if direction == "UP" else (gap_val <= -th["GAP_MIN_USD"])
+    needed = f"+{th['GAP_MIN_USD']:.0f}$" if direction == "UP" else f"-{th['GAP_MIN_USD']:.0f}$"
     lines.append(
         f"{'✅' if gap_ok else '❌'} GAP: BTC ${price:,.0f} vs вікно-старт ${start_price:,.0f} "
         f"= <b>{gap_val:+.0f}$</b> (потрібно {needed} для {direction})"
@@ -402,11 +403,11 @@ def diagnose_signals(market_info: dict, df: pd.DataFrame) -> str:
 
     # Strict time-GAP
     strict_ok = True
-    if state.mode != "test" and time_left_min < TIME_STRICT_MAX_MIN:
-        strict_ok = abs(gap_val) >= GAP_STRICT_USD
-        needed_strict = f"+{GAP_STRICT_USD:.0f}$" if direction == "UP" else f"-{GAP_STRICT_USD:.0f}$"
+    if state.mode != "test" and time_left_min < th["TIME_STRICT_MAX_MIN"]:
+        strict_ok = abs(gap_val) >= th["GAP_STRICT_USD"]
+        needed_strict = f"+{th['GAP_STRICT_USD']:.0f}$" if direction == "UP" else f"-{th['GAP_STRICT_USD']:.0f}$"
         lines.append(
-            f"{'✅' if strict_ok else '❌'} Strict GAP (час {time_left_min:.1f}&lt;{TIME_STRICT_MAX_MIN:.0f} хв): "
+            f"{'✅' if strict_ok else '❌'} Strict GAP (час {time_left_min:.1f}&lt;{th['TIME_STRICT_MAX_MIN']:.0f} хв): "
             f"GAP {gap_val:+.0f}$ (потрібно {needed_strict})"
         )
 

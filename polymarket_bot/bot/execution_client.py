@@ -389,6 +389,9 @@ class ExecutionClient:
             logger.error("ExecutionClient не готовий — ордер не розміщено")
             return {"success": False, "error": "ExecutionClient not ready"}
 
+        # CLOB не приймає ціну >= 1.0 — кепуємо до 0.99
+        price = min(price, 0.99)
+
         try:
             loop = asyncio.get_event_loop()
             order_args = OrderArgs(

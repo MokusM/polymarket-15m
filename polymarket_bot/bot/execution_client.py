@@ -452,7 +452,8 @@ class ExecutionClient:
             import re
             m = re.search(r"balance:\s*(\d+)", err_str)
             if m:
-                actual_size = round(int(m.group(1)) / 1_000_000, 2)
+                import math as _math
+                actual_size = _math.floor(int(m.group(1)) / 10_000) / 100  # floor до 2 знаків
                 if actual_size < 0.5:
                     # Маркет вже резолвнувся і токени редімнули — settlement закриє позицію
                     logger.warning(

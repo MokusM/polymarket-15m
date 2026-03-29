@@ -1,6 +1,5 @@
-# Secrets & local config
+# Secrets
 .env
-polymarket_bot/config.toml
 
 # Database
 *.db

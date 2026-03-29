@@ -282,12 +282,26 @@ async def monitor_positions_loop(execution_client):
                 if not pos.get("token_id"):
                     continue
                 try:
-                    current_price = await execution_client.get_token_price(
-                        pos["token_id"], "SELL",
-                    )
+                    # Використовуємо CLOB REST bid — реальна ціна продажу (те що ми отримаємо)
+                    import httpx as _httpx
+                    try:
+                        async with _httpx.AsyncClient(timeout=3.0) as _c:
+                            _r = await _c.get(
+                                "https://clob.polymarket.com/book",
+                                params={"token_id": pos["token_id"]},
+                            )
+                            if _r.status_code == 200:
+                                _bids = _r.json().get("bids") or []
+                                current_price = float(_bids[-1]["price"]) if _bids else 0.0
+                            else:
+                                current_price = None
+                    except Exception:
+                        current_price = await execution_client.get_token_price(
+                            pos["token_id"], "SELL",
+                        )
                     if current_price is None:
                         continue  # API помилка — пропускаємо, не закриваємо
-                    # current_price == 0.0 — ціна справді впала до нуля, дозволяємо SL спрацювати
+                    logger.debug("Position #%s current bid: %.4f", pos.get("id"), current_price)
 
                     entry = pos["entry_price"]
                     remaining = pos["remaining_shares"]

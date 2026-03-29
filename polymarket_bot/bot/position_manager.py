@@ -476,15 +476,27 @@ async def monitor_positions_loop(execution_client):
                             leg_pnl = _pnl_partial_leg_usd(
                                 stake_u, shares_init, sell_amount, current_price,
                             )
-                            update_partial_exit(pos_id, sell_amount, new_remaining, leg_pnl, level=3)
-
-                            await send_info_message(
-                                f"\U0001f4b0 <b>TP L3 #{pos_id} @ {current_price:.2f}</b>\n"
-                                f"Sold {sell_amount:.0f} / {remaining:.0f} shares\n"
-                                f"Locked: <b>{leg_pnl:+.2f} USD</b>\n"
-                                f"Remaining: {new_remaining:.0f} shares \u2192 "
-                                f"final exit @ {TP_FINAL_PRICE:.2f}"
-                            )
+                            if new_remaining <= 0:
+                                total_pnl = _pnl_total_on_full_close(
+                                    stake_u, shares_init, remaining, current_price, realized_accum,
+                                )
+                                close_position(pos_id, "tp_l3_full", total_pnl)
+                                await send_info_message(
+                                    f"\U0001f3af <b>Full Exit (TP L3) #{pos_id} @ {current_price:.2f}</b>\n"
+                                    f"{pos['direction']} {pos['side']} | "
+                                    f"Entry: {entry:.2f} \u2192 {current_price:.2f}\n"
+                                    f"Sold all {sell_amount:.0f} shares\n"
+                                    f"PnL: <b>{total_pnl:+.2f} USD</b>"
+                                )
+                            else:
+                                update_partial_exit(pos_id, sell_amount, new_remaining, leg_pnl, level=3)
+                                await send_info_message(
+                                    f"\U0001f4b0 <b>TP L3 #{pos_id} @ {current_price:.2f}</b>\n"
+                                    f"Sold {sell_amount:.0f} / {remaining:.0f} shares\n"
+                                    f"Locked: <b>{leg_pnl:+.2f} USD</b>\n"
+                                    f"Remaining: {new_remaining:.0f} shares \u2192 "
+                                    f"final exit @ {TP_FINAL_PRICE:.2f}"
+                                )
                         continue
 
                     # ── Take-Profit LEVEL 2 @ 0.93 — sell 33% of remaining ──
@@ -510,15 +522,27 @@ async def monitor_positions_loop(execution_client):
                             leg_pnl = _pnl_partial_leg_usd(
                                 stake_u, shares_init, sell_amount, current_price,
                             )
-                            update_partial_exit(pos_id, sell_amount, new_remaining, leg_pnl, level=2)
-
-                            await send_info_message(
-                                f"\U0001f4b0 <b>TP L2 #{pos_id} @ {current_price:.2f}</b>\n"
-                                f"Sold {sell_amount:.0f} / {remaining:.0f} shares\n"
-                                f"Locked: <b>{leg_pnl:+.2f} USD</b>\n"
-                                f"Remaining: {new_remaining:.0f} shares \u2192 "
-                                f"L3 exit @ {TP_FULL_PRICE:.2f}"
-                            )
+                            if new_remaining <= 0:
+                                total_pnl = _pnl_total_on_full_close(
+                                    stake_u, shares_init, remaining, current_price, realized_accum,
+                                )
+                                close_position(pos_id, "tp_l2_full", total_pnl)
+                                await send_info_message(
+                                    f"\U0001f3af <b>Full Exit (TP L2) #{pos_id} @ {current_price:.2f}</b>\n"
+                                    f"{pos['direction']} {pos['side']} | "
+                                    f"Entry: {entry:.2f} \u2192 {current_price:.2f}\n"
+                                    f"Sold all {sell_amount:.0f} shares\n"
+                                    f"PnL: <b>{total_pnl:+.2f} USD</b>"
+                                )
+                            else:
+                                update_partial_exit(pos_id, sell_amount, new_remaining, leg_pnl, level=2)
+                                await send_info_message(
+                                    f"\U0001f4b0 <b>TP L2 #{pos_id} @ {current_price:.2f}</b>\n"
+                                    f"Sold {sell_amount:.0f} / {remaining:.0f} shares\n"
+                                    f"Locked: <b>{leg_pnl:+.2f} USD</b>\n"
+                                    f"Remaining: {new_remaining:.0f} shares \u2192 "
+                                    f"L3 exit @ {TP_FULL_PRICE:.2f}"
+                                )
                         continue
 
                     # ── Take-Profit LEVEL 1 @ 0.90 — sell 25% of remaining ──
@@ -544,15 +568,27 @@ async def monitor_positions_loop(execution_client):
                             leg_pnl = _pnl_partial_leg_usd(
                                 stake_u, shares_init, sell_amount, current_price,
                             )
-                            update_partial_exit(pos_id, sell_amount, new_remaining, leg_pnl, level=1)
-
-                            await send_info_message(
-                                f"\U0001f4b0 <b>TP L1 #{pos_id} @ {current_price:.2f}</b>\n"
-                                f"Sold {sell_amount:.0f} / {remaining:.0f} shares\n"
-                                f"Locked: <b>{leg_pnl:+.2f} USD</b>\n"
-                                f"Remaining: {new_remaining:.0f} shares \u2192 "
-                                f"L2 exit @ {TP_MID_PRICE:.2f}"
-                            )
+                            if new_remaining <= 0:
+                                total_pnl = _pnl_total_on_full_close(
+                                    stake_u, shares_init, remaining, current_price, realized_accum,
+                                )
+                                close_position(pos_id, "tp_l1_full", total_pnl)
+                                await send_info_message(
+                                    f"\U0001f3af <b>Full Exit (TP L1) #{pos_id} @ {current_price:.2f}</b>\n"
+                                    f"{pos['direction']} {pos['side']} | "
+                                    f"Entry: {entry:.2f} \u2192 {current_price:.2f}\n"
+                                    f"Sold all {sell_amount:.0f} shares\n"
+                                    f"PnL: <b>{total_pnl:+.2f} USD</b>"
+                                )
+                            else:
+                                update_partial_exit(pos_id, sell_amount, new_remaining, leg_pnl, level=1)
+                                await send_info_message(
+                                    f"\U0001f4b0 <b>TP L1 #{pos_id} @ {current_price:.2f}</b>\n"
+                                    f"Sold {sell_amount:.0f} / {remaining:.0f} shares\n"
+                                    f"Locked: <b>{leg_pnl:+.2f} USD</b>\n"
+                                    f"Remaining: {new_remaining:.0f} shares \u2192 "
+                                    f"L2 exit @ {TP_MID_PRICE:.2f}"
+                                )
 
                 except Exception as e:
                     logger.error("Помилка обробки позиції #%s: %s", pos.get("id"), e, exc_info=True)

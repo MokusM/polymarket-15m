@@ -517,7 +517,10 @@ async def process_manual_buy(callback_query: types.CallbackQuery):
             pass
         risk = calculate_stake(signal, bankroll=bankroll)
         risk["edge"] = max(risk.get("edge", 0), 0.01)
-        risk["stake_usd"] = 1.0  # ручна купівля завжди $1 для безпечного тесту SL/TP
+        # Мінімум 5 shares щоб SL/TP могли закрити через CLOB
+        cp = signal.get("contract_price", 0.5)
+        min_stake = round(5 * cp, 2)
+        risk["stake_usd"] = max(min_stake, 1.0)
 
         store_pending_signal(sig_id, {**signal, "_risk": risk})
         order_text = await _execute_live_order(sig_id, skip_min_size=True)

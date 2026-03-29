@@ -426,12 +426,15 @@ class ExecutionClient:
                 return {"success": False, "error": str(e), "_exception": e}
 
         result = await _attempt(size)
+        err_str = str(result.get("error", "")) if result else ""
+
+        # Retry with fallback_size if CLOB minimum size rejected
         if (
             result
             and result.get("success") is False
             and fallback_size is not None
             and fallback_size > size
-            and "lower than the min" in str(result.get("error", ""))
+            and "lower than the min" in err_str
         ):
             logger.warning(
                 "sell_shares: size %.2f нижче мінімуму CLOB — повторюємо з fallback %.2f",
@@ -440,6 +443,22 @@ class ExecutionClient:
             result = await _attempt(fallback_size)
             if result and "_exception" not in result:
                 result["_used_fallback_size"] = fallback_size
+            err_str = str(result.get("error", "")) if result else ""
+
+        # Retry with actual on-chain balance if "not enough balance" error
+        if result and result.get("success") is False and "not enough balance" in err_str:
+            import re
+            m = re.search(r"balance:\s*(\d+)", err_str)
+            if m:
+                actual_size = round(int(m.group(1)) / 1_000_000, 2)
+                if actual_size > 0:
+                    logger.warning(
+                        "sell_shares: not enough balance — повторюємо з реальним балансом %.4f (запитували %.4f)",
+                        actual_size, size,
+                    )
+                    result = await _attempt(actual_size)
+                    if result and result.get("success") is True:
+                        result["_used_actual_size"] = actual_size
 
         if result and result.get("success") is False:
             exc = result.pop("_exception", None)

@@ -304,8 +304,10 @@ async def monitor_positions_loop(execution_client):
                     logger.debug("Position #%s current bid: %.4f", pos.get("id"), current_price)
 
                     entry = pos["entry_price"]
-                    remaining = pos["remaining_shares"]
+                    remaining = float(pos["remaining_shares"] or 0)
                     pos_id = pos["id"]
+                    if remaining <= 0:
+                        continue
                     shares_init = float(pos["shares"] or 0)
                     stake_u = float(pos["stake_usd"] or 0)
                     realized_accum = float(pos.get("realized_pnl") or 0)

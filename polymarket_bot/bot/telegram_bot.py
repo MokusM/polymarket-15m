@@ -790,7 +790,7 @@ async def _execute_live_order(signal_id: int, skip_min_size: bool = False) -> st
         await _mark_no_fill()
         return "\u26a0\ufe0f Сигнал не знайдено в пам\u2019яті"
 
-    if count_open_positions() >= MAX_OPEN_POSITIONS:
+    if not signal.get("_manual") and count_open_positions() >= MAX_OPEN_POSITIONS:
         await _mark_no_fill()
         return f"\u26a0\ufe0f Ліміт позицій ({MAX_OPEN_POSITIONS})"
 

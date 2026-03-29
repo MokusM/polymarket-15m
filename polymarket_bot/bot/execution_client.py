@@ -14,7 +14,6 @@ from typing import Optional
 from bot.config import (
     POLYMARKET_PRIVATE_KEY,
     POLYMARKET_CHAIN_ID,
-    CONTRACT_PRICE_MAX,
     CLOB_CROSS_SPREAD_BUY,
     CLOB_MAX_BUY_SLIPPAGE_ABS,
     CLOB_BUY_BUFFER,
@@ -250,7 +249,8 @@ class ExecutionClient:
         if ap <= 0:
             return ref_lim, None
 
-        hard_cap = min(0.99, CONTRACT_PRICE_MAX)
+        from bot.state import state
+        hard_cap = min(0.99, state.get_thresholds()["CONTRACT_PRICE_MAX"])
         if ap > hard_cap + 1e-9:
             return (
                 0.0,

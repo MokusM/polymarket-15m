@@ -166,14 +166,6 @@ class Scanner:
                                         )
                                         continue
 
-                                # Skip if CLOB ask above max entry price (bad risk/reward)
-                                if clob_ask > th["CONTRACT_PRICE_MAX"]:
-                                    logger.debug(
-                                        "CLOB ask %.2f > CONTRACT_PRICE_MAX %.2f — skip",
-                                        clob_ask, th["CONTRACT_PRICE_MAX"],
-                                    )
-                                    continue
-
                                 # Replace Gamma price with real CLOB ask as entry price
                                 if clob_ask > 0:
                                     signal["contract_price"] = clob_ask

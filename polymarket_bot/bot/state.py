@@ -71,7 +71,7 @@ class BotState:
                 "CONTRACT_PRICE_HIGH_MIN": 0.75,
             },
             "light": {
-                "TIME_LEFT_MIN_MINUTES":  2,
+                "TIME_LEFT_MIN_MINUTES":  3,
                 "TIME_LEFT_MAX_MINUTES":  12,
                 "CONTRACT_PRICE_MIN":     0.45,
                 "CONTRACT_PRICE_MAX":     0.75,

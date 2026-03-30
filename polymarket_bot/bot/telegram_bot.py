@@ -552,8 +552,9 @@ async def process_manual_buy(callback_query: types.CallbackQuery):
         risk = calculate_stake(signal, bankroll=bankroll)
         risk["edge"] = max(risk.get("edge", 0), 0.01)
         # Мінімум 5 shares щоб SL/TP могли закрити через CLOB
+        # +20% буфер бо CLOB ask може вирости між сигналом і виконанням
         cp = signal.get("contract_price", 0.5)
-        min_stake = round(5 * cp, 2)
+        min_stake = round(5 * cp * 1.2, 2)
         risk["stake_usd"] = max(min_stake, 1.0)
 
         store_pending_signal(sig_id, {**signal, "_risk": risk})

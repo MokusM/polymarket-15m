@@ -83,7 +83,7 @@ class BotState:
                 "TIME_STRICT_MAX_MIN":    5.0,
                 "OBI_MIN_RATIO":          1.3,
                 "OBI_LEVELS":             10,
-                "MTF_RSI_FILTER_ENABLED": True,
+                "MTF_RSI_FILTER_ENABLED": False,
                 "CONTRACT_PRICE_HIGH_MIN": 0.75,
             },
             "medium": {
@@ -99,7 +99,7 @@ class BotState:
                 "TIME_STRICT_MAX_MIN":    5.0,
                 "OBI_MIN_RATIO":          1.8,
                 "OBI_LEVELS":             20,
-                "MTF_RSI_FILTER_ENABLED": True,
+                "MTF_RSI_FILTER_ENABLED": False,
                 "CONTRACT_PRICE_HIGH_MIN": 0.75,
             },
             "strict": {
@@ -115,7 +115,7 @@ class BotState:
                 "TIME_STRICT_MAX_MIN":    5.0,
                 "OBI_MIN_RATIO":          2.3,
                 "OBI_LEVELS":             20,
-                "MTF_RSI_FILTER_ENABLED": True,
+                "MTF_RSI_FILTER_ENABLED": False,
                 "CONTRACT_PRICE_HIGH_MIN": 0.75,
             },
         }

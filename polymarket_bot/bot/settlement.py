@@ -7,6 +7,7 @@ from bot.polymarket_client import PolymarketClient
 from bot.state import state
 from bot.storage import (
     get_unresolved_signals,
+    get_db_path,
     signal_live_position_already_closed,
     update_result,
 )
@@ -78,18 +79,29 @@ async def settle_markets():
                         sig.get("live_entry_status") == "opened"
                         and signal_live_position_already_closed(sig["id"])
                     ):
-                        update_result(sig["id"], "CLOSED_EARLY", 0.0)
+                        # Беремо реальний PnL з таблиці positions
+                        try:
+                            import sqlite3 as _sqlite3
+                            _conn = _sqlite3.connect(get_db_path())
+                            _row = _conn.execute(
+                                "SELECT pnl FROM positions WHERE signal_id = ? AND status = 'closed' LIMIT 1",
+                                (sig["id"],),
+                            ).fetchone()
+                            _conn.close()
+                            real_pnl = float(_row[0] or 0) if _row else 0.0
+                        except Exception:
+                            real_pnl = 0.0
+
+                        result_str = "WIN" if real_pnl > 0 else "LOSS"
+                        update_result(sig["id"], result_str, real_pnl)
+                        if real_pnl > 0:
+                            state.record_win()
+                        else:
+                            state.record_loss()
                         logger.info(
-                            "Сигнал %s: live позицію вже закрито монітором — без paper WIN/LOSS і без record_*",
-                            sig["id"],
+                            "Сигнал %s: закрито монітором — %s, PnL: %.2f",
+                            sig["id"], result_str, real_pnl,
                         )
-                        tg_msg_id = sig.get("telegram_message_id")
-                        if tg_msg_id:
-                            await send_info_message(
-                                f"📋 <b>Сигнал #{sig['id']} — закрито монітором</b>\n"
-                                f"PnL вже відображено в повідомленнях SL/TP.\n"
-                                f"<i>{_market_title(sig)}</i>"
-                            )
                         continue
 
                     contract_price = sig["contract_price"]

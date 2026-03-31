@@ -955,13 +955,13 @@ async def send_daily_report():
     from datetime import timedelta
     kyiv_tz = ZoneInfo("Europe/Kyiv")
     now_kyiv = datetime.now(kyiv_tz)
-    # Звіт о 8:00 — за вчорашній день
-    yesterday_kyiv = (now_kyiv - timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
-    yesterday_end_kyiv = yesterday_kyiv.replace(hour=23, minute=59, second=59)
-    period_start_utc = yesterday_kyiv.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
-    period_end_utc = yesterday_end_kyiv.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    # Звіт о 8:00 — за останні 24 години (з 8:00 вчора до 8:00 сьогодні)
+    period_end_kyiv = now_kyiv.replace(hour=8, minute=0, second=0, microsecond=0)
+    period_start_kyiv = period_end_kyiv - timedelta(hours=24)
+    period_start_utc = period_start_kyiv.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    period_end_utc = period_end_kyiv.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
-    lines = [f"📊 <b>Денний звіт — {yesterday_kyiv.strftime('%d.%m.%Y')}</b>\n"]
+    lines = [f"📊 <b>Денний звіт — {period_start_kyiv.strftime('%d.%m')}–{period_end_kyiv.strftime('%d.%m.%Y')} (08:00–08:00)</b>\n"]
 
     for label, db_path in [("🧪 Test", DB_PATH_TEST), ("💰 Live", DB_PATH_LIVE)]:
         try:

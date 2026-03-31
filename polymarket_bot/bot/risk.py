@@ -110,6 +110,9 @@ def calculate_stake(signal: dict, bankroll: float | None = None) -> dict:
     }
 
     if edge <= 0:
+        # Edge check disabled — use MIN_STAKE_USD as fallback
+        result["stake_usd"] = float(MIN_STAKE_USD)
+        result["shares"] = round(float(MIN_STAKE_USD) / cp, 2) if cp > 0 else 0
         return result
 
     kelly_full = edge / (1 - cp) if (1 - cp) > 0 else 0

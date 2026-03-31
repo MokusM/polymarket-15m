@@ -706,21 +706,25 @@ async def send_alert(signal_id: int, signal: dict):
 
     client_ready = bool(_execution_client and _execution_client.ready)
 
-    if state.is_live_allowed and client_ready and risk["edge"] > 0:
-        stake_display = risk["stake_usd"]
+    # EDGE CHECK DISABLED — входимо в будь-який сигнал що пройшов фільтри (як plouLight)
+    # TODO: повернути перевірку edge > 0 після калібрування win_prob під CLOB ціни
+    edge_ok = True  # було: risk["edge"] > 0
+
+    if state.is_live_allowed and client_ready and edge_ok:
+        stake_display = risk["stake_usd"] if risk["stake_usd"] > 0 else STAKE_USD
     else:
         stake_display = STAKE_USD
 
     text = format_signal_alert_html(signal, state.mode, stake_display)
     text += f"\n\U0001f3af {risk_text}"
 
-    if state.is_live_allowed and client_ready and risk["edge"] > 0:
+    if state.is_live_allowed and client_ready and edge_ok:
         cp = signal.get("clob_ask") or signal.get("contract_price", 0.5)
-        shares = round(risk["stake_usd"] / cp, 1) if cp > 0 else 0
+        shares = round(stake_display / cp, 1) if cp > 0 else 0
         side = "YES" if signal.get("direction") == "UP" else "NO"
         text += (
             f"\n\n\U0001f7e2 <b>LIVE MODE</b> \u2014 Approve = \u0440\u0435\u0430\u043b\u044c\u043d\u0438\u0439 \u043e\u0440\u0434\u0435\u0440!\n"
-            f"\U0001f4b5 <b>BUY {side} @ {cp:.2f} | ${risk['stake_usd']:.2f} | "
+            f"\U0001f4b5 <b>BUY {side} @ {cp:.2f} | ${stake_display:.2f} | "
             f"{shares} shares</b>"
         )
     elif state.is_live_allowed and not client_ready:
@@ -736,12 +740,6 @@ async def send_alert(signal_id: int, signal: dict):
             "(ExecutionClient not ready \u2014 ордер не буде розміщено)."
             f"{detail}"
         )
-    elif state.is_live_allowed:
-        # Edge ≤ 0 — ордер не відкриється, Telegram не турбуємо
-        mark_signal_live_no_position(signal_id)
-        update_decision(signal_id, "approve")
-        logger.info("Сигнал #%s: edge ≤ 0 в live режимі — Telegram не надсилається", signal_id)
-        return
     elif state.circuit_breaker_active:
         text += "\n\U0001f6a8 <b>Circuit breaker</b> \u2014 live \u0432\u0438\u043c\u043a\u043d\u0435\u043d\u043e (paper only)"
 
@@ -762,7 +760,7 @@ async def send_alert(signal_id: int, signal: dict):
         store_pending_signal(signal_id, {**signal, "_risk": risk})
 
         # Auto-approve live orders without manual click.
-        if AUTO_APPROVE_LIVE and state.is_live_allowed and client_ready and risk.get("edge", 0) > 0:
+        if AUTO_APPROVE_LIVE and state.is_live_allowed and client_ready:  # edge check disabled
             update_decision(signal_id, "approve")
             order_text = await _execute_live_order(signal_id)
             await bot.send_message(

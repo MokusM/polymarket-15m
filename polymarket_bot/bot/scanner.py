@@ -104,6 +104,12 @@ class Scanner:
                         market_prices["clob_yes_ask"] = clob_yes_ask
                         market_prices["clob_no_ask"] = clob_no_ask
 
+                    if state.mode != "test":
+                        logger.info(
+                            "CLOB %s: YES ask=%.2f NO ask=%.2f",
+                            market_id[:12], clob_yes_ask, clob_no_ask,
+                        )
+
                     signal = check_signals(market_prices, df_with_indicators)
 
                     if signal:
@@ -114,8 +120,8 @@ class Scanner:
                         # ── CLOB price zone filter (перша перевірка — до OBI/MTF) ──
                         if state.mode != "test" and clob_ask > 0:
                             if not (th["CONTRACT_PRICE_MIN"] <= clob_ask <= th["CONTRACT_PRICE_MAX"]):
-                                logger.debug(
-                                    "CLOB ask %.2f поза зоною [%.2f–%.2f] — skip",
+                                logger.info(
+                                    "SKIP CLOB ask %.2f поза зоною [%.2f–%.2f]",
                                     clob_ask, th["CONTRACT_PRICE_MIN"], th["CONTRACT_PRICE_MAX"],
                                 )
                                 continue
@@ -124,8 +130,8 @@ class Scanner:
                             if clob_bid > 0:
                                 spread = clob_ask - clob_bid
                                 if spread > CLOB_SPREAD_MAX:
-                                    logger.debug(
-                                        "CLOB spread %.3f > %.3f — skip",
+                                    logger.info(
+                                        "SKIP CLOB spread %.3f > %.3f",
                                         spread, CLOB_SPREAD_MAX,
                                     )
                                     continue
@@ -134,8 +140,8 @@ class Scanner:
                             if clob_ask > th["CONTRACT_PRICE_HIGH_MIN"]:
                                 gap = signal.get("gap", 0)
                                 if abs(gap) < th["GAP_STRICT_USD"]:
-                                    logger.debug(
-                                        "CLOB ask %.2f > %.2f (FLB zone) but GAP %.1f < %.0f — skip",
+                                    logger.info(
+                                        "SKIP CLOB ask %.2f > HIGH_MIN %.2f but GAP %.1f < %.0f",
                                         clob_ask, th["CONTRACT_PRICE_HIGH_MIN"], gap, th["GAP_STRICT_USD"],
                                     )
                                     continue

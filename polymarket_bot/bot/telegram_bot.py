@@ -866,27 +866,19 @@ async def _execute_live_order(signal_id: int, skip_min_size: bool = False) -> st
             return f"\u274c Ордер не виконано: <code>{reason}</code>"
         return "\u274c Ордер не виконано"
 
+    # FAK: ордер або виконався (matched) або скасований — "live" не повинно бути
     st_ord = (result.get("status") or "").lower() if isinstance(result, dict) else ""
-    if isinstance(result, dict) and result.get("success") and st_ord == "live":
-        oid = str(result.get("orderID", ""))
-        ep = float(result.get("_effective_price", cp))
-        shares_pending = float(result.get("_order_size", 0)) or round(stake / ep, 2)
-        time_left_min = float(signal.get("time_left", 5) or 5)
-        from datetime import timedelta
-        expires_at = (
-            datetime.now(timezone.utc) + timedelta(seconds=time_left_min * 60)
-        ).strftime("%Y-%m-%d %H:%M:%S")
-        await asyncio.to_thread(
-            save_pending_order,
-            signal_id, oid, token_id, market_id, slug or "",
-            direction, ep, shares_pending, stake, neg_risk, expires_at,
-        )
-        await asyncio.to_thread(mark_signal_live_pending, signal_id)
-        return (
-            f"⏳ <b>Ліміт у стакані</b> — очікує fill\n"
-            f"orderID: <code>{html.escape(oid)}</code> | ціна: {ep:.2f}\n"
-            f"Бот перевірить fill кожні 5с до {expires_at[11:16]} UTC"
-        )
+    if st_ord == "live":
+        # Несподівано отримали live статус — скасовуємо і повертаємо NO_ENTRY
+        oid = str(result.get("orderID") or result.get("order_id") or "")
+        if oid and _execution_client:
+            try:
+                await _execution_client.cancel_order(oid)
+                logger.warning("FAK ордер %s несподівано live — скасовано", oid[:16])
+            except Exception as _e:
+                logger.warning("Не вдалось скасувати live FAK ордер: %s", _e)
+        await _mark_no_fill()
+        return "⚠️ Ордер не виконано (немає покупця за цією ціною)"
 
     ep = float(result.get("_effective_price", cp)) if isinstance(result, dict) else cp
     shares = float(result.get("_order_size", 0)) if isinstance(result, dict) else 0.0

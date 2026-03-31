@@ -353,12 +353,13 @@ class ExecutionClient:
             )
 
             def _post():
-                return self.client.create_and_post_order(order_args, options)
+                order = self.client.create_order(order_args, options)
+                return self.client.post_order(order, orderType=OrderType.FAK)
 
             signed = await loop.run_in_executor(None, _post)
 
             logger.info(
-                "ORDER PLACED: BUY %s shares @ %.2f | token=%s | result=%s",
+                "ORDER PLACED (FAK): BUY %s shares @ %.2f | token=%s | result=%s",
                 size, limit_p, token_id[:12], signed,
             )
             if isinstance(signed, dict):

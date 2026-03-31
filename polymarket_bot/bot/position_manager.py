@@ -292,7 +292,7 @@ async def monitor_positions_loop(execution_client):
                             )
                             if _r.status_code == 200:
                                 _bids = _r.json().get("bids") or []
-                                current_price = float(_bids[-1]["price"]) if _bids else 0.0
+                                current_price = float(_bids[0]["price"]) if _bids else 0.0
                             else:
                                 current_price = None
                     except Exception:

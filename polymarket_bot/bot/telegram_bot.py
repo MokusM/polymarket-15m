@@ -553,7 +553,7 @@ async def process_manual_buy(callback_query: types.CallbackQuery):
         risk["edge"] = max(risk.get("edge", 0), 0.01)
         # Мінімум 5 shares щоб SL/TP могли закрити через CLOB
         # +20% буфер бо CLOB ask може вирости між сигналом і виконанням
-        cp = signal.get("contract_price", 0.5)
+        cp = signal.get("clob_ask") or signal.get("contract_price", 0.5)
         min_stake = round(5 * cp * 1.2, 2)
         risk["stake_usd"] = max(min_stake, 1.0)
 
@@ -715,7 +715,7 @@ async def send_alert(signal_id: int, signal: dict):
     text += f"\n\U0001f3af {risk_text}"
 
     if state.is_live_allowed and client_ready and risk["edge"] > 0:
-        cp = signal.get("contract_price", 0.5)
+        cp = signal.get("clob_ask") or signal.get("contract_price", 0.5)
         shares = round(risk["stake_usd"] / cp, 1) if cp > 0 else 0
         side = "YES" if signal.get("direction") == "UP" else "NO"
         text += (
@@ -852,7 +852,7 @@ async def _execute_live_order(signal_id: int, skip_min_size: bool = False) -> st
     token_id = yes_token if direction == "UP" else no_token
 
     stake = risk.get("stake_usd", 1.0)
-    cp = signal.get("contract_price", 0.5)
+    cp = signal.get("clob_ask") or signal.get("contract_price", 0.5)
     neg_risk = bool(signal.get("neg_risk", False))
 
     result = await _execution_client.buy_shares(

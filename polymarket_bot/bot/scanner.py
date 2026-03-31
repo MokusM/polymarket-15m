@@ -89,13 +89,67 @@ class Scanner:
                 # 4. Перевіряємо ринки
                 th = state.get_thresholds()
                 for market_prices in markets_with_prices:
+                    market_id = str(market_prices["market_id"])
+
+                    # ── CLOB: фетчимо обидва токени одразу для price-gate і відображення ──
+                    clob_yes_ask = clob_yes_bid = 0.0
+                    clob_no_ask = clob_no_bid = 0.0
+                    if state.mode != "test":
+                        token_yes = market_prices.get("token_yes_id")
+                        token_no = market_prices.get("token_no_id")
+                        if token_yes:
+                            clob_yes_ask, clob_yes_bid = await self._fetch_clob_best_prices(token_yes)
+                        if token_no:
+                            clob_no_ask, clob_no_bid = await self._fetch_clob_best_prices(token_no)
+                        market_prices["clob_yes_ask"] = clob_yes_ask
+                        market_prices["clob_no_ask"] = clob_no_ask
+
+                    if state.mode != "test":
+                        logger.info(
+                            "CLOB %s: YES ask=%.2f NO ask=%.2f",
+                            market_id[:12], clob_yes_ask, clob_no_ask,
+                        )
+
                     signal = check_signals(market_prices, df_with_indicators)
 
                     if signal:
                         direction = signal["direction"]
-                        market_id = str(market_prices["market_id"])
+                        clob_ask = clob_yes_ask if direction == "UP" else clob_no_ask
+                        clob_bid = clob_yes_bid if direction == "UP" else clob_no_bid
 
-                        # ── MTF RSI filter: 3m and 5m must align with direction ──
+                        # ── CLOB price zone filter (перша перевірка — до OBI/MTF) ──
+                        if state.mode != "test" and clob_ask > 0:
+                            if not (th["CONTRACT_PRICE_MIN"] <= clob_ask <= th["CONTRACT_PRICE_MAX"]):
+                                logger.info(
+                                    "SKIP CLOB ask %.2f поза зоною [%.2f–%.2f]",
+                                    clob_ask, th["CONTRACT_PRICE_MIN"], th["CONTRACT_PRICE_MAX"],
+                                )
+                                continue
+
+                            # spread gate
+                            if clob_bid > 0:
+                                spread = clob_ask - clob_bid
+                                if spread > CLOB_SPREAD_MAX:
+                                    logger.info(
+                                        "SKIP CLOB spread %.3f > %.3f",
+                                        spread, CLOB_SPREAD_MAX,
+                                    )
+                                    continue
+
+                            # high-price GAP gate
+                            if clob_ask > th["CONTRACT_PRICE_HIGH_MIN"]:
+                                gap = signal.get("gap", 0)
+                                if abs(gap) < th["GAP_STRICT_USD"]:
+                                    logger.info(
+                                        "SKIP CLOB ask %.2f > HIGH_MIN %.2f but GAP %.1f < %.0f",
+                                        clob_ask, th["CONTRACT_PRICE_HIGH_MIN"], gap, th["GAP_STRICT_USD"],
+                                    )
+                                    continue
+
+                            signal["clob_ask"] = clob_ask
+                            signal["clob_bid"] = clob_bid
+
+                        # ── MTF RSI filter ──
                         if th["MTF_RSI_FILTER_ENABLED"] and state.mode != "test":
                             rsi_3m = signal.get("rsi_3m")
                             rsi_5m = signal.get("rsi_5m")
@@ -113,7 +167,7 @@ class Scanner:
                                     )
                                     continue
 
-                        # ── OBI filter (Binance stakan, skip in test mode) ──
+                        # ── OBI filter ──
                         obi = 1.0
                         if state.mode != "test":
                             obi = await self.exchange.get_order_book_imbalance(
@@ -135,41 +189,6 @@ class Scanner:
                                 )
                                 continue
                         signal["obi"] = obi
-
-                        # ── CLOB spread + high-price GAP gate (skip in test mode) ──
-                        if state.mode != "test":
-                            token_id = (
-                                market_prices.get("token_yes_id")
-                                if direction == "UP"
-                                else market_prices.get("token_no_id")
-                            )
-                            if token_id:
-                                clob_ask, clob_bid = await self._fetch_clob_best_prices(token_id)
-
-                                # Priority 4: spread gate
-                                if clob_ask > 0 and clob_bid > 0:
-                                    spread = clob_ask - clob_bid
-                                    if spread > CLOB_SPREAD_MAX:
-                                        logger.debug(
-                                            "CLOB spread %.3f > %.3f — skip",
-                                            spread, CLOB_SPREAD_MAX,
-                                        )
-                                        continue
-
-                                # Priority 1: high-price GAP gate
-                                if clob_ask > th["CONTRACT_PRICE_HIGH_MIN"]:
-                                    gap = signal.get("gap", 0)
-                                    if abs(gap) < th["GAP_STRICT_USD"]:
-                                        logger.debug(
-                                            "CLOB ask %.2f > %.2f (FLB zone) but GAP %.1f < %.0f — skip",
-                                            clob_ask, th["CONTRACT_PRICE_HIGH_MIN"], gap, th["GAP_STRICT_USD"],
-                                        )
-                                        continue
-
-                                # Зберігаємо CLOB ask окремо для execution, Gamma ціна залишається в contract_price
-                                if clob_ask > 0:
-                                    signal["clob_ask"] = clob_ask
-                                    signal["clob_bid"] = clob_bid
 
                         key = f"{market_id}_{direction}"
                         now = datetime.now().timestamp()
@@ -195,6 +214,10 @@ class Scanner:
                                 or market_prices.get("question")
                                 or ""
                             )
+
+                            # Зберігаємо реальну CLOB ціну в contract_price
+                            if signal.get("clob_ask"):
+                                signal["contract_price"] = signal["clob_ask"]
 
                             sig_id = save_signal(signal)
                             if sig_id:

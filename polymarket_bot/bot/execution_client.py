@@ -341,6 +341,21 @@ class ExecutionClient:
                     "error": f"Сума ордера ${limit_p * size:.2f} < $1.00 (мінімум CLOB)",
                 }
 
+            # CLOB вимагає: maker (price × size) ≤ 2 decimal places, taker (size) ≤ 4 decimal.
+            # round(..., 4) не гарантує точності через float — використовуємо gcd-алгоритм.
+            # Для ціни P = D/100: size = M/D де M кратне D//gcd(D,10000),
+            # що гарантує P×size = M/100 (рівно 2 decimal) і size ≤ 4 decimal.
+            from math import gcd as _gcd
+            _D = round(limit_p * 100)
+            if _D > 0:
+                _divisor = _D // _gcd(_D, 10000)
+                _target_cents = round(limit_p * size * 100)
+                _M = (_target_cents // _divisor) * _divisor
+                if _M < 100:        # після snap упав нижче $1 — беремо наступний крок
+                    _M += _divisor
+                if _M >= 100:
+                    size = _M / _D
+
             order_args = OrderArgs(
                 token_id=token_id,
                 price=limit_p,
@@ -353,12 +368,13 @@ class ExecutionClient:
             )
 
             def _post():
-                return self.client.create_and_post_order(order_args, options)
+                order = self.client.create_order(order_args, options)
+                return self.client.post_order(order, orderType=OrderType.FAK)
 
             signed = await loop.run_in_executor(None, _post)
 
             logger.info(
-                "ORDER PLACED: BUY %s shares @ %.2f | token=%s | result=%s",
+                "ORDER PLACED (FAK): BUY %s shares @ %.2f | token=%s | result=%s",
                 size, limit_p, token_id[:12], signed,
             )
             if isinstance(signed, dict):

@@ -292,7 +292,8 @@ async def monitor_positions_loop(execution_client):
                             )
                             if _r.status_code == 200:
                                 _bids = _r.json().get("bids") or []
-                                current_price = float(_bids[-1]["price"]) if _bids else 0.0
+                                _bids = sorted(_bids, key=lambda x: float(x.get("price", 0)), reverse=True)
+                                current_price = float(_bids[0]["price"]) if _bids else 0.0
                             else:
                                 current_price = None
                     except Exception:
@@ -455,8 +456,8 @@ async def monitor_positions_loop(execution_client):
                     # ── Take-Profit LEVEL 3 @ 0.95 — sell 50% of remaining ──
                     if partial_level < 3 and current_price >= TP_FULL_PRICE:
                         sell_amount = remaining * 0.5
-                        # Якщо залишок після продажу < мінімуму CLOB — продаємо все
-                        if remaining - sell_amount < 5:
+                        # Якщо залишок після продажу < 1 share — продаємо все (реальний CLOB мінімум ~$1 notional)
+                        if remaining - sell_amount < 1:
                             sell_amount = remaining
                         if sell_amount >= 1:
                             logger.info(
@@ -502,7 +503,7 @@ async def monitor_positions_loop(execution_client):
                     # ── Take-Profit LEVEL 2 @ 0.93 — sell 33% of remaining ──
                     if partial_level < 2 and current_price >= TP_MID_PRICE:
                         sell_amount = remaining / 3
-                        if remaining - sell_amount < 5:
+                        if remaining - sell_amount < 1:
                             sell_amount = remaining
                         if sell_amount >= 1:
                             logger.info(
@@ -548,7 +549,7 @@ async def monitor_positions_loop(execution_client):
                     # ── Take-Profit LEVEL 1 @ 0.90 — sell 25% of remaining ──
                     if partial_level < 1 and current_price >= TP_PARTIAL_PRICE:
                         sell_amount = remaining * (TP_PARTIAL_SELL_PCT / 100)
-                        if remaining - sell_amount < 5:
+                        if remaining - sell_amount < 1:
                             sell_amount = remaining
                         if sell_amount >= 1:
                             logger.info(

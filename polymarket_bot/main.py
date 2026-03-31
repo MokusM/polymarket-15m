@@ -64,7 +64,7 @@ async def main():
 
     tasks = [
         asyncio.create_task(scanner.run()),
-        asyncio.create_task(settle_markets()),
+        asyncio.create_task(settle_markets(execution_client if LIVE_TRADING else None)),
         asyncio.create_task(start_telegram_polling()),
         asyncio.create_task(daily_report_scheduler()),
     ]
@@ -75,12 +75,15 @@ async def main():
         tasks.append(asyncio.create_task(monitor_pending_orders_loop(execution_client)))
 
     try:
-        await asyncio.gather(*tasks)
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        for i, res in enumerate(results):
+            if isinstance(res, Exception):
+                logger.error("Задача %d впала: %s", i, res, exc_info=res)
     except KeyboardInterrupt:
         logger.info("Зупинка бота (KeyboardInterrupt).")
-    except Exception as e:
-        logger.error("Критична помилка: %s", e, exc_info=True)
     finally:
+        for t in tasks:
+            t.cancel()
         await scanner.close()
         logger.info("Бот зупинено.")
 

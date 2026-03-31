@@ -553,7 +553,7 @@ async def process_manual_buy(callback_query: types.CallbackQuery):
         risk["edge"] = max(risk.get("edge", 0), 0.01)
         # Мінімум 5 shares щоб SL/TP могли закрити через CLOB
         # +20% буфер бо CLOB ask може вирости між сигналом і виконанням
-        cp = signal.get("contract_price", 0.5)
+        cp = signal.get("clob_ask") or signal.get("contract_price", 0.5)
         min_stake = round(5 * cp * 1.2, 2)
         risk["stake_usd"] = max(min_stake, 1.0)
 
@@ -638,9 +638,9 @@ async def cmd_history(message: types.Message):
         await message.answer("📋 Немає сигналів у локальній БД.")
         return
 
-    wins = sum(1 for s in signals if s.get("result") == "win")
-    losses = sum(1 for s in signals if s.get("result") == "loss")
-    total_pnl = sum(s.get("pnl") or 0.0 for s in signals if s.get("result") in ("win", "loss"))
+    wins = sum(1 for s in signals if (s.get("result") or "").upper() == "WIN")
+    losses = sum(1 for s in signals if (s.get("result") or "").upper() == "LOSS")
+    total_pnl = sum(s.get("pnl") or 0.0 for s in signals if (s.get("result") or "").upper() in ("WIN", "LOSS"))
     pnl_sign = "+" if total_pnl >= 0 else ""
 
     intro = (
@@ -706,21 +706,25 @@ async def send_alert(signal_id: int, signal: dict):
 
     client_ready = bool(_execution_client and _execution_client.ready)
 
-    if state.is_live_allowed and client_ready and risk["edge"] > 0:
-        stake_display = risk["stake_usd"]
+    # EDGE CHECK DISABLED — входимо в будь-який сигнал що пройшов фільтри (як plouLight)
+    # TODO: повернути перевірку edge > 0 після калібрування win_prob під CLOB ціни
+    edge_ok = True  # було: risk["edge"] > 0
+
+    if state.is_live_allowed and client_ready and edge_ok:
+        stake_display = risk["stake_usd"] if risk["stake_usd"] > 0 else STAKE_USD
     else:
         stake_display = STAKE_USD
 
     text = format_signal_alert_html(signal, state.mode, stake_display)
     text += f"\n\U0001f3af {risk_text}"
 
-    if state.is_live_allowed and client_ready and risk["edge"] > 0:
-        cp = signal.get("contract_price", 0.5)
-        shares = round(risk["stake_usd"] / cp, 1) if cp > 0 else 0
+    if state.is_live_allowed and client_ready and edge_ok:
+        cp = signal.get("clob_ask") or signal.get("contract_price", 0.5)
+        shares = round(stake_display / cp, 1) if cp > 0 else 0
         side = "YES" if signal.get("direction") == "UP" else "NO"
         text += (
             f"\n\n\U0001f7e2 <b>LIVE MODE</b> \u2014 Approve = \u0440\u0435\u0430\u043b\u044c\u043d\u0438\u0439 \u043e\u0440\u0434\u0435\u0440!\n"
-            f"\U0001f4b5 <b>BUY {side} @ {cp:.2f} | ${risk['stake_usd']:.2f} | "
+            f"\U0001f4b5 <b>BUY {side} @ {cp:.2f} | ${stake_display:.2f} | "
             f"{shares} shares</b>"
         )
     elif state.is_live_allowed and not client_ready:
@@ -736,12 +740,6 @@ async def send_alert(signal_id: int, signal: dict):
             "(ExecutionClient not ready \u2014 ордер не буде розміщено)."
             f"{detail}"
         )
-    elif state.is_live_allowed:
-        # Edge ≤ 0 — ордер не відкриється, Telegram не турбуємо
-        mark_signal_live_no_position(signal_id)
-        update_decision(signal_id, "approve")
-        logger.info("Сигнал #%s: edge ≤ 0 в live режимі — Telegram не надсилається", signal_id)
-        return
     elif state.circuit_breaker_active:
         text += "\n\U0001f6a8 <b>Circuit breaker</b> \u2014 live \u0432\u0438\u043c\u043a\u043d\u0435\u043d\u043e (paper only)"
 
@@ -762,7 +760,7 @@ async def send_alert(signal_id: int, signal: dict):
         store_pending_signal(signal_id, {**signal, "_risk": risk})
 
         # Auto-approve live orders without manual click.
-        if AUTO_APPROVE_LIVE and state.is_live_allowed and client_ready and risk.get("edge", 0) > 0:
+        if AUTO_APPROVE_LIVE and state.is_live_allowed and client_ready:  # edge check disabled
             update_decision(signal_id, "approve")
             order_text = await _execute_live_order(signal_id)
             await bot.send_message(
@@ -829,11 +827,6 @@ async def _execute_live_order(signal_id: int, skip_min_size: bool = False) -> st
         await _mark_no_fill()
         return f"\u26a0\ufe0f Ліміт позицій ({MAX_OPEN_POSITIONS})"
 
-    risk = signal.get("_risk", {})
-    if risk.get("edge", 0) <= 0:
-        await _mark_no_fill()
-        return "\u26a0\ufe0f Edge \u2264 0 \u2014 ордер не розміщено"
-
     direction = signal.get("direction", "UP")
     market_id = signal.get("market_id", "")
 
@@ -851,8 +844,9 @@ async def _execute_live_order(signal_id: int, skip_min_size: bool = False) -> st
     yes_token, no_token = token_ids
     token_id = yes_token if direction == "UP" else no_token
 
+    risk = signal.get("_risk", {})
     stake = risk.get("stake_usd", 1.0)
-    cp = signal.get("contract_price", 0.5)
+    cp = signal.get("clob_ask") or signal.get("contract_price", 0.5)
     neg_risk = bool(signal.get("neg_risk", False))
 
     result = await _execution_client.buy_shares(
@@ -872,27 +866,19 @@ async def _execute_live_order(signal_id: int, skip_min_size: bool = False) -> st
             return f"\u274c Ордер не виконано: <code>{reason}</code>"
         return "\u274c Ордер не виконано"
 
+    # FAK: ордер або виконався (matched) або скасований — "live" не повинно бути
     st_ord = (result.get("status") or "").lower() if isinstance(result, dict) else ""
-    if isinstance(result, dict) and result.get("success") and st_ord == "live":
-        oid = str(result.get("orderID", ""))
-        ep = float(result.get("_effective_price", cp))
-        shares_pending = float(result.get("_order_size", 0)) or round(stake / ep, 2)
-        time_left_min = float(signal.get("time_left", 5) or 5)
-        from datetime import timedelta
-        expires_at = (
-            datetime.now(timezone.utc) + timedelta(seconds=time_left_min * 60)
-        ).strftime("%Y-%m-%d %H:%M:%S")
-        await asyncio.to_thread(
-            save_pending_order,
-            signal_id, oid, token_id, market_id, slug or "",
-            direction, ep, shares_pending, stake, neg_risk, expires_at,
-        )
-        await asyncio.to_thread(mark_signal_live_pending, signal_id)
-        return (
-            f"⏳ <b>Ліміт у стакані</b> — очікує fill\n"
-            f"orderID: <code>{html.escape(oid)}</code> | ціна: {ep:.2f}\n"
-            f"Бот перевірить fill кожні 5с до {expires_at[11:16]} UTC"
-        )
+    if st_ord == "live":
+        # Несподівано отримали live статус — скасовуємо і повертаємо NO_ENTRY
+        oid = str(result.get("orderID") or result.get("order_id") or "")
+        if oid and _execution_client:
+            try:
+                await _execution_client.cancel_order(oid)
+                logger.warning("FAK ордер %s несподівано live — скасовано", oid[:16])
+            except Exception as _e:
+                logger.warning("Не вдалось скасувати live FAK ордер: %s", _e)
+        await _mark_no_fill()
+        return "⚠️ Ордер не виконано (немає покупця за цією ціною)"
 
     ep = float(result.get("_effective_price", cp)) if isinstance(result, dict) else cp
     shares = float(result.get("_order_size", 0)) if isinstance(result, dict) else 0.0
@@ -1031,6 +1017,8 @@ async def start_telegram_polling():
         try:
             logger.info("Запуск Telegram бота (polling)...")
             await dp.start_polling(bot)
-        except Exception as e:
+        except (Exception, BaseException) as e:
+            if isinstance(e, (KeyboardInterrupt, SystemExit)):
+                raise
             logger.error("Telegram polling впав: %s — перезапуск через 10с", e)
             await _asyncio.sleep(10)

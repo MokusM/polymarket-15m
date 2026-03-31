@@ -365,6 +365,21 @@ def save_pending_order(
         conn.close()
 
 
+def get_pending_order_by_signal(signal_id: int) -> dict | None:
+    try:
+        conn = get_connection()
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            "SELECT * FROM pending_orders WHERE signal_id = ? LIMIT 1", (signal_id,)
+        ).fetchone()
+        return dict(row) if row else None
+    except Exception as e:
+        logger.error("Помилка get_pending_order_by_signal: %s", e)
+        return None
+    finally:
+        conn.close()
+
+
 def get_pending_orders() -> list:
     try:
         conn = get_connection()

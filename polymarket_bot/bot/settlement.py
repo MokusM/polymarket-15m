@@ -8,6 +8,8 @@ from bot.state import state
 from bot.storage import (
     get_unresolved_signals,
     get_db_path,
+    get_pending_order_by_signal,
+    delete_pending_order,
     signal_live_position_already_closed,
     update_result,
 )
@@ -33,10 +35,11 @@ logger = logging.getLogger(__name__)
 SETTLEMENT_INTERVAL_SECONDS = 60
 
 
-async def settle_markets():
+async def settle_markets(execution_client=None):
     """
     Фоновий процес: перевіряє сигнали з decision='approve' без result,
     розраховує PnL після закриття маркету і надсилає інформаційне повідомлення в Telegram.
+    execution_client — якщо передано, скасовує незаповнені ліміт-ордери при settlement.
     """
     poly = PolymarketClient()
     logger.info("Запущено фоновий процес розрахунку (Settlement) для завершених маркетів.")
@@ -58,6 +61,20 @@ async def settle_markets():
                 if price_yes in [0.0, 1.0] and price_no in [0.0, 1.0]:
                     live_status = sig.get("live_entry_status")
                     if live_status in (_NO_POSITION, "pending_fill"):
+                        # Скасовуємо ліміт-ордер якщо він ще у стакані
+                        if live_status == "pending_fill" and execution_client:
+                            try:
+                                po = await asyncio.to_thread(get_pending_order_by_signal, sig["id"])
+                                if po:
+                                    await execution_client.cancel_order(po["order_id"])
+                                    await asyncio.to_thread(delete_pending_order, po["order_id"])
+                                    logger.info(
+                                        "Сигнал %s: ліміт-ордер %s скасовано (маркет закрито)",
+                                        sig["id"], po["order_id"][:12],
+                                    )
+                            except Exception as _e:
+                                logger.warning("cancel pending order при settlement: %s", _e)
+
                         update_result(sig["id"], "NO_ENTRY", 0.0)
                         logger.info(
                             "Сигнал %s: маркет закрито, live_entry_status=%s — ордер не виконано, NO_ENTRY",

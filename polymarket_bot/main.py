@@ -64,7 +64,7 @@ async def main():
 
     tasks = [
         asyncio.create_task(scanner.run()),
-        asyncio.create_task(settle_markets()),
+        asyncio.create_task(settle_markets(execution_client if LIVE_TRADING else None)),
         asyncio.create_task(start_telegram_polling()),
         asyncio.create_task(daily_report_scheduler()),
     ]

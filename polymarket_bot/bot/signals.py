@@ -157,7 +157,7 @@ def check_signals(market_info: dict, df: pd.DataFrame) -> dict | None:
         if price_yes > IGNORE_IF_CONTRACT_PRICE_GT or price_no > IGNORE_IF_CONTRACT_PRICE_GT:
             return None
 
-    if not (th["TIME_LEFT_MIN_MINUTES"] <= time_left_min <= th["TIME_LEFT_MAX_MINUTES"]):
+    if time_left_min != 999 and not (th["TIME_LEFT_MIN_MINUTES"] <= time_left_min <= th["TIME_LEFT_MAX_MINUTES"]):
         return None
 
     # --- 5 indicator votes ---

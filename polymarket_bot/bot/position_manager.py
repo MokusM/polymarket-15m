@@ -292,6 +292,7 @@ async def monitor_positions_loop(execution_client):
                             )
                             if _r.status_code == 200:
                                 _bids = _r.json().get("bids") or []
+                                _bids = sorted(_bids, key=lambda x: float(x.get("price", 0)), reverse=True)
                                 current_price = float(_bids[0]["price"]) if _bids else 0.0
                             else:
                                 current_price = None

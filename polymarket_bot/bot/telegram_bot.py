@@ -844,6 +844,7 @@ async def _execute_live_order(signal_id: int, skip_min_size: bool = False) -> st
     yes_token, no_token = token_ids
     token_id = yes_token if direction == "UP" else no_token
 
+    risk = signal.get("_risk", {})
     stake = risk.get("stake_usd", 1.0)
     cp = signal.get("clob_ask") or signal.get("contract_price", 0.5)
     neg_risk = bool(signal.get("neg_risk", False))

@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import time
+from datetime import datetime, timezone
 
 from bot.config import STAKE_USD
 from bot.polymarket_client import PolymarketClient
@@ -135,19 +136,24 @@ async def settle_markets(execution_client=None):
                     continue
 
                 # --- Верифікація через Polymarket trades (якщо є execution_client) ---
-                if execution_client and live_status in ("pending_fill", "opened"):
+                if execution_client and getattr(execution_client, "ready", False) and live_status in ("pending_fill", "opened"):
                     token_id = _token_id_for_signal(sig)
 
                     # Також перевіряємо pending_orders — там теж є token_id
+                    po = None
                     if not token_id:
                         po = await asyncio.to_thread(get_pending_order_by_signal, sig["id"])
                         if po:
                             token_id = po.get("token_id")
 
                     if token_id:
-                        # Шукаємо у трейдах за останні 24 години
-                        since_ts = time.time() - 86400
-                        trade = await _find_buy_trade(execution_client, token_id, since_ts)
+                        # since_ts = час створення сигналу (точніше ніж 24h)
+                        try:
+                            sig_ts_str = sig.get("timestamp") or ""
+                            sig_ts = datetime.strptime(sig_ts_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc).timestamp()
+                        except Exception:
+                            sig_ts = time.time() - 3600
+                        trade = await _find_buy_trade(execution_client, token_id, sig_ts)
 
                         if trade is None:
                             # Ордер не виконано — скасовуємо якщо ще є у стакані

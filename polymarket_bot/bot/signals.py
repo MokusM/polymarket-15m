@@ -140,10 +140,13 @@ def check_signals(market_info: dict, df: pd.DataFrame) -> dict | None:
         return None
 
     try:
-        dt = datetime.fromisoformat(end_date_str.replace("Z", "+00:00"))
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-        time_left_min = (dt - datetime.now(timezone.utc)).total_seconds() / 60.0
+        dt = datetime.fromisoformat(end_date_str.replace("Z", "+00:00")) if end_date_str else None
+        if dt is None:
+            time_left_min = 999  # test mode без дати — не фільтруємо
+        else:
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            time_left_min = (dt - datetime.now(timezone.utc)).total_seconds() / 60.0
     except Exception as e:
         logger.error("Time calc error: %s", e)
         time_left_min = 0

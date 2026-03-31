@@ -94,10 +94,7 @@ async def settle_markets():
 
                         result_str = "WIN" if real_pnl > 0 else "LOSS"
                         update_result(sig["id"], result_str, real_pnl)
-                        if real_pnl > 0:
-                            state.record_win()
-                        else:
-                            state.record_loss()
+                        # state.record_win/loss вже викликано в close_position (position_manager)
                         logger.info(
                             "Сигнал %s: закрито монітором — %s, PnL: %.2f",
                             sig["id"], result_str, real_pnl,
@@ -138,11 +135,7 @@ async def settle_markets():
                         "Маркет #%s (Сигнал %s) закрито. %s, PnL: %.2f",
                         market_id, sig["id"], result_str, pnl,
                     )
-
-                    if pnl < 0:
-                        state.record_loss()
-                    else:
-                        state.record_win()
+                    # state.record_win/loss вже викликано в close_position (position_manager)
 
                     result_icon = "✅" if result_str == "WIN" else "❌"
                     pnl_sign = f"+{pnl:.2f}" if pnl >= 0 else f"{pnl:.2f}"

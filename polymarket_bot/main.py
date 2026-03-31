@@ -75,7 +75,10 @@ async def main():
         tasks.append(asyncio.create_task(monitor_pending_orders_loop(execution_client)))
 
     try:
-        await asyncio.gather(*tasks, return_exceptions=True)
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        for i, res in enumerate(results):
+            if isinstance(res, Exception):
+                logger.error("Задача %d впала: %s", i, res, exc_info=res)
     except KeyboardInterrupt:
         logger.info("Зупинка бота (KeyboardInterrupt).")
     finally:

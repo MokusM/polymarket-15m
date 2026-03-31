@@ -638,9 +638,9 @@ async def cmd_history(message: types.Message):
         await message.answer("📋 Немає сигналів у локальній БД.")
         return
 
-    wins = sum(1 for s in signals if s.get("result") == "win")
-    losses = sum(1 for s in signals if s.get("result") == "loss")
-    total_pnl = sum(s.get("pnl") or 0.0 for s in signals if s.get("result") in ("win", "loss"))
+    wins = sum(1 for s in signals if (s.get("result") or "").upper() == "WIN")
+    losses = sum(1 for s in signals if (s.get("result") or "").upper() == "LOSS")
+    total_pnl = sum(s.get("pnl") or 0.0 for s in signals if (s.get("result") or "").upper() in ("WIN", "LOSS"))
     pnl_sign = "+" if total_pnl >= 0 else ""
 
     intro = (
@@ -826,11 +826,6 @@ async def _execute_live_order(signal_id: int, skip_min_size: bool = False) -> st
     if not signal.get("_manual") and count_open_positions() >= MAX_OPEN_POSITIONS:
         await _mark_no_fill()
         return f"\u26a0\ufe0f Ліміт позицій ({MAX_OPEN_POSITIONS})"
-
-    risk = signal.get("_risk", {})
-    if risk.get("edge", 0) <= 0:
-        await _mark_no_fill()
-        return "\u26a0\ufe0f Edge \u2264 0 \u2014 ордер не розміщено"
 
     direction = signal.get("direction", "UP")
     market_id = signal.get("market_id", "")

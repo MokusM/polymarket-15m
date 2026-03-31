@@ -56,23 +56,23 @@ async def settle_markets():
                 price_no = info.get("price_no", 0.0)
 
                 if price_yes in [0.0, 1.0] and price_no in [0.0, 1.0]:
-                    if sig.get("live_entry_status") == _NO_POSITION:
+                    live_status = sig.get("live_entry_status")
+                    if live_status in (_NO_POSITION, "pending_fill"):
                         update_result(sig["id"], "NO_ENTRY", 0.0)
                         logger.info(
-                            "Сигнал %s: маркет закрито, позиція live не відкривалась — без paper PnL",
-                            sig["id"],
+                            "Сигнал %s: маркет закрито, live_entry_status=%s — ордер не виконано, NO_ENTRY",
+                            sig["id"], live_status,
                         )
-                        tg_msg_id = sig.get("telegram_message_id")
-                        if tg_msg_id:
-                            cp = sig.get("contract_price") or 0.0
-                            direction = sig.get("direction") or ""
-                            side = "YES" if direction == "UP" else "NO"
-                            await send_info_message(
-                                f"💤 <b>Сигнал #{sig['id']} — без позиції</b>\n"
-                                f"{direction} {side} @ {cp:.2f} (Gamma)\n"
-                                f"CLOB ціна перевищила ліміт або ордер не виконано.\n"
-                                f"<i>{_market_title(sig)}</i>"
-                            )
+                        cp = sig.get("contract_price") or 0.0
+                        direction = sig.get("direction") or ""
+                        side = "YES" if direction == "UP" else "NO"
+                        reason = "Ордер не виконано (ліміт не заповнений)" if live_status == "pending_fill" else "CLOB ціна перевищила ліміт або ордер не виконано."
+                        await send_info_message(
+                            f"💤 <b>Сигнал #{sig['id']} — без позиції</b>\n"
+                            f"{direction} {side} @ {cp:.2f}\n"
+                            f"{reason}\n"
+                            f"<i>{_market_title(sig)}</i>"
+                        )
                         continue
 
                     if (

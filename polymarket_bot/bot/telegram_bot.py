@@ -952,12 +952,16 @@ async def send_daily_report():
     from bot.config import DB_PATH_TEST, DB_PATH_LIVE
     from bot.position_manager import count_open_positions
 
+    from datetime import timedelta
     kyiv_tz = ZoneInfo("Europe/Kyiv")
     now_kyiv = datetime.now(kyiv_tz)
-    today_start_kyiv = now_kyiv.replace(hour=0, minute=0, second=0, microsecond=0)
-    today_start_utc = today_start_kyiv.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    # Звіт о 8:00 — за вчорашній день
+    yesterday_kyiv = (now_kyiv - timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+    yesterday_end_kyiv = yesterday_kyiv.replace(hour=23, minute=59, second=59)
+    period_start_utc = yesterday_kyiv.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    period_end_utc = yesterday_end_kyiv.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
-    lines = [f"📊 <b>Денний звіт — {now_kyiv.strftime('%d.%m.%Y')}</b>\n"]
+    lines = [f"📊 <b>Денний звіт — {yesterday_kyiv.strftime('%d.%m.%Y')}</b>\n"]
 
     for label, db_path in [("🧪 Test", DB_PATH_TEST), ("💰 Live", DB_PATH_LIVE)]:
         try:
@@ -967,8 +971,8 @@ async def send_daily_report():
                 "SELECT result, pnl, direction, contract_price FROM signals "
                 "WHERE decision='approve' AND result IS NOT NULL "
                 "AND result NOT IN ('NO_ENTRY','CLOSED_EARLY') "
-                "AND timestamp >= ?",
-                (today_start_utc,),
+                "AND timestamp >= ? AND timestamp <= ?",
+                (period_start_utc, period_end_utc),
             ).fetchall()
             conn.close()
         except Exception:

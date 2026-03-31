@@ -341,6 +341,11 @@ class ExecutionClient:
                     "error": f"Сума ордера ${limit_p * size:.2f} < $1.00 (мінімум CLOB)",
                 }
 
+            # CLOB вимагає: maker_amount (price × size) має ≤ 2 decimal places.
+            # Снепаємо size до найближчого валідного значення (≤ 5 decimal).
+            maker_cents = round(limit_p * size * 100)
+            size = round(maker_cents / (limit_p * 100), 5)
+
             order_args = OrderArgs(
                 token_id=token_id,
                 price=limit_p,

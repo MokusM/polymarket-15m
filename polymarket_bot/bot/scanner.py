@@ -166,9 +166,9 @@ class Scanner:
                                         )
                                         continue
 
-                                # Replace Gamma price with real CLOB ask as entry price
+                                # Зберігаємо CLOB ask окремо для execution, Gamma ціна залишається в contract_price
                                 if clob_ask > 0:
-                                    signal["contract_price"] = clob_ask
+                                    signal["clob_ask"] = clob_ask
                                     signal["clob_bid"] = clob_bid
 
                         key = f"{market_id}_{direction}"

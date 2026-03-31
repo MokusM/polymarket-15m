@@ -215,6 +215,10 @@ class Scanner:
                                 or ""
                             )
 
+                            # Зберігаємо реальну CLOB ціну в contract_price
+                            if signal.get("clob_ask"):
+                                signal["contract_price"] = signal["clob_ask"]
+
                             sig_id = save_signal(signal)
                             if sig_id:
                                 asyncio.create_task(send_alert(sig_id, signal))

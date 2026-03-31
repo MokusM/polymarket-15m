@@ -1029,6 +1029,8 @@ async def start_telegram_polling():
         try:
             logger.info("Запуск Telegram бота (polling)...")
             await dp.start_polling(bot)
-        except Exception as e:
+        except (Exception, BaseException) as e:
+            if isinstance(e, (KeyboardInterrupt, SystemExit)):
+                raise
             logger.error("Telegram polling впав: %s — перезапуск через 10с", e)
             await _asyncio.sleep(10)

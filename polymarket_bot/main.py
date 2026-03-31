@@ -75,12 +75,12 @@ async def main():
         tasks.append(asyncio.create_task(monitor_pending_orders_loop(execution_client)))
 
     try:
-        await asyncio.gather(*tasks)
+        await asyncio.gather(*tasks, return_exceptions=True)
     except KeyboardInterrupt:
         logger.info("Зупинка бота (KeyboardInterrupt).")
-    except Exception as e:
-        logger.error("Критична помилка: %s", e, exc_info=True)
     finally:
+        for t in tasks:
+            t.cancel()
         await scanner.close()
         logger.info("Бот зупинено.")
 

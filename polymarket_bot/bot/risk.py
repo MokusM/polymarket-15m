@@ -43,7 +43,7 @@ def estimate_win_probability(signal: dict) -> float:
     }
     prob += zone_mod.get(atr_zone, 0)
 
-    cp = signal.get("contract_price", 0.5)
+    cp = signal.get("clob_ask") or signal.get("contract_price", 0.5)
     if 0.50 <= cp <= 0.55:
         prob += 0.02
     elif cp > 0.68:
@@ -96,7 +96,8 @@ def calculate_stake(signal: dict, bankroll: float | None = None) -> dict:
 
     br = bankroll if bankroll is not None else BANKROLL_USD
     win_prob = estimate_win_probability(signal)
-    cp = signal.get("contract_price", 0.5)
+    # Використовуємо CLOB ask якщо є — це реальна ціна купівлі
+    cp = signal.get("clob_ask") or signal.get("contract_price", 0.5)
     edge = win_prob - cp
 
     result = {

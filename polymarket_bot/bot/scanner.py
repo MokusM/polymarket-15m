@@ -156,7 +156,16 @@ class Scanner:
                                         )
                                         continue
 
-                                # Priority 1: high-price GAP gate
+                                # Priority 1: CLOB ask price zone filter (замість Gamma)
+                                if clob_ask > 0:
+                                    if not (th["CONTRACT_PRICE_MIN"] <= clob_ask <= th["CONTRACT_PRICE_MAX"]):
+                                        logger.debug(
+                                            "CLOB ask %.2f поза зоною [%.2f–%.2f] — skip",
+                                            clob_ask, th["CONTRACT_PRICE_MIN"], th["CONTRACT_PRICE_MAX"],
+                                        )
+                                        continue
+
+                                # Priority 2: high-price GAP gate
                                 if clob_ask > th["CONTRACT_PRICE_HIGH_MIN"]:
                                     gap = signal.get("gap", 0)
                                     if abs(gap) < th["GAP_STRICT_USD"]:
@@ -166,7 +175,7 @@ class Scanner:
                                         )
                                         continue
 
-                                # Зберігаємо CLOB ask окремо для execution, Gamma ціна залишається в contract_price
+                                # Зберігаємо CLOB ask для execution і відображення
                                 if clob_ask > 0:
                                     signal["clob_ask"] = clob_ask
                                     signal["clob_bid"] = clob_bid

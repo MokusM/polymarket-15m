@@ -749,6 +749,21 @@ async def send_alert(signal_id: int, signal: dict):
     builder.button(text="\u23ed Skip", callback_data=f"decision|{signal_id}|skip")
     builder.adjust(3)
 
+    # Instant execution: якщо AUTO_APPROVE_LIVE — виконуємо ордер одразу, до відправки в Telegram
+    if AUTO_APPROVE_LIVE and state.is_live_allowed and client_ready and edge_ok:
+        store_pending_signal(signal_id, {**signal, "_risk": risk})
+        update_decision(signal_id, "approve")
+        order_text = await _execute_live_order(signal_id)
+        try:
+            await bot.send_message(
+                chat_id=CHAT_ID,
+                text=f"{text}\n\n<b>⚡ Instant Execute</b>\n{order_text}",
+                parse_mode="HTML",
+            )
+        except Exception as e:
+            logger.error("Помилка send_alert (instant): %s", e)
+        return
+
     try:
         msg = await bot.send_message(
             chat_id=CHAT_ID,
@@ -758,16 +773,6 @@ async def send_alert(signal_id: int, signal: dict):
         )
         update_telegram_message_id(signal_id, msg.message_id)
         store_pending_signal(signal_id, {**signal, "_risk": risk})
-
-        # Auto-approve live orders without manual click.
-        if AUTO_APPROVE_LIVE and state.is_live_allowed and client_ready:  # edge check disabled
-            update_decision(signal_id, "approve")
-            order_text = await _execute_live_order(signal_id)
-            await bot.send_message(
-                chat_id=CHAT_ID,
-                text=f"<b>✅ Approve (AUTO)</b>\n{order_text}",
-                parse_mode="HTML",
-            )
     except Exception as e:
         logger.error("Помилка send_alert: %s", e)
 

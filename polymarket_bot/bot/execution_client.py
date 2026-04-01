@@ -254,10 +254,7 @@ class ExecutionClient:
         if ap > hard_cap + 1e-9:
             return (
                 0.0,
-                (
-                    f"Ask {ap:.2f} вище макс. ціни входу {hard_cap:.2f} "
-                    f"(CONTRACT_PRICE_MAX, зона як у сканері). Ордер не відправлено."
-                ),
+                f"price_moved:{ap:.2f}:{hard_cap:.2f}",
             )
 
         if CLOB_MAX_BUY_SLIPPAGE_ABS > 0:

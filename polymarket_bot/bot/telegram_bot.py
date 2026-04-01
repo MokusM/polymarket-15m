@@ -854,14 +854,34 @@ async def _execute_live_order(signal_id: int, skip_min_size: bool = False) -> st
     cp = signal.get("clob_ask") or signal.get("contract_price", 0.5)
     neg_risk = bool(signal.get("neg_risk", False))
 
-    result = await _execution_client.buy_shares(
-        token_id=token_id,
-        price=cp,
-        stake_usd=stake,
-        neg_risk=neg_risk,
-        market_slug=None if skip_min_size else (slug or None),
-        market_id=None if skip_min_size else (mid or None),
+    async def _try_buy(price: float) -> dict | None:
+        return await _execution_client.buy_shares(
+            token_id=token_id,
+            price=price,
+            stake_usd=stake,
+            neg_risk=neg_risk,
+            market_slug=None if skip_min_size else (slug or None),
+            market_id=None if skip_min_size else (mid or None),
+        )
+
+    result = await _try_buy(cp)
+
+    # FAK retry: якщо немає покупців — ре-фетчимо поточний ask і пробуємо ще раз
+    _is_fak_no_match = (
+        result and isinstance(result, dict) and result.get("success") is False
+        and ("no orders found to match" in (result.get("error") or "") or "FAK" in (result.get("error") or ""))
     )
+    if _is_fak_no_match:
+        fresh_ask = await _execution_client.get_token_price(token_id, "SELL")
+        if fresh_ask and fresh_ask > 0:
+            from bot.state import state as _state
+            hard_cap = _state.get_thresholds()["CONTRACT_PRICE_MAX"]
+            if fresh_ask <= hard_cap + 1e-9:
+                logger.info("FAK retry: ask %.4f → retry з актуальною ціною", fresh_ask)
+                result = await _try_buy(fresh_ask)
+            else:
+                logger.info("FAK retry: fresh ask %.4f > cap %.4f — не ретраїмо", fresh_ask, hard_cap)
+
     if not result or (isinstance(result, dict) and result.get("success") is False):
         await _mark_no_fill()
         reason = ""

@@ -863,8 +863,16 @@ async def _execute_live_order(signal_id: int, skip_min_size: bool = False) -> st
         if isinstance(result, dict):
             reason = result.get("error", "")
         if reason:
-            return f"\u274c Ордер не виконано: <code>{reason}</code>"
-        return "\u274c Ордер не виконано"
+            if "no orders found to match" in reason or "FAK" in reason:
+                return "💤 Немає покупців — ордер скасовано (низька ліквідність)"
+            if "invalid amounts" in reason or "max accuracy" in reason:
+                return "❌ Помилка розміру ордера (precision)"
+            if "вище макс. ціни входу" in reason or "CONTRACT_PRICE_MAX" in reason:
+                return "💤 Ціна зросла вище ліміту входу — ордер не відправлено"
+            if "not enough balance" in reason.lower():
+                return "❌ Недостатньо коштів на балансі"
+            return f"❌ Ордер не виконано: <code>{reason}</code>"
+        return "❌ Ордер не виконано"
 
     # FAK: ордер або виконався (matched) або скасований — "live" не повинно бути
     st_ord = (result.get("status") or "").lower() if isinstance(result, dict) else ""

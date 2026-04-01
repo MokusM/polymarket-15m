@@ -347,9 +347,12 @@ class ExecutionClient:
             if _D > 0:
                 _divisor = _D // _gcd(_D, 10000)
                 _target_cents = round(limit_p * size * 100)
-                _M = (_target_cents // _divisor) * _divisor
+                _M_floor = (_target_cents // _divisor) * _divisor
+                _M_ceil = _M_floor + _divisor
+                # Беремо найближчий до target (round to nearest, не floor)
+                _M = _M_ceil if abs(_M_ceil - _target_cents) < abs(_M_floor - _target_cents) else _M_floor
                 if _M < 100:        # після snap упав нижче $1 — беремо наступний крок
-                    _M += _divisor
+                    _M = _M_ceil
                 if _M >= 100:
                     size = _M / _D
 

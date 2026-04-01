@@ -124,7 +124,7 @@ def open_position(
     """Зберегти нову відкриту позицію."""
     side = "YES" if direction == "UP" else "NO"
 
-    sl_price = entry_price * (1 - SL_PERCENT / 100)
+    sl_price = entry_price * (1 - SL_PERCENT / 100) if SL_PERCENT > 0 else 0.0
 
     order_json = json.dumps(order_result, default=str) if order_result else None
 

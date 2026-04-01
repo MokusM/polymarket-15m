@@ -757,7 +757,7 @@ async def send_alert(signal_id: int, signal: dict):
         try:
             await bot.send_message(
                 chat_id=CHAT_ID,
-                text=f"{text}\n\n<b>⚡ Instant Execute</b>\n{order_text}",
+                text=f"{text}\n\n<b>⚡ Instant Execute</b>\n{order_text}\n\n/list — довідка",
                 parse_mode="HTML",
             )
         except Exception as e:
@@ -767,7 +767,7 @@ async def send_alert(signal_id: int, signal: dict):
     try:
         msg = await bot.send_message(
             chat_id=CHAT_ID,
-            text=text,
+            text=text + "\n\n/list — довідка",
             reply_markup=builder.as_markup(),
             parse_mode="HTML"
         )

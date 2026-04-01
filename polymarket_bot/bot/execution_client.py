@@ -339,22 +339,23 @@ class ExecutionClient:
                 }
 
             # CLOB вимагає: maker (price × size) ≤ 2 decimal places, taker (size) ≤ 4 decimal.
-            # round(..., 4) не гарантує точності через float — використовуємо gcd-алгоритм.
-            # Для ціни P = D/100: size = M/D де M кратне D//gcd(D,10000),
-            # що гарантує P×size = M/100 (рівно 2 decimal) і size ≤ 4 decimal.
+            # Використовуємо Decimal для точних розрахунків без float noise.
+            from decimal import Decimal as _Dec, ROUND_HALF_UP as _RHU
             from math import gcd as _gcd
-            _D = round(limit_p * 100)
+            _p = _Dec(str(round(limit_p, 4)))  # ціна до 4 знаків через Decimal
+            _D = int(_p * 100)  # ціна в центах (ціле число)
             if _D > 0:
                 _divisor = _D // _gcd(_D, 10000)
-                _target_cents = round(limit_p * size * 100)
+                _target_cents = int((_p * _Dec(str(size)) * 100).to_integral_value(_RHU))
                 _M_floor = (_target_cents // _divisor) * _divisor
                 _M_ceil = _M_floor + _divisor
-                # Беремо найближчий до target (round to nearest, не floor)
                 _M = _M_ceil if abs(_M_ceil - _target_cents) < abs(_M_floor - _target_cents) else _M_floor
-                if _M < 100:        # після snap упав нижче $1 — беремо наступний крок
+                if _M < 100:
                     _M = _M_ceil
                 if _M >= 100:
-                    size = _M / _D
+                    size = float(_Dec(_M) / _Dec(_D))
+            # Фінальне округлення до 4 знаків щоб py_clob_client не відправив float noise
+            size = float(_Dec(str(size)).quantize(_Dec("0.0001"), rounding=_RHU))
 
             order_args = OrderArgs(
                 token_id=token_id,

@@ -22,7 +22,7 @@ from bot.polymarket_client import PolymarketClient
 from bot.indicators import add_indicators
 from bot.signals import check_signals
 from bot.state import state
-from bot.storage import save_signal
+from bot.storage import save_signal, save_shadow_signal, save_signal_snapshot
 from bot.telegram_bot import send_alert, send_info_message
 from bot.alert_text import get_current_session_key, format_session_alert_html
 
@@ -93,7 +93,8 @@ class Scanner:
                 # 4. Перевіряємо ринки
                 for market_prices in markets_with_prices:
                     signal = check_signals(market_prices, df_with_indicators)
-                    
+
+
                     if signal:
                         direction = signal["direction"]
                         market_id = str(market_prices["market_id"])
@@ -258,10 +259,19 @@ class Scanner:
                             sig_id = save_signal(signal)
                             if sig_id:
                                 asyncio.create_task(send_alert(sig_id, signal))
-                                
                                 self.last_signal_time[key] = now
                                 self.signal_counts[key] = count + 1
                                 logger.info(f"✅ Згенеровано сигнал #{sig_id}: {direction} для маркету {market_id}")
+
+                                # ── Price snapshots: трекаємо ціну контракту через 1/2/3/5/10 хв ──
+                                token_id_snap = (
+                                    market_prices.get("token_yes_id") if direction == "UP"
+                                    else market_prices.get("token_no_id")
+                                )
+                                if token_id_snap and state.mode != "test":
+                                    asyncio.create_task(
+                                        self._schedule_price_snapshots(sig_id, token_id_snap)
+                                    )
 
             except Exception as e:
                 logger.error(f"Непередбачена помилка в циклі сканування: {e}", exc_info=True)
@@ -311,6 +321,31 @@ class Scanner:
         except Exception as e:
             logger.debug("_fetch_clob_best_prices(%s): %s", token_id[:12], e)
             return 0.0, 0.0
+
+    async def _schedule_price_snapshots(self, signal_id: int, token_id: str) -> None:
+        """Записує ціну контракту і BTC через 1/2/3/5/10 хв після сигналу."""
+        elapsed = 0
+        for minutes in (1, 2, 3, 5, 10):
+            await asyncio.sleep((minutes - elapsed) * 60)
+            elapsed = minutes
+            try:
+                contract_price = None
+                try:
+                    async with httpx.AsyncClient(timeout=3.0) as c:
+                        r = await c.get(
+                            "https://clob.polymarket.com/book",
+                            params={"token_id": token_id},
+                        )
+                        if r.status_code == 200:
+                            asks = r.json().get("asks") or []
+                            contract_price = float(asks[-1]["price"]) if asks else None
+                except Exception:
+                    pass
+                df_now = await self.exchange.get_btc_1m_candles(limit=2)
+                btc_now = float(df_now.iloc[-1]["close"]) if not df_now.empty else None
+                save_signal_snapshot(signal_id, minutes, btc_now, contract_price)
+            except Exception as e:
+                logger.debug("Snapshot error #%s +%dmin: %s", signal_id, minutes, e)
 
     async def close(self):
         await self.exchange.close()

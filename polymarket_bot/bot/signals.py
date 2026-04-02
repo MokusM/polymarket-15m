@@ -263,7 +263,10 @@ def check_signals(market_info: dict, df: pd.DataFrame) -> dict | None:
     #             macd_norm = |macd_hist| / ATR — нормалізований MACD, не залежить від рівня BTC
     #             (EV=+0.249, coverage=16.1%, стабільно по всіх умовах ринку)
     # "both"    = обидва фільтри пройшли
-    _cc = int(last.get("consecutive_closes", 0) or 0)
+    _cc_raw = int(last.get("consecutive_closes", 0) or 0)
+    # cc зі знаком: +N=up, -N=down. Перевіряємо що напрямок збігається з сигналом
+    _cc_aligned = _cc_raw if direction == "UP" else -_cc_raw
+    _cc = _cc_aligned  # позитивне = рухаємось в бік сигналу
     _abs_dp = abs(delta_percent)
     _atr_val = float(atr) if not pd.isna(atr) else 999
     _macd_hist = abs(float(last.get("macd_hist", 0) or 0))

@@ -121,7 +121,7 @@ def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
     choices = ["spike", "stabilization"]
     df["volume_state"] = np.select(conditions, choices, default="normal")
 
-    # Consecutive closes in same direction
+    # Consecutive closes in same direction (signed: +N=up, -N=down)
     _diff = df["close"].diff()
     _dir = _diff.apply(lambda x: 1 if x > 0 else (-1 if x < 0 else 0))
     _cc, _count, _prev = [], 0, 0
@@ -132,7 +132,7 @@ def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
             _count = 1
         else:
             _count = 0
-        _cc.append(_count)
+        _cc.append(_count * (_prev if _prev != 0 else 1))
         _prev = _d if _d != 0 else _prev
     df["consecutive_closes"] = _cc
 

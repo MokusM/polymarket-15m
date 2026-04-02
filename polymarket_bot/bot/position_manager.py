@@ -453,8 +453,110 @@ async def monitor_positions_loop(execution_client):
                         )
                         continue
 
+                    # ── Take-Profit levels — перевіряємо послідовно L1→L2→L3 в одному циклі ──
+                    # Якщо ціна стрибнула через кілька рівнів — всі спрацьовують по черзі.
+                    _pos_closed = False
+
+                    # ── Take-Profit LEVEL 1 @ 0.90 — sell 25% of remaining ──
+                    if not _pos_closed and partial_level < 1 and current_price >= TP_PARTIAL_PRICE:
+                        sell_amount = remaining * (TP_PARTIAL_SELL_PCT / 100)
+                        if remaining - sell_amount < 1:
+                            sell_amount = remaining
+                        if sell_amount >= 1:
+                            logger.info(
+                                "TP L1 #%s: price %.2f >= %.2f, selling %.1f",
+                                pos_id, current_price, TP_PARTIAL_PRICE, sell_amount,
+                            )
+                            sell_result = await execution_client.sell_shares(
+                                pos["token_id"], current_price, sell_amount,
+                                fallback_size=remaining,
+                            )
+                            if not (sell_result and sell_result.get("success") is True):
+                                logger.error("TP L1 SELL failed #%s: %s — позиція залишається відкритою", pos_id, sell_result)
+                                continue
+                            if sell_result.get("_used_fallback_size"):
+                                sell_amount = remaining
+                            new_remaining = remaining - sell_amount
+                            leg_pnl = _pnl_partial_leg_usd(
+                                stake_u, shares_init, sell_amount, current_price,
+                            )
+                            if new_remaining <= 0:
+                                total_pnl = _pnl_total_on_full_close(
+                                    stake_u, shares_init, remaining, current_price, realized_accum,
+                                )
+                                close_position(pos_id, "tp_l1_full", total_pnl)
+                                await send_info_message(
+                                    f"\U0001f3af <b>Full Exit (TP L1) #{pos_id} @ {current_price:.2f}</b>\n"
+                                    f"{pos['direction']} {pos['side']} | "
+                                    f"Entry: {entry:.2f} \u2192 {current_price:.2f}\n"
+                                    f"Sold all {sell_amount:.0f} shares\n"
+                                    f"PnL: <b>{total_pnl:+.2f} USD</b>"
+                                )
+                                _pos_closed = True
+                            else:
+                                update_partial_exit(pos_id, sell_amount, new_remaining, leg_pnl, level=1)
+                                await send_info_message(
+                                    f"\U0001f4b0 <b>TP L1 #{pos_id} @ {current_price:.2f}</b>\n"
+                                    f"Sold {sell_amount:.0f} / {remaining:.0f} shares\n"
+                                    f"Locked: <b>{leg_pnl:+.2f} USD</b>\n"
+                                    f"Remaining: {new_remaining:.0f} shares \u2192 "
+                                    f"L2 exit @ {TP_MID_PRICE:.2f}"
+                                )
+                                partial_level = 1
+                                remaining = new_remaining
+                                realized_accum += leg_pnl
+
+                    # ── Take-Profit LEVEL 2 @ 0.93 — sell 33% of remaining ──
+                    if not _pos_closed and partial_level < 2 and current_price >= TP_MID_PRICE:
+                        sell_amount = remaining / 3
+                        if remaining - sell_amount < 1:
+                            sell_amount = remaining
+                        if sell_amount >= 1:
+                            logger.info(
+                                "TP L2 #%s: price %.2f >= %.2f, selling %.1f",
+                                pos_id, current_price, TP_MID_PRICE, sell_amount,
+                            )
+                            sell_result = await execution_client.sell_shares(
+                                pos["token_id"], current_price, sell_amount,
+                                fallback_size=remaining,
+                            )
+                            if not (sell_result and sell_result.get("success") is True):
+                                logger.error("TP L2 SELL failed #%s: %s — позиція залишається відкритою", pos_id, sell_result)
+                                continue
+                            if sell_result.get("_used_fallback_size"):
+                                sell_amount = remaining
+                            new_remaining = remaining - sell_amount
+                            leg_pnl = _pnl_partial_leg_usd(
+                                stake_u, shares_init, sell_amount, current_price,
+                            )
+                            if new_remaining <= 0:
+                                total_pnl = _pnl_total_on_full_close(
+                                    stake_u, shares_init, remaining, current_price, realized_accum,
+                                )
+                                close_position(pos_id, "tp_l2_full", total_pnl)
+                                await send_info_message(
+                                    f"\U0001f3af <b>Full Exit (TP L2) #{pos_id} @ {current_price:.2f}</b>\n"
+                                    f"{pos['direction']} {pos['side']} | "
+                                    f"Entry: {entry:.2f} \u2192 {current_price:.2f}\n"
+                                    f"Sold all {sell_amount:.0f} shares\n"
+                                    f"PnL: <b>{total_pnl:+.2f} USD</b>"
+                                )
+                                _pos_closed = True
+                            else:
+                                update_partial_exit(pos_id, sell_amount, new_remaining, leg_pnl, level=2)
+                                await send_info_message(
+                                    f"\U0001f4b0 <b>TP L2 #{pos_id} @ {current_price:.2f}</b>\n"
+                                    f"Sold {sell_amount:.0f} / {remaining:.0f} shares\n"
+                                    f"Locked: <b>{leg_pnl:+.2f} USD</b>\n"
+                                    f"Remaining: {new_remaining:.0f} shares \u2192 "
+                                    f"L3 exit @ {TP_FULL_PRICE:.2f}"
+                                )
+                                partial_level = 2
+                                remaining = new_remaining
+                                realized_accum += leg_pnl
+
                     # ── Take-Profit LEVEL 3 @ 0.95 — sell 50% of remaining ──
-                    if partial_level < 3 and current_price >= TP_FULL_PRICE:
+                    if not _pos_closed and partial_level < 3 and current_price >= TP_FULL_PRICE:
                         sell_amount = remaining * 0.5
                         # Якщо залишок після продажу < 1 share — продаємо все (реальний CLOB мінімум ~$1 notional)
                         if remaining - sell_amount < 1:
@@ -497,98 +599,6 @@ async def monitor_positions_loop(execution_client):
                                     f"Locked: <b>{leg_pnl:+.2f} USD</b>\n"
                                     f"Remaining: {new_remaining:.0f} shares \u2192 "
                                     f"final exit @ {TP_FINAL_PRICE:.2f}"
-                                )
-                        continue
-
-                    # ── Take-Profit LEVEL 2 @ 0.93 — sell 33% of remaining ──
-                    if partial_level < 2 and current_price >= TP_MID_PRICE:
-                        sell_amount = remaining / 3
-                        if remaining - sell_amount < 1:
-                            sell_amount = remaining
-                        if sell_amount >= 1:
-                            logger.info(
-                                "TP L2 #%s: price %.2f >= %.2f, selling %.1f",
-                                pos_id, current_price, TP_MID_PRICE, sell_amount,
-                            )
-                            sell_result = await execution_client.sell_shares(
-                                pos["token_id"], current_price, sell_amount,
-                                fallback_size=remaining,
-                            )
-                            if not (sell_result and sell_result.get("success") is True):
-                                logger.error("TP L2 SELL failed #%s: %s — позиція залишається відкритою", pos_id, sell_result)
-                                continue
-                            if sell_result.get("_used_fallback_size"):
-                                sell_amount = remaining
-                            new_remaining = remaining - sell_amount
-                            leg_pnl = _pnl_partial_leg_usd(
-                                stake_u, shares_init, sell_amount, current_price,
-                            )
-                            if new_remaining <= 0:
-                                total_pnl = _pnl_total_on_full_close(
-                                    stake_u, shares_init, remaining, current_price, realized_accum,
-                                )
-                                close_position(pos_id, "tp_l2_full", total_pnl)
-                                await send_info_message(
-                                    f"\U0001f3af <b>Full Exit (TP L2) #{pos_id} @ {current_price:.2f}</b>\n"
-                                    f"{pos['direction']} {pos['side']} | "
-                                    f"Entry: {entry:.2f} \u2192 {current_price:.2f}\n"
-                                    f"Sold all {sell_amount:.0f} shares\n"
-                                    f"PnL: <b>{total_pnl:+.2f} USD</b>"
-                                )
-                            else:
-                                update_partial_exit(pos_id, sell_amount, new_remaining, leg_pnl, level=2)
-                                await send_info_message(
-                                    f"\U0001f4b0 <b>TP L2 #{pos_id} @ {current_price:.2f}</b>\n"
-                                    f"Sold {sell_amount:.0f} / {remaining:.0f} shares\n"
-                                    f"Locked: <b>{leg_pnl:+.2f} USD</b>\n"
-                                    f"Remaining: {new_remaining:.0f} shares \u2192 "
-                                    f"L3 exit @ {TP_FULL_PRICE:.2f}"
-                                )
-                        continue
-
-                    # ── Take-Profit LEVEL 1 @ 0.90 — sell 25% of remaining ──
-                    if partial_level < 1 and current_price >= TP_PARTIAL_PRICE:
-                        sell_amount = remaining * (TP_PARTIAL_SELL_PCT / 100)
-                        if remaining - sell_amount < 1:
-                            sell_amount = remaining
-                        if sell_amount >= 1:
-                            logger.info(
-                                "TP L1 #%s: price %.2f >= %.2f, selling %.1f",
-                                pos_id, current_price, TP_PARTIAL_PRICE, sell_amount,
-                            )
-                            sell_result = await execution_client.sell_shares(
-                                pos["token_id"], current_price, sell_amount,
-                                fallback_size=remaining,
-                            )
-                            if not (sell_result and sell_result.get("success") is True):
-                                logger.error("TP L1 SELL failed #%s: %s — позиція залишається відкритою", pos_id, sell_result)
-                                continue
-                            if sell_result.get("_used_fallback_size"):
-                                sell_amount = remaining
-                            new_remaining = remaining - sell_amount
-                            leg_pnl = _pnl_partial_leg_usd(
-                                stake_u, shares_init, sell_amount, current_price,
-                            )
-                            if new_remaining <= 0:
-                                total_pnl = _pnl_total_on_full_close(
-                                    stake_u, shares_init, remaining, current_price, realized_accum,
-                                )
-                                close_position(pos_id, "tp_l1_full", total_pnl)
-                                await send_info_message(
-                                    f"\U0001f3af <b>Full Exit (TP L1) #{pos_id} @ {current_price:.2f}</b>\n"
-                                    f"{pos['direction']} {pos['side']} | "
-                                    f"Entry: {entry:.2f} \u2192 {current_price:.2f}\n"
-                                    f"Sold all {sell_amount:.0f} shares\n"
-                                    f"PnL: <b>{total_pnl:+.2f} USD</b>"
-                                )
-                            else:
-                                update_partial_exit(pos_id, sell_amount, new_remaining, leg_pnl, level=1)
-                                await send_info_message(
-                                    f"\U0001f4b0 <b>TP L1 #{pos_id} @ {current_price:.2f}</b>\n"
-                                    f"Sold {sell_amount:.0f} / {remaining:.0f} shares\n"
-                                    f"Locked: <b>{leg_pnl:+.2f} USD</b>\n"
-                                    f"Remaining: {new_remaining:.0f} shares \u2192 "
-                                    f"L2 exit @ {TP_MID_PRICE:.2f}"
                                 )
 
                 except Exception as e:

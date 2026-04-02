@@ -342,8 +342,12 @@ class ExecutionClient:
             # Використовуємо Decimal для точних розрахунків без float noise.
             from decimal import Decimal as _Dec, ROUND_HALF_UP as _RHU
             from math import gcd as _gcd
-            _p = _Dec(str(round(limit_p, 4)))  # ціна до 4 знаків через Decimal
-            _D = int(_p * 100)  # ціна в центах (ціле число)
+            # Округляємо ціну до 2 знаків (tick_size=0.01) — і для GCD і для OrderArgs.
+            # Без цього limit_p може мати float noise (0.5900000001) або 3+ знаки (0.591),
+            # що робить GCD некоректним і бібліотека рахує maker amount з шумом.
+            _price_2dp = round(limit_p, 2)
+            _p = _Dec(str(_price_2dp))  # ціна рівно 2 знаки, без float noise
+            _D = int(_p * 100)          # ціна в центах (ціле число, 59 для 0.59)
             if _D > 0:
                 _divisor = _D // _gcd(_D, 10000)
                 _target_cents = int((_p * _Dec(str(size)) * 100).to_integral_value(_RHU))
@@ -357,9 +361,14 @@ class ExecutionClient:
             # Фінальне округлення до 4 знаків щоб py_clob_client не відправив float noise
             size = float(_Dec(str(size)).quantize(_Dec("0.0001"), rounding=_RHU))
 
+            logger.debug(
+                "PRE-ORDER: price=%.4f → %.2f, size=%s, maker=%.10f",
+                limit_p, _price_2dp, size, _price_2dp * size,
+            )
+
             order_args = OrderArgs(
                 token_id=token_id,
-                price=limit_p,
+                price=_price_2dp,  # використовуємо округлену ціну — без float noise
                 size=size,
                 side="BUY",
             )

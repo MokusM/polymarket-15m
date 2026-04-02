@@ -70,6 +70,18 @@ def _vote_ema(ema_9: float, ema_21: float) -> tuple[Optional[str], str]:
     return None, "EMA9 = EMA21"
 
 
+def _vote_adx(adx: float, plus_di: float, minus_di: float) -> tuple[Optional[str], str]:
+    if any(pd.isna(v) for v in (adx, plus_di, minus_di)):
+        return None, "n/a"
+    if adx < 20:
+        return None, f"ADX {adx:.1f} weak"
+    if plus_di > minus_di:
+        return "UP", f"ADX {adx:.1f} +DI{plus_di:.0f}>-DI{minus_di:.0f}"
+    if minus_di > plus_di:
+        return "DOWN", f"ADX {adx:.1f} -DI{minus_di:.0f}>+DI{plus_di:.0f}"
+    return None, f"ADX {adx:.1f} equal"
+
+
 def _vote_pivots(price: float, pivot_high: float, pivot_low: float) -> tuple[Optional[str], str]:
     if any(pd.isna(v) for v in (pivot_high, pivot_low)):
         return None, "n/a"
@@ -113,7 +125,13 @@ def _binance_open_at_polymarket_window_start(
 #  Main signal check
 # ---------------------------------------------------------------------------
 
-def check_signals(market_info: dict, df: pd.DataFrame) -> dict | None:
+def check_signals(market_info: dict, df: pd.DataFrame, _shadow: dict | None = None) -> dict | None:
+    """
+    Повертає сигнал або None.
+    _shadow: якщо передати порожній dict, він буде заповнений деталями відхилення
+             (confluence, reject_reason, partial data) навіть при return None.
+             Корисно для збору shadow статистики.
+    """
     if df.empty or len(df) < 30:
         return None
 
@@ -127,15 +145,21 @@ def check_signals(market_info: dict, df: pd.DataFrame) -> dict | None:
     atr_threshold = th["ATR_MIN_USD"]
     if not pd.isna(atr) and atr < atr_threshold and state.mode != "test":
         logger.debug("ATR %.1f < %.1f — skip", atr, atr_threshold)
+        if _shadow is not None:
+            _shadow.update({"reject_reason": f"atr_low:{float(atr):.0f}<{atr_threshold:.0f}", "confluence": 0})
         return None
     if atr_zone == "dead" and not th.get("ALLOW_DEAD_ZONE", False):
         logger.debug("ATR zone=dead — skip")
+        if _shadow is not None:
+            _shadow.update({"reject_reason": "atr_dead_zone", "confluence": 0})
         return None
 
     # --- Volume state filter ---
     volume_state = last.get("volume_state", "normal")
     if state.mode != "test" and th.get("BLOCK_STABILIZATION", False) and volume_state == "stabilization":
         logger.debug("volume=stabilization — skip (BLOCK_STABILIZATION=true)")
+        if _shadow is not None:
+            _shadow.update({"reject_reason": "volume_stabilization", "confluence": 0})
         return None
 
     # --- Time left ---
@@ -164,9 +188,12 @@ def check_signals(market_info: dict, df: pd.DataFrame) -> dict | None:
             return None
 
     if time_left_min != 999 and not (th["TIME_LEFT_MIN_MINUTES"] <= time_left_min <= th["TIME_LEFT_MAX_MINUTES"]):
+        if _shadow is not None:
+            _shadow.update({"reject_reason": f"time_left:{time_left_min:.1f}", "confluence": 0,
+                            "time_left": round(time_left_min, 1)})
         return None
 
-    # --- 5 indicator votes ---
+    # --- 6 indicator votes (RSI, MACD, VWAP, EMA, Pivots, ADX) ---
     rsi_vote, rsi_label = _vote_rsi(float(last.get("rsi_1m", 50)))
     macd_vote, macd_label = _vote_macd(
         float(last.get("macd_line", 0)),
@@ -182,13 +209,19 @@ def check_signals(market_info: dict, df: pd.DataFrame) -> dict | None:
         float(last.get("pivot_high", 0)),
         float(last.get("pivot_low", 0)),
     )
+    adx_vote, adx_label = _vote_adx(
+        float(last.get("adx", float("nan"))),
+        float(last.get("plus_di", float("nan"))),
+        float(last.get("minus_di", float("nan"))),
+    )
 
     votes = {
-        "RSI": {"direction": rsi_vote, "label": rsi_label},
-        "MACD": {"direction": macd_vote, "label": macd_label},
-        "VWAP": {"direction": vwap_vote, "label": vwap_label},
-        "EMA": {"direction": ema_vote, "label": ema_label},
+        "RSI":    {"direction": rsi_vote,    "label": rsi_label},
+        "MACD":   {"direction": macd_vote,   "label": macd_label},
+        "VWAP":   {"direction": vwap_vote,   "label": vwap_label},
+        "EMA":    {"direction": ema_vote,    "label": ema_label},
         "Pivots": {"direction": pivots_vote, "label": pivots_label},
+        "ADX":    {"direction": adx_vote,    "label": adx_label},
     }
 
     up_count = sum(1 for v in votes.values() if v["direction"] == "UP")
@@ -202,11 +235,29 @@ def check_signals(market_info: dict, df: pd.DataFrame) -> dict | None:
         direction = "DOWN"
         confluence = down_count
     else:
+        if _shadow is not None:
+            _shadow.update({
+                "reject_reason": f"confluence:UP={up_count},DOWN={down_count}",
+                "confluence": max(up_count, down_count),
+                "time_left": round(time_left_min, 1),
+                "atr": round(float(atr), 2) if not pd.isna(atr) else 0,
+                "btc_price": price,
+            })
         return None
 
     # --- Contract price filter ---
     contract_price = price_yes if direction == "UP" else price_no
     if not (th["CONTRACT_PRICE_MIN"] <= contract_price <= th["CONTRACT_PRICE_MAX"]):
+        if _shadow is not None:
+            _shadow.update({
+                "reject_reason": f"contract_price:{contract_price:.2f}",
+                "confluence": confluence,
+                "direction": direction,
+                "contract_price": contract_price,
+                "time_left": round(time_left_min, 1),
+                "atr": round(float(atr), 2) if not pd.isna(atr) else 0,
+                "btc_price": price,
+            })
         return None
 
     # --- Start price (для відображення руху BTC у вікні) ---
@@ -238,6 +289,17 @@ def check_signals(market_info: dict, df: pd.DataFrame) -> dict | None:
                 "GAP %.1f недостатній для %s (threshold=%.0f) — skip",
                 gap_val, direction, gap_min,
             )
+            if _shadow is not None:
+                _shadow.update({
+                    "reject_reason": f"gap:{gap_val:.0f}<{gap_min:.0f}",
+                    "confluence": confluence,
+                    "direction": direction,
+                    "contract_price": contract_price,
+                    "time_left": round(time_left_min, 1),
+                    "gap": gap_val,
+                    "atr": round(float(atr), 2) if not pd.isna(atr) else 0,
+                    "btc_price": price,
+                })
             return None
 
     chg_1h = last.get("chg_1h", 0)
@@ -255,6 +317,17 @@ def check_signals(market_info: dict, df: pd.DataFrame) -> dict | None:
                 "Time %.1f min < %.0f min, GAP %.1f < %.0f — skip",
                 time_left_min, th["TIME_STRICT_MAX_MIN"], abs(gap_val), th["GAP_STRICT_USD"],
             )
+            if _shadow is not None:
+                _shadow.update({
+                    "reject_reason": f"strict_gap:{gap_val:.0f}<{th['GAP_STRICT_USD']:.0f}@{time_left_min:.1f}min",
+                    "confluence": confluence,
+                    "direction": direction,
+                    "contract_price": contract_price,
+                    "time_left": round(time_left_min, 1),
+                    "gap": gap_val,
+                    "atr": round(float(atr), 2) if not pd.isna(atr) else 0,
+                    "btc_price": price,
+                })
             return None
 
     return {
@@ -279,6 +352,9 @@ def check_signals(market_info: dict, df: pd.DataFrame) -> dict | None:
         "obi": 1.0,  # placeholder; scanner overwrites with real value
         "rsi_3m": round(float(last["rsi_3m"]), 1) if "rsi_3m" in last.index and not pd.isna(last.get("rsi_3m")) else None,
         "rsi_5m": round(float(last["rsi_5m"]), 1) if "rsi_5m" in last.index and not pd.isna(last.get("rsi_5m")) else None,
+        "adx": round(float(last.get("adx", float("nan"))), 1) if not pd.isna(last.get("adx", float("nan"))) else None,
+        "plus_di": round(float(last.get("plus_di", float("nan"))), 1) if not pd.isna(last.get("plus_di", float("nan"))) else None,
+        "minus_di": round(float(last.get("minus_di", float("nan"))), 1) if not pd.isna(last.get("minus_di", float("nan"))) else None,
     }
 
 
@@ -347,7 +423,7 @@ def diagnose_signals(market_info: dict, df: pd.DataFrame) -> str:
         f"<i>— CLOB ask може бути на 5-10¢ вище</i>"
     )
 
-    # 5 indicator votes
+    # 6 indicator votes
     rsi_vote, rsi_label = _vote_rsi(float(last.get("rsi_1m", 50)))
     macd_vote, macd_label = _vote_macd(
         float(last.get("macd_line", 0)),
@@ -363,12 +439,18 @@ def diagnose_signals(market_info: dict, df: pd.DataFrame) -> str:
         float(last.get("pivot_high", 0)),
         float(last.get("pivot_low", 0)),
     )
+    adx_vote, adx_label = _vote_adx(
+        float(last.get("adx", float("nan"))),
+        float(last.get("plus_di", float("nan"))),
+        float(last.get("minus_di", float("nan"))),
+    )
     votes = {
-        "RSI": (rsi_vote, rsi_label),
-        "MACD": (macd_vote, macd_label),
-        "VWAP": (vwap_vote, vwap_label),
-        "EMA": (ema_vote, ema_label),
+        "RSI":    (rsi_vote,    rsi_label),
+        "MACD":   (macd_vote,   macd_label),
+        "VWAP":   (vwap_vote,   vwap_label),
+        "EMA":    (ema_vote,    ema_label),
         "Pivots": (pivots_vote, pivots_label),
+        "ADX":    (adx_vote,    adx_label),
     }
     up_count = sum(1 for v, _ in votes.values() if v == "UP")
     down_count = sum(1 for v, _ in votes.values() if v == "DOWN")

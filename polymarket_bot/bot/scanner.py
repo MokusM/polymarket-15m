@@ -18,7 +18,7 @@ from bot.polymarket_client import PolymarketClient
 from bot.indicators import add_indicators
 from bot.signals import check_signals
 from bot.state import state
-from bot.storage import save_signal
+from bot.storage import save_signal, save_shadow_signal, save_signal_snapshot
 from bot.telegram_bot import send_alert, send_info_message
 from bot.alert_text import get_current_session_key, format_session_alert_html
 
@@ -110,7 +110,25 @@ class Scanner:
                             market_id[:12], clob_yes_ask, clob_no_ask,
                         )
 
-                    signal = check_signals(market_prices, df_with_indicators)
+                    _shadow: dict = {}
+                    signal = check_signals(market_prices, df_with_indicators, _shadow=_shadow)
+
+                    # ── Shadow logging: зберігаємо відхилені сигнали з confluence ≥ 2 ──
+                    if signal is None and _shadow.get("confluence", 0) >= 2 and state.mode != "test":
+                        asyncio.create_task(asyncio.to_thread(
+                            save_shadow_signal,
+                            market_id,
+                            _shadow.get("direction"),
+                            _shadow.get("contract_price"),
+                            _shadow.get("confluence", 0),
+                            _shadow.get("reject_reason", "unknown"),
+                            _shadow.get("time_left"),
+                            _shadow.get("gap"),
+                            _shadow.get("atr"),
+                            _shadow.get("adx"),
+                            _shadow.get("btc_price"),
+                            _shadow.get("clob_ask"),
+                        ))
 
                     if signal:
                         direction = signal["direction"]
@@ -124,6 +142,13 @@ class Scanner:
                                     "SKIP CLOB ask %.2f поза зоною [%.2f–%.2f]",
                                     clob_ask, th["CONTRACT_PRICE_MIN"], th["CONTRACT_PRICE_MAX"],
                                 )
+                                asyncio.create_task(asyncio.to_thread(
+                                    save_shadow_signal, market_id, direction,
+                                    signal.get("contract_price"), signal.get("confluence", 0),
+                                    f"clob_ask_zone:{clob_ask:.2f}",
+                                    signal.get("time_left"), signal.get("gap"), signal.get("atr"),
+                                    signal.get("adx"), signal.get("current_price"), clob_ask,
+                                ))
                                 continue
 
                             # spread gate
@@ -134,6 +159,13 @@ class Scanner:
                                         "SKIP CLOB spread %.3f > %.3f",
                                         spread, CLOB_SPREAD_MAX,
                                     )
+                                    asyncio.create_task(asyncio.to_thread(
+                                        save_shadow_signal, market_id, direction,
+                                        signal.get("contract_price"), signal.get("confluence", 0),
+                                        f"spread:{spread:.3f}>{CLOB_SPREAD_MAX}",
+                                        signal.get("time_left"), signal.get("gap"), signal.get("atr"),
+                                        signal.get("adx"), signal.get("current_price"), clob_ask,
+                                    ))
                                     continue
 
                             # high-price GAP gate
@@ -144,6 +176,13 @@ class Scanner:
                                         "SKIP CLOB ask %.2f > HIGH_MIN %.2f but GAP %.1f < %.0f",
                                         clob_ask, th["CONTRACT_PRICE_HIGH_MIN"], gap, th["GAP_STRICT_USD"],
                                     )
+                                    asyncio.create_task(asyncio.to_thread(
+                                        save_shadow_signal, market_id, direction,
+                                        signal.get("contract_price"), signal.get("confluence", 0),
+                                        f"high_price_gap:{gap:.0f}<{th['GAP_STRICT_USD']:.0f}",
+                                        signal.get("time_left"), gap, signal.get("atr"),
+                                        signal.get("adx"), signal.get("current_price"), clob_ask,
+                                    ))
                                     continue
 
                             signal["clob_ask"] = clob_ask
@@ -222,10 +261,18 @@ class Scanner:
                             sig_id = save_signal(signal)
                             if sig_id:
                                 asyncio.create_task(send_alert(sig_id, signal))
-                                
                                 self.last_signal_time[key] = now
                                 self.signal_counts[key] = count + 1
                                 logger.info(f"✅ Згенеровано сигнал #{sig_id}: {direction} для маркету {market_id}")
+                                # ── Price snapshots: трекаємо ціну +1/2/3/5/10 хв після сигналу ──
+                                token_id = (
+                                    market_prices.get("token_yes_id") if direction == "UP"
+                                    else market_prices.get("token_no_id")
+                                )
+                                if token_id:
+                                    asyncio.create_task(
+                                        self._schedule_price_snapshots(sig_id, token_id, signal.get("current_price"))
+                                    )
 
             except Exception as e:
                 logger.error(f"Непередбачена помилка в циклі сканування: {e}", exc_info=True)
@@ -275,6 +322,37 @@ class Scanner:
         except Exception as e:
             logger.debug("_fetch_clob_best_prices(%s): %s", token_id[:12], e)
             return 0.0, 0.0
+
+    async def _schedule_price_snapshots(
+        self, signal_id: int, token_id: str, btc_price_at_signal: float | None
+    ) -> None:
+        """Записує ціну контракту і BTC через 1/2/3/5/10 хв після сигналу."""
+        elapsed = 0
+        for minutes in (1, 2, 3, 5, 10):
+            await asyncio.sleep((minutes - elapsed) * 60)
+            elapsed = minutes
+            try:
+                contract_price = None
+                try:
+                    async with httpx.AsyncClient(timeout=3.0) as c:
+                        r = await c.get(
+                            "https://clob.polymarket.com/book",
+                            params={"token_id": token_id},
+                        )
+                        if r.status_code == 200:
+                            asks = r.json().get("asks") or []
+                            contract_price = float(asks[-1]["price"]) if asks else None
+                except Exception:
+                    pass
+                df_now = await self.exchange.get_btc_1m_candles(limit=2)
+                btc_now = float(df_now.iloc[-1]["close"]) if not df_now.empty else None
+                await asyncio.to_thread(
+                    save_signal_snapshot, signal_id, minutes, btc_now, contract_price
+                )
+                logger.debug("Snapshot #%s +%dmin: btc=%.0f contract=%.3f",
+                             signal_id, minutes, btc_now or 0, contract_price or 0)
+            except Exception as e:
+                logger.debug("Snapshot error #%s +%dmin: %s", signal_id, minutes, e)
 
     async def close(self):
         await self.exchange.close()

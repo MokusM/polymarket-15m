@@ -67,10 +67,42 @@ def classify_atr_zone(atr: float) -> str:
     return "extreme"
 
 
+def calculate_adx(df: pd.DataFrame, period: int = 14) -> tuple[pd.Series, pd.Series, pd.Series]:
+    """Wilder's ADX. Returns (adx, plus_di, minus_di)."""
+    high = df["high"]
+    low = df["low"]
+    close = df["close"]
+
+    tr = pd.concat(
+        [
+            high - low,
+            (high - close.shift(1)).abs(),
+            (low - close.shift(1)).abs(),
+        ],
+        axis=1,
+    ).max(axis=1)
+
+    up_move = high.diff()
+    down_move = -low.diff()
+
+    plus_dm = up_move.where((up_move > down_move) & (up_move > 0), 0.0)
+    minus_dm = down_move.where((down_move > up_move) & (down_move > 0), 0.0)
+
+    alpha = 1 / period
+    atr_s = tr.ewm(alpha=alpha, adjust=False).mean()
+    plus_di = 100 * plus_dm.ewm(alpha=alpha, adjust=False).mean() / atr_s
+    minus_di = 100 * minus_dm.ewm(alpha=alpha, adjust=False).mean() / atr_s
+
+    dx = 100 * (plus_di - minus_di).abs() / (plus_di + minus_di).replace(0, np.nan)
+    adx = dx.ewm(alpha=alpha, adjust=False).mean()
+
+    return adx, plus_di, minus_di
+
+
 def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
     """
     Додає до DataFrame з 1m свічками повний набір індикаторів курсу:
-    RSI, EMA 9/21, MACD(12/26/9), VWAP, Pivots HL(10), ATR + zone, Volume state.
+    RSI, EMA 9/21, MACD(12/26/9), VWAP, Pivots HL(10), ATR + zone, ADX, Volume state.
     """
     if df.empty or len(df) < 30:
         return df
@@ -120,6 +152,9 @@ def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
     ]
     choices = ["spike", "stabilization"]
     df["volume_state"] = np.select(conditions, choices, default="normal")
+
+    # ADX (14)
+    df["adx"], df["plus_di"], df["minus_di"] = calculate_adx(df)
 
     # MTF RSI: resample 1m → 3m/5m, forward-fill back to 1m resolution
     for tf_min, col in [(3, "rsi_3m"), (5, "rsi_5m")]:

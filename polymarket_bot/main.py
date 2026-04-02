@@ -20,7 +20,7 @@ from bot.config import LIVE_TRADING, DB_PATH_TEST, DB_PATH_LIVE
 from bot.scanner import Scanner
 from bot.settlement import settle_markets
 from bot.telegram_bot import start_telegram_polling, set_execution_client, set_scanner, daily_report_scheduler
-from bot.storage import init_db, init_pending_orders_table
+from bot.storage import init_db, init_pending_orders_table, init_shadow_signals_table, init_signal_snapshots_table
 from bot.position_manager import init_positions_table
 
 
@@ -41,6 +41,10 @@ async def main():
     init_positions_table(DB_PATH_LIVE)
     init_pending_orders_table(DB_PATH_TEST)
     init_pending_orders_table(DB_PATH_LIVE)
+    init_shadow_signals_table(DB_PATH_TEST)
+    init_shadow_signals_table(DB_PATH_LIVE)
+    init_signal_snapshots_table(DB_PATH_TEST)
+    init_signal_snapshots_table(DB_PATH_LIVE)
 
     execution_client = None
     if LIVE_TRADING:

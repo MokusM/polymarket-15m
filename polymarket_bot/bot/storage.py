@@ -419,6 +419,121 @@ def mark_signal_live_pending(signal_id: int):
         conn.close()
 
 
+def init_shadow_signals_table(db_path: str | None = None):
+    """Таблиця для сигналів що не пройшли фільтри — для аналізу гіпотез."""
+    path = db_path if db_path is not None else get_db_path()
+    try:
+        conn = sqlite3.connect(path)
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS shadow_signals (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                market_id TEXT,
+                direction TEXT,
+                contract_price REAL,
+                clob_ask REAL,
+                confluence INTEGER,
+                reject_reason TEXT,
+                time_left REAL,
+                gap REAL,
+                atr REAL,
+                adx REAL,
+                btc_price REAL,
+                bot_mode TEXT
+            )
+            """
+        )
+        conn.commit()
+    except Exception as e:
+        logger.error("Помилка init_shadow_signals_table: %s", e)
+    finally:
+        conn.close()
+
+
+def save_shadow_signal(
+    market_id: str,
+    direction: str | None,
+    contract_price: float | None,
+    confluence: int,
+    reject_reason: str,
+    time_left: float | None = None,
+    gap: float | None = None,
+    atr: float | None = None,
+    adx: float | None = None,
+    btc_price: float | None = None,
+    clob_ask: float | None = None,
+    db_path: str | None = None,
+):
+    from bot.state import state
+    path = db_path if db_path is not None else get_db_path()
+    try:
+        conn = sqlite3.connect(path)
+        conn.execute(
+            """
+            INSERT INTO shadow_signals
+            (market_id, direction, contract_price, clob_ask, confluence,
+             reject_reason, time_left, gap, atr, adx, btc_price, bot_mode)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (market_id, direction, contract_price, clob_ask, confluence,
+             reject_reason, time_left, gap, atr, adx, btc_price, state.mode),
+        )
+        conn.commit()
+    except Exception as e:
+        logger.error("Помилка save_shadow_signal: %s", e)
+    finally:
+        conn.close()
+
+
+def init_signal_snapshots_table(db_path: str | None = None):
+    """Таблиця трекінгу ціни після сигналу — для аналізу досяжності TP."""
+    path = db_path if db_path is not None else get_db_path()
+    try:
+        conn = sqlite3.connect(path)
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS signal_snapshots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                signal_id INTEGER NOT NULL,
+                minutes_after INTEGER NOT NULL,
+                btc_price REAL,
+                contract_price REAL,
+                recorded_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        conn.commit()
+    except Exception as e:
+        logger.error("Помилка init_signal_snapshots_table: %s", e)
+    finally:
+        conn.close()
+
+
+def save_signal_snapshot(
+    signal_id: int,
+    minutes_after: int,
+    btc_price: float | None,
+    contract_price: float | None,
+    db_path: str | None = None,
+):
+    path = db_path if db_path is not None else get_db_path()
+    try:
+        conn = sqlite3.connect(path)
+        conn.execute(
+            """
+            INSERT INTO signal_snapshots (signal_id, minutes_after, btc_price, contract_price)
+            VALUES (?, ?, ?, ?)
+            """,
+            (signal_id, minutes_after, btc_price, contract_price),
+        )
+        conn.commit()
+    except Exception as e:
+        logger.error("Помилка save_signal_snapshot: %s", e)
+    finally:
+        conn.close()
+
+
 if __name__ == "__main__":
     init_db()
     print("БД успішно ініціалізована.")

@@ -259,19 +259,16 @@ def check_signals(market_info: dict, df: pd.DataFrame) -> dict | None:
 
     # ── Filter version A/B ──
     # "current" = поточна логіка (confluence + GAP + ATR)
-    # "new"     = |delta_pct|>=0.2 + consecutive_closes>=2 + macd_norm>=0.20 + ATR<150
+    # "new"     = gap>=100 + cc>=2 (в бік сигналу) + macd_norm>=0.20 + ATR<150
     #             macd_norm = |macd_hist| / ATR — нормалізований MACD, не залежить від рівня BTC
-    #             (EV=+0.249, coverage=16.1%, стабільно по всіх умовах ринку)
+    #             gap абсолютний — природній для 15-хв BTC вікна, перевірений на 450+ сигналах
     # "both"    = обидва фільтри пройшли
     _cc_raw = int(last.get("consecutive_closes", 0) or 0)
-    # cc зі знаком: +N=up, -N=down. Перевіряємо що напрямок збігається з сигналом
-    _cc_aligned = _cc_raw if direction == "UP" else -_cc_raw
-    _cc = _cc_aligned  # позитивне = рухаємось в бік сигналу
-    _abs_dp = abs(delta_percent)
+    _cc = _cc_raw if direction == "UP" else -_cc_raw  # позитивне = в бік сигналу
     _atr_val = float(atr) if not pd.isna(atr) else 999
     _macd_hist = abs(float(last.get("macd_hist", 0) or 0))
     _macd_norm = _macd_hist / _atr_val if _atr_val > 0 else 0.0
-    _new_filter = (_abs_dp >= 0.20 and _cc >= 2 and _macd_norm >= 0.20 and _atr_val < 150)
+    _new_filter = (abs(gap_val) >= 100 and _cc >= 2 and _macd_norm >= 0.20 and _atr_val < 150)
     _current_filter = True  # якщо дійшли сюди — current вже пройшов
     if _current_filter and _new_filter:
         filter_version = "both"

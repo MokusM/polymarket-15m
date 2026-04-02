@@ -30,10 +30,8 @@ def _migrate_signals_columns(cursor: sqlite3.Cursor) -> None:
         ("payload_json", "TEXT"),
         ("time_left", "REAL"),
         ("telegram_message_id", "INTEGER"),
-        (
-            "live_entry_status",
-            "TEXT",
-        ),  # NULL=paper/невизначено; opened=CLOB fill; no_position=approve але позиції нема
+        ("live_entry_status", "TEXT"),  # NULL=paper; opened=CLOB fill; no_position=approve але позиції нема
+        ("filter_version", "TEXT"),     # current / new / both — A/B тест фільтрів
     ]
     for col, decl in additions:
         if col not in existing:
@@ -113,8 +111,9 @@ def save_signal(signal: dict) -> int | None:
             INSERT INTO signals (
                 market_id, start_price, current_price, delta, delta_percent,
                 direction, contract_price, rsi_1m, rsi_3m, ema_position, volume_state,
-                decision, stake_usd, bot_mode, time_left, payload_json, alert_html
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                decision, stake_usd, bot_mode, time_left, payload_json, alert_html,
+                filter_version
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 signal.get("market_id"),
@@ -134,6 +133,7 @@ def save_signal(signal: dict) -> int | None:
                 time_left,
                 payload_json,
                 alert_html,
+                signal.get("filter_version", "current"),
             ),
         )
         conn.commit()

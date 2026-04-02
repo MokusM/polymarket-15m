@@ -201,8 +201,11 @@ def format_signal_alert_html(signal: dict, mode: str, stake_usd: float) -> str:
     contract_side = "YES" if direction == "UP" else "NO"
     breakeven_wr = contract_price * 100
 
+    _fv = signal.get("filter_version", "current")
+    _fv_label = {"current": "", "new": " [NEW]", "both": " [BOTH]"}.get(_fv, "")
+
     return (
-        f"\U0001f6a8 <b>Signal: {direction}</b>\n"
+        f"\U0001f6a8 <b>Signal: {direction}</b>{_fv_label}\n"
         f"\U0001f4ca <b>Confluence: {confluence}/5</b>\n"
         f"\u2699\ufe0f Mode: {mode.upper()}\n"
         f"{title_line}"

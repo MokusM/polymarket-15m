@@ -257,6 +257,22 @@ def check_signals(market_info: dict, df: pd.DataFrame) -> dict | None:
             )
             return None
 
+    # ── Filter version A/B ──
+    # "current" = поточна логіка (confluence + GAP + ATR)
+    # "new"     = delta_pct>=0.2 + consecutive_closes>=2 + pivots_voted
+    # "both"    = обидва фільтри пройшли
+    _cc = int(last.get("consecutive_closes", 0) or 0)
+    _abs_dp = abs(delta_percent)
+    _pivots_voted = (pivots_vote == direction)
+    _new_filter = (_abs_dp >= 0.20 and _cc >= 2 and _pivots_voted)
+    _current_filter = True  # якщо дійшли сюди — current вже пройшов
+    if _current_filter and _new_filter:
+        filter_version = "both"
+    elif _new_filter:
+        filter_version = "new"
+    else:
+        filter_version = "current"
+
     return {
         "direction": direction,
         "confluence": confluence,
@@ -279,6 +295,8 @@ def check_signals(market_info: dict, df: pd.DataFrame) -> dict | None:
         "obi": 1.0,  # placeholder; scanner overwrites with real value
         "rsi_3m": round(float(last["rsi_3m"]), 1) if "rsi_3m" in last.index and not pd.isna(last.get("rsi_3m")) else None,
         "rsi_5m": round(float(last["rsi_5m"]), 1) if "rsi_5m" in last.index and not pd.isna(last.get("rsi_5m")) else None,
+        "consecutive_closes": _cc,
+        "filter_version": filter_version,
     }
 
 

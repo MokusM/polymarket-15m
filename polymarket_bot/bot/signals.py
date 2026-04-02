@@ -259,14 +259,16 @@ def check_signals(market_info: dict, df: pd.DataFrame) -> dict | None:
 
     # ── Filter version A/B ──
     # "current" = поточна логіка (confluence + GAP + ATR)
-    # "new"     = |delta_pct|>=0.2 + consecutive_closes>=2 + |macd_hist|>=20 + ATR<150
-    #             (перевірено на 22,164 сигналах: 94.1% ACC, стабільно по всіх умовах ринку)
+    # "new"     = |delta_pct|>=0.2 + consecutive_closes>=2 + macd_norm>=0.20 + ATR<150
+    #             macd_norm = |macd_hist| / ATR — нормалізований MACD, не залежить від рівня BTC
+    #             (EV=+0.249, coverage=16.1%, стабільно по всіх умовах ринку)
     # "both"    = обидва фільтри пройшли
     _cc = int(last.get("consecutive_closes", 0) or 0)
     _abs_dp = abs(delta_percent)
-    _macd_hist = abs(float(last.get("macd_hist", 0) or 0))
     _atr_val = float(atr) if not pd.isna(atr) else 999
-    _new_filter = (_abs_dp >= 0.20 and _cc >= 2 and _macd_hist >= 20 and _atr_val < 150)
+    _macd_hist = abs(float(last.get("macd_hist", 0) or 0))
+    _macd_norm = _macd_hist / _atr_val if _atr_val > 0 else 0.0
+    _new_filter = (_abs_dp >= 0.20 and _cc >= 2 and _macd_norm >= 0.20 and _atr_val < 150)
     _current_filter = True  # якщо дійшли сюди — current вже пройшов
     if _current_filter and _new_filter:
         filter_version = "both"

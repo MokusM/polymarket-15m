@@ -2,6 +2,13 @@
 
 ## Pending
 
+- [ ] **Filter calibration (~2026-04-15)** — на основі paper статистики (252 сигнали):
+  - Light: виключити `volume=stabilization` + `time_left > 8хв` → прибере ~55% сигналів, WR ↑ до ~88%+
+  - Всі режими: виключити `delta < 0.1%` (flat market, WR ~70-77%)
+  - Найкращі комбінації: Light conf=4 tl=5-8хв (93.3%), Light conf=3 tl=<5хв (91.3%)
+  - Volume=normal — найнадійніший стан; spike — нестабільний
+  - Файли: `bot/state.py` (thresholds), `bot/signals.py` (volume filter)
+
 - [ ] **Edge/Kelly калібрування** — зараз edge перевірка вимкнена (ставка $10 фіксована при edge≤0). Після збору ~1 тижня даних порахувати реальний WR по режимах (light/medium/strict) з plouLight/Medium/Strict БД, підставити справжні win_prob в `estimate_win_probability()` і повернути gate `edge > 0`. Файл: `bot/risk.py`, `bot/telegram_bot.py`.
 
 - [ ] **ExecutionClient retry при старті** — при `ConnectionTerminated` від Polymarket CLOB під час init робити N повторних спроб з затримкою, щоб `LIVE=OFF` не залишався після тимчасової мережевої помилки

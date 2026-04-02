@@ -339,23 +339,36 @@ class ExecutionClient:
                 }
 
             # CLOB вимагає: maker (price × size) ≤ 2 decimal places, taker (size) ≤ 4 decimal.
-            # round(..., 4) не гарантує точності через float — використовуємо gcd-алгоритм.
-            # Для ціни P = D/100: size = M/D де M кратне D//gcd(D,10000),
-            # що гарантує P×size = M/100 (рівно 2 decimal) і size ≤ 4 decimal.
+            # Використовуємо Decimal для точних розрахунків без float noise.
+            from decimal import Decimal as _Dec, ROUND_HALF_UP as _RHU
             from math import gcd as _gcd
-            _D = round(limit_p * 100)
+            # Округляємо ціну до 2 знаків (tick_size=0.01) — і для GCD і для OrderArgs.
+            # Без цього limit_p може мати float noise (0.5900000001) або 3+ знаки (0.591),
+            # що робить GCD некоректним і бібліотека рахує maker amount з шумом.
+            _price_2dp = round(limit_p, 2)
+            _p = _Dec(str(_price_2dp))  # ціна рівно 2 знаки, без float noise
+            _D = int(_p * 100)          # ціна в центах (ціле число, 59 для 0.59)
             if _D > 0:
                 _divisor = _D // _gcd(_D, 10000)
-                _target_cents = round(limit_p * size * 100)
-                _M = (_target_cents // _divisor) * _divisor
-                if _M < 100:        # після snap упав нижче $1 — беремо наступний крок
-                    _M += _divisor
+                _target_cents = int((_p * _Dec(str(size)) * 100).to_integral_value(_RHU))
+                _M_floor = (_target_cents // _divisor) * _divisor
+                _M_ceil = _M_floor + _divisor
+                _M = _M_ceil if abs(_M_ceil - _target_cents) < abs(_M_floor - _target_cents) else _M_floor
+                if _M < 100:
+                    _M = _M_ceil
                 if _M >= 100:
-                    size = _M / _D
+                    size = float(_Dec(_M) / _Dec(_D))
+            # Фінальне округлення до 4 знаків щоб py_clob_client не відправив float noise
+            size = float(_Dec(str(size)).quantize(_Dec("0.0001"), rounding=_RHU))
+
+            logger.debug(
+                "PRE-ORDER: price=%.4f → %.2f, size=%s, maker=%.10f",
+                limit_p, _price_2dp, size, _price_2dp * size,
+            )
 
             order_args = OrderArgs(
                 token_id=token_id,
-                price=limit_p,
+                price=_price_2dp,  # використовуємо округлену ціну — без float noise
                 size=size,
                 side="BUY",
             )

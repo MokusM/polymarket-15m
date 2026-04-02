@@ -132,6 +132,12 @@ def check_signals(market_info: dict, df: pd.DataFrame) -> dict | None:
         logger.debug("ATR zone=dead — skip")
         return None
 
+    # --- Volume state filter ---
+    volume_state = last.get("volume_state", "normal")
+    if state.mode != "test" and th.get("BLOCK_STABILIZATION", False) and volume_state == "stabilization":
+        logger.debug("volume=stabilization — skip (BLOCK_STABILIZATION=true)")
+        return None
+
     # --- Time left ---
     price_yes = market_info.get("price_yes", 0.0)
     price_no = market_info.get("price_no", 0.0)

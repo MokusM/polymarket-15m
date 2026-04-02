@@ -122,7 +122,8 @@ class Scanner:
                                 continue
                         signal["obi"] = obi
 
-                        # ── CLOB spread + high-price GAP gate (skip in test mode) ──
+                        # ── CLOB: фетчимо реальну ціну для статистики + фільтри ──
+                        clob_ask = clob_bid = 0.0
                         if state.mode != "test":
                             token_id = (
                                 market_prices.get("token_yes_id")
@@ -152,6 +153,22 @@ class Scanner:
                                         )
                                         continue
 
+                                # Зберігаємо реальну CLOB ціну в сигнал (для статистики)
+                                if clob_ask > 0:
+                                    # CLOB price zone check — Gamma могла пройти фільтр, але CLOB вища
+                                    th = state.get_thresholds()
+                                    if clob_ask > th["CONTRACT_PRICE_MAX"]:
+                                        logger.debug(
+                                            "CLOB ask %.2f > CONTRACT_PRICE_MAX %.2f — skip",
+                                            clob_ask, th["CONTRACT_PRICE_MAX"],
+                                        )
+                                        continue
+                                    signal["clob_ask"] = clob_ask
+                                    signal["clob_bid"] = clob_bid
+                                    signal["clob_spread"] = round(clob_ask - clob_bid, 4)
+                                    # contract_price = реальна CLOB ask (замість Gamma)
+                                    signal["contract_price"] = clob_ask
+
                         key = f"{market_id}_{direction}"
                         now = datetime.now().timestamp()
                         last_time = self.last_signal_time.get(key, 0)
@@ -176,6 +193,67 @@ class Scanner:
                                 or market_prices.get("question")
                                 or ""
                             )
+
+                            # ── Збір додаткових даних (тільки для статистики) ──
+                            try:
+                                from bot.indicators import calculate_rsi
+                                df_3m = await self.exchange.get_btc_candles("3m", 50)
+                                df_5m = await self.exchange.get_btc_candles("5m", 50)
+                                if not df_3m.empty:
+                                    signal["rsi_3m"] = round(float(calculate_rsi(df_3m["close"], 14).iloc[-1]), 2)
+                                    taker_vol = df_3m["taker_buy_base"].iloc[-5:].sum()
+                                    total_vol = df_3m["volume"].iloc[-5:].sum()
+                                    signal["taker_ratio"] = round(float(taker_vol / total_vol), 4) if total_vol > 0 else None
+                                if not df_5m.empty:
+                                    signal["rsi_5m"] = round(float(calculate_rsi(df_5m["close"], 14).iloc[-1]), 2)
+                                signal["funding_rate"] = await self.exchange.get_funding_rate()
+                                # ADX з df_with_indicators (порахований в add_indicators)
+                                if "adx" in df_with_indicators.columns:
+                                    signal["adx"] = round(float(df_with_indicators["adx"].iloc[-1]), 2)
+
+                                # ── Momentum поля (тільки статистика, без фільтрів) ──
+                                try:
+                                    _df = df_with_indicators
+                                    _c = _df["close"].reset_index(drop=True)
+                                    _o = _df["open"].reset_index(drop=True)
+                                    _v = _df["volume"].reset_index(drop=True)
+
+                                    # 1. consecutive_closes
+                                    _direction = signal.get("direction", "UP")
+                                    _streak = 0
+                                    for _i in range(1, min(6, len(_c))):
+                                        _bullish = float(_c.iloc[-_i]) > float(_o.iloc[-_i])
+                                        if (_direction == "UP" and _bullish) or (_direction == "DOWN" and not _bullish):
+                                            _streak += 1
+                                        else:
+                                            break
+                                    signal["consecutive_closes"] = _streak
+
+                                    # 2. speed_2m vs speed_5m
+                                    if len(_c) >= 8:
+                                        _speed_2m = abs(float(_c.iloc[-1]) - float(_c.iloc[-3])) / 2
+                                        _speed_5m = abs(float(_c.iloc[-3]) - float(_c.iloc[-8])) / 5
+                                        signal["speed_2m"] = round(_speed_2m, 2)
+                                        signal["speed_5m"] = round(_speed_5m, 2)
+                                        signal["speed_accel"] = round(_speed_2m - _speed_5m, 2)
+
+                                    # 3. obv_slope
+                                    if len(_c) >= 5:
+                                        _diff = _c.diff()
+                                        _sign = _diff.apply(lambda x: 1 if x > 0 else (-1 if x < 0 else 0))
+                                        _obv = (_v * _sign).cumsum()
+                                        signal["obv_slope"] = round(float(_obv.iloc[-1]) - float(_obv.iloc[-4]), 2)
+
+                                    # 4. vwap_cross
+                                    if "vwap" in _df.columns and len(_c) >= 2:
+                                        _vwap = _df["vwap"].reset_index(drop=True)
+                                        _prev_above = bool(float(_c.iloc[-2]) > float(_vwap.iloc[-2]))
+                                        _curr_above = bool(float(_c.iloc[-1]) > float(_vwap.iloc[-1]))
+                                        signal["vwap_cross"] = _curr_above != _prev_above
+                                except Exception as _me:
+                                    logger.warning("Momentum fields error: %s", _me)
+                            except Exception as e:
+                                logger.debug("Extra data collection error (non-critical): %s", e)
 
                             sig_id = save_signal(signal)
                             if sig_id:

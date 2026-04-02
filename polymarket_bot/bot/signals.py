@@ -113,7 +113,7 @@ def _binance_open_at_polymarket_window_start(
 #  Main signal check
 # ---------------------------------------------------------------------------
 
-def check_signals(market_info: dict, df: pd.DataFrame) -> dict | None:
+def check_signals(market_info: dict, df: pd.DataFrame, _shadow: dict | None = None) -> dict | None:
     if df.empty or len(df) < 30:
         return None
 
@@ -193,11 +193,33 @@ def check_signals(market_info: dict, df: pd.DataFrame) -> dict | None:
         direction = "DOWN"
         confluence = down_count
     else:
+        # Логуємо відхилені (confluence=2) для аналізу
+        if _shadow is not None:
+            best_dir = "UP" if up_count >= down_count else "DOWN"
+            best_conf = max(up_count, down_count)
+            if best_conf >= 2:
+                _shadow.update({
+                    "direction": best_dir,
+                    "confluence": best_conf,
+                    "reject_reason": "confluence_low",
+                    "time_left": round(time_left_min, 1),
+                    "atr": round(float(atr), 2) if not pd.isna(atr) else 0,
+                    "btc_price": price,
+                    "contract_price": price_yes if best_dir == "UP" else price_no,
+                })
         return None
 
     # --- Contract price filter ---
     contract_price = price_yes if direction == "UP" else price_no
     if not (th["CONTRACT_PRICE_MIN"] <= contract_price <= th["CONTRACT_PRICE_MAX"]):
+        if _shadow is not None:
+            reason = "contract_price_low" if contract_price < th["CONTRACT_PRICE_MIN"] else "contract_price_high"
+            _shadow.update({
+                "direction": direction, "confluence": confluence,
+                "reject_reason": reason, "time_left": round(time_left_min, 1),
+                "atr": round(float(atr), 2) if not pd.isna(atr) else 0,
+                "btc_price": price, "contract_price": contract_price,
+            })
         return None
 
     # --- Start price (для відображення руху BTC у вікні) ---
@@ -228,6 +250,13 @@ def check_signals(market_info: dict, df: pd.DataFrame) -> dict | None:
                 "GAP %.1f недостатній для %s (threshold=%.0f) — skip",
                 gap_val, direction, GAP_MIN_USD,
             )
+            if _shadow is not None:
+                _shadow.update({
+                    "direction": direction, "confluence": confluence,
+                    "reject_reason": "gap_too_small", "time_left": round(time_left_min, 1),
+                    "gap": gap_val, "atr": round(float(atr), 2) if not pd.isna(atr) else 0,
+                    "btc_price": price, "contract_price": contract_price,
+                })
             return None
 
     chg_1h = last.get("chg_1h", 0)
@@ -245,6 +274,13 @@ def check_signals(market_info: dict, df: pd.DataFrame) -> dict | None:
                 "Time %.1f min < %.0f min, GAP %.1f < %.0f — skip",
                 time_left_min, TIME_STRICT_MAX_MIN, abs(gap_val), GAP_STRICT_USD,
             )
+            if _shadow is not None:
+                _shadow.update({
+                    "direction": direction, "confluence": confluence,
+                    "reject_reason": "strict_gap", "time_left": round(time_left_min, 1),
+                    "gap": gap_val, "atr": round(float(atr), 2) if not pd.isna(atr) else 0,
+                    "btc_price": price, "contract_price": contract_price,
+                })
             return None
 
     return {

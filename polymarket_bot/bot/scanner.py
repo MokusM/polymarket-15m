@@ -92,8 +92,29 @@ class Scanner:
 
                 # 4. Перевіряємо ринки
                 for market_prices in markets_with_prices:
-                    signal = check_signals(market_prices, df_with_indicators)
+                    _shadow: dict = {}
+                    signal = check_signals(market_prices, df_with_indicators, _shadow)
 
+                    # Логуємо відхилені сигнали (якщо є confluence ≥ 2)
+                    if signal is None and _shadow.get("confluence", 0) >= 2:
+                        adx_val = None
+                        if "adx" in df_with_indicators.columns:
+                            try:
+                                adx_val = round(float(df_with_indicators["adx"].iloc[-1]), 2)
+                            except Exception:
+                                pass
+                        save_shadow_signal(
+                            market_id=str(market_prices["market_id"]),
+                            direction=_shadow.get("direction"),
+                            contract_price=_shadow.get("contract_price"),
+                            confluence=_shadow.get("confluence", 0),
+                            reject_reason=_shadow.get("reject_reason", "unknown"),
+                            time_left=_shadow.get("time_left"),
+                            gap=_shadow.get("gap"),
+                            atr=_shadow.get("atr"),
+                            adx=adx_val,
+                            btc_price=_shadow.get("btc_price"),
+                        )
 
                     if signal:
                         direction = signal["direction"]
@@ -142,6 +163,16 @@ class Scanner:
                                             "CLOB spread %.3f > %.3f — skip",
                                             spread, CLOB_SPREAD_MAX,
                                         )
+                                        save_shadow_signal(
+                                            market_id=market_id, direction=direction,
+                                            contract_price=signal.get("contract_price"),
+                                            clob_ask=clob_ask, confluence=signal.get("confluence", 0),
+                                            reject_reason="clob_spread_too_wide",
+                                            time_left=signal.get("time_left"), gap=signal.get("gap"),
+                                            atr=signal.get("atr"),
+                                            adx=signal.get("adx"),
+                                            btc_price=signal.get("current_price"),
+                                        )
                                         continue
 
                                 # Priority 1: high-price GAP gate
@@ -151,6 +182,16 @@ class Scanner:
                                         logger.debug(
                                             "CLOB ask %.2f > %.2f (FLB zone) but GAP %.1f < %.0f — skip",
                                             clob_ask, CONTRACT_PRICE_HIGH_MIN, gap, GAP_STRICT_USD,
+                                        )
+                                        save_shadow_signal(
+                                            market_id=market_id, direction=direction,
+                                            contract_price=signal.get("contract_price"),
+                                            clob_ask=clob_ask, confluence=signal.get("confluence", 0),
+                                            reject_reason="clob_ask_too_high",
+                                            time_left=signal.get("time_left"), gap=gap,
+                                            atr=signal.get("atr"),
+                                            adx=signal.get("adx"),
+                                            btc_price=signal.get("current_price"),
                                         )
                                         continue
 
@@ -162,6 +203,16 @@ class Scanner:
                                         logger.debug(
                                             "CLOB ask %.2f > CONTRACT_PRICE_MAX %.2f — skip",
                                             clob_ask, th["CONTRACT_PRICE_MAX"],
+                                        )
+                                        save_shadow_signal(
+                                            market_id=market_id, direction=direction,
+                                            contract_price=signal.get("contract_price"),
+                                            clob_ask=clob_ask, confluence=signal.get("confluence", 0),
+                                            reject_reason="clob_ask_too_high",
+                                            time_left=signal.get("time_left"), gap=signal.get("gap"),
+                                            atr=signal.get("atr"),
+                                            adx=signal.get("adx"),
+                                            btc_price=signal.get("current_price"),
                                         )
                                         continue
                                     signal["clob_ask"] = clob_ask

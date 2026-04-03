@@ -328,13 +328,11 @@ def check_alt_signals(
     price = float(last.get("close", 0))
     th = state.get_thresholds()
 
-    # --- ATR zone filter (в % від ціни) ---
+    # --- ATR filter (в % від ціни, без dead zone check для ALT) ---
     atr = last.get("atr", 0)
     atr_zone = last.get("atr_zone", "dead")
     atr_min = price * ALT_ATR_MIN_PCT / 100.0
     if not pd.isna(atr) and atr < atr_min and state.mode != "test":
-        return None
-    if atr_zone == "dead" and not th.get("ALLOW_DEAD_ZONE", False):
         return None
 
     # --- Time left ---

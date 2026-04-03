@@ -64,6 +64,10 @@ def _migrate_positions_columns(cursor: sqlite3.Cursor) -> None:
         cursor.execute(
             "ALTER TABLE positions ADD COLUMN realized_pnl REAL DEFAULT 0",
         )
+    if "price_low" not in existing:
+        cursor.execute("ALTER TABLE positions ADD COLUMN price_low REAL")
+    if "price_high" not in existing:
+        cursor.execute("ALTER TABLE positions ADD COLUMN price_high REAL")
 
 
 def init_positions_table(db_path: str | None = None):
@@ -222,6 +226,25 @@ def update_sl_price(pos_id: int, new_sl: float):
         conn.close()
 
 
+def update_price_extremes(pos_id: int, price: float):
+    try:
+        conn = _get_conn()
+        conn.execute(
+            """
+            UPDATE positions SET
+                price_low  = MIN(COALESCE(price_low,  ?), ?),
+                price_high = MAX(COALESCE(price_high, ?), ?)
+            WHERE id = ?
+            """,
+            (price, price, price, price, pos_id),
+        )
+        conn.commit()
+    except Exception as e:
+        logger.error("Помилка update_price_extremes: %s", e)
+    finally:
+        conn.close()
+
+
 def update_partial_exit(
     pos_id: int,
     shares_sold: float,
@@ -280,6 +303,8 @@ async def monitor_positions_loop(execution_client):
                 )
                 if current_price <= 0:
                     continue
+
+                update_price_extremes(pos_id=pos["id"], price=current_price)
 
                 entry = pos["entry_price"]
                 remaining = pos["remaining_shares"]

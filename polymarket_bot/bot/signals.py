@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 import logging
 from typing import Optional
 
-from bot.config import IGNORE_IF_TIME_LEFT_LT_MIN, IGNORE_IF_CONTRACT_PRICE_GT, ATR_MIN_USD, GAP_MIN_USD, GAP_STRICT_USD, TIME_STRICT_MAX_MIN
+from bot.config import IGNORE_IF_TIME_LEFT_LT_MIN, IGNORE_IF_CONTRACT_PRICE_GT, ATR_MIN_USD, GAP_MIN_USD, GAP_STRICT_USD, TIME_STRICT_MAX_MIN, ALT_GAP_MIN_PCT, ALT_GAP_STRICT_PCT, ALT_ATR_MIN_PCT
 from bot.state import state
 
 logger = logging.getLogger(__name__)
@@ -303,6 +303,155 @@ def check_signals(market_info: dict, df: pd.DataFrame, _shadow: dict | None = No
         "atr_zone": atr_zone,
         "chg_1h": round(chg_1h_val, 3),
         "obi": 1.0,  # placeholder; scanner overwrites with real value
+    }
+
+
+# ---------------------------------------------------------------------------
+#  ALT assets (ETH / SOL): те ж саме але GAP у % від ціни + BTC кореляція
+# ---------------------------------------------------------------------------
+
+def check_alt_signals(
+    market_info: dict,
+    df: pd.DataFrame,
+    asset: str,
+    btc_df: pd.DataFrame | None = None,
+) -> dict | None:
+    """
+    Перевірка сигналу для ETH/SOL.
+    GAP фільтр — у % від ціни (ALT_GAP_MIN_PCT).
+    Повертає сигнал з полями btc_price, btc_gap, btc_gap_pct, btc_aligned.
+    """
+    if df.empty or len(df) < 30:
+        return None
+
+    last = df.iloc[-1]
+    price = float(last.get("close", 0))
+    th = state.get_thresholds()
+
+    # --- ATR zone filter (в % від ціни) ---
+    atr = last.get("atr", 0)
+    atr_zone = last.get("atr_zone", "dead")
+    atr_min = price * ALT_ATR_MIN_PCT / 100.0
+    if not pd.isna(atr) and atr < atr_min and state.mode != "test":
+        return None
+    if atr_zone == "dead" and not th.get("ALLOW_DEAD_ZONE", False):
+        return None
+
+    # --- Time left ---
+    price_yes = market_info.get("price_yes", 0.0)
+    price_no = market_info.get("price_no", 0.0)
+    end_date_str = market_info.get("end_date_iso")
+    if not end_date_str and state.mode != "test":
+        return None
+
+    try:
+        dt = datetime.fromisoformat(end_date_str.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        time_left_min = (dt - datetime.now(timezone.utc)).total_seconds() / 60.0
+    except Exception as e:
+        logger.error("ALT time calc error: %s", e)
+        time_left_min = 0
+
+    if state.mode != "test":
+        if time_left_min < IGNORE_IF_TIME_LEFT_LT_MIN:
+            return None
+        if price_yes > IGNORE_IF_CONTRACT_PRICE_GT or price_no > IGNORE_IF_CONTRACT_PRICE_GT:
+            return None
+
+    if not (th["TIME_LEFT_MIN_MINUTES"] <= time_left_min <= th["TIME_LEFT_MAX_MINUTES"]):
+        return None
+
+    # --- 5 indicator votes (ті самі що для BTC) ---
+    rsi_vote, _ = _vote_rsi(float(last.get("rsi_1m", 50)))
+    macd_vote, _ = _vote_macd(
+        float(last.get("macd_line", 0)),
+        float(last.get("macd_signal", 0)),
+        float(last.get("macd_hist", 0)),
+    )
+    vwap_vote, _ = _vote_vwap(price, float(last.get("vwap", 0)))
+    ema_vote, _ = _vote_ema(float(last.get("ema_9", 0)), float(last.get("ema_21", 0)))
+    pivots_vote, _ = _vote_pivots(
+        price,
+        float(last.get("pivot_high", 0)),
+        float(last.get("pivot_low", 0)),
+    )
+
+    up_count = sum(1 for v in (rsi_vote, macd_vote, vwap_vote, ema_vote, pivots_vote) if v == "UP")
+    down_count = sum(1 for v in (rsi_vote, macd_vote, vwap_vote, ema_vote, pivots_vote) if v == "DOWN")
+
+    min_conf = th.get("MIN_CONFLUENCE", 3)
+    if up_count >= min_conf:
+        direction = "UP"
+        confluence = up_count
+    elif down_count >= min_conf:
+        direction = "DOWN"
+        confluence = down_count
+    else:
+        return None
+
+    # --- Contract price filter ---
+    contract_price = price_yes if direction == "UP" else price_no
+    if not (th["CONTRACT_PRICE_MIN"] <= contract_price <= th["CONTRACT_PRICE_MAX"]):
+        return None
+
+    # --- GAP у % від ціни ---
+    event_start_iso = market_info.get("event_start_time")
+    start_price = _binance_open_at_polymarket_window_start(df, event_start_iso)
+    if start_price is None:
+        start_price = float(df.iloc[-15]["open"]) if len(df) >= 15 else price
+
+    delta = price - start_price
+    gap_pct = round((delta / start_price) * 100, 4) if start_price > 0 else 0.0
+    gap_val = round(delta, 4)
+
+    if state.mode != "test":
+        gap_ok = (gap_pct >= ALT_GAP_MIN_PCT) if direction == "UP" else (gap_pct <= -ALT_GAP_MIN_PCT)
+        if not gap_ok:
+            return None
+
+    if state.mode != "test" and time_left_min < TIME_STRICT_MAX_MIN:
+        if abs(gap_pct) < ALT_GAP_STRICT_PCT:
+            return None
+
+    # --- BTC кореляція ---
+    btc_price = btc_gap = btc_gap_pct = btc_aligned = None
+    if btc_df is not None and not btc_df.empty:
+        btc_price = float(btc_df.iloc[-1]["close"])
+        btc_start = float(btc_df.iloc[-15]["close"]) if len(btc_df) >= 15 else btc_price
+        btc_gap = round(btc_price - btc_start, 2)
+        btc_gap_pct = round((btc_gap / btc_start) * 100, 4) if btc_start > 0 else 0.0
+        btc_direction = "UP" if btc_gap > 0 else "DOWN"
+        btc_aligned = 1 if btc_direction == direction else 0
+
+    atr_val = round(float(atr), 4) if not pd.isna(atr) else 0
+    ema_9 = float(last.get("ema_9", 0))
+    ema_21 = float(last.get("ema_21", 0))
+    ema_pos = "above" if ema_vote == "UP" else "below" if ema_vote == "DOWN" else "at"
+    ema_9_slope = float(last.get("ema_9_slope", 0))
+
+    return {
+        "asset": asset.upper(),
+        "direction": direction,
+        "confluence": confluence,
+        "start_price": start_price,
+        "current_price": price,
+        "delta": round(delta, 4),
+        "delta_percent": round((delta / start_price) * 100, 3) if start_price > 0 else 0,
+        "gap": gap_val,
+        "gap_pct": gap_pct,
+        "contract_price": contract_price,
+        "rsi_1m": float(last.get("rsi_1m", 50)),
+        "ema_position": f"{ema_pos} EMA9 ({ema_9_slope:+.2f})",
+        "volume_state": last.get("volume_state", "normal"),
+        "time_left": round(time_left_min, 1),
+        "atr": atr_val,
+        "atr_zone": atr_zone,
+        "adx": round(float(last.get("adx", 0)), 2) if "adx" in last.index else None,
+        "btc_price": btc_price,
+        "btc_gap": btc_gap,
+        "btc_gap_pct": btc_gap_pct,
+        "btc_aligned": btc_aligned,
     }
 
 

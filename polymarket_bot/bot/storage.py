@@ -78,6 +78,7 @@ def init_db(db_path: str | None = None):
         conn.close()
     init_shadow_signals_table(path)
     init_signal_snapshots_table(path)
+    init_alt_signals_table(path)
 
 
 def save_signal(signal: dict) -> int | None:
@@ -365,6 +366,107 @@ def save_signal_snapshot(
         conn.commit()
     except Exception as e:
         logger.error("Помилка save_signal_snapshot: %s", e)
+    finally:
+        conn.close()
+
+
+def init_alt_signals_table(db_path: str | None = None):
+    """Таблиця для сигналів ETH/SOL — ті ж поля що і signals + asset + BTC кореляція."""
+    path = db_path if db_path is not None else get_db_path()
+    try:
+        conn = sqlite3.connect(path)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS alt_signals (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                asset TEXT NOT NULL,
+                market_id TEXT,
+                start_price REAL,
+                current_price REAL,
+                delta REAL,
+                delta_percent REAL,
+                direction TEXT,
+                contract_price REAL,
+                clob_ask REAL,
+                confluence INTEGER,
+                rsi_1m REAL,
+                ema_position TEXT,
+                volume_state TEXT,
+                gap REAL,
+                gap_pct REAL,
+                atr REAL,
+                atr_zone TEXT,
+                adx REAL,
+                time_left REAL,
+                bot_mode TEXT,
+                btc_price REAL,
+                btc_gap REAL,
+                btc_gap_pct REAL,
+                btc_aligned INTEGER,
+                consecutive_closes INTEGER,
+                speed_accel REAL,
+                vwap_cross INTEGER,
+                payload_json TEXT
+            )
+        """)
+        conn.commit()
+    except Exception as e:
+        logger.error("Помилка init_alt_signals_table: %s", e)
+    finally:
+        conn.close()
+
+
+def save_alt_signal(signal: dict, db_path: str | None = None) -> int | None:
+    """Зберігає ALT (ETH/SOL) сигнал для статистики."""
+    from bot.state import state
+    path = db_path if db_path is not None else get_db_path()
+    try:
+        conn = sqlite3.connect(path)
+        payload = json.dumps(signal, ensure_ascii=False, default=str)
+        cursor = conn.execute("""
+            INSERT INTO alt_signals (
+                asset, market_id, start_price, current_price, delta, delta_percent,
+                direction, contract_price, clob_ask, confluence,
+                rsi_1m, ema_position, volume_state,
+                gap, gap_pct, atr, atr_zone, adx, time_left, bot_mode,
+                btc_price, btc_gap, btc_gap_pct, btc_aligned,
+                consecutive_closes, speed_accel, vwap_cross, payload_json
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        """, (
+            signal.get("asset"),
+            signal.get("market_id"),
+            signal.get("start_price"),
+            signal.get("current_price"),
+            signal.get("delta"),
+            signal.get("delta_percent"),
+            signal.get("direction"),
+            signal.get("contract_price"),
+            signal.get("clob_ask"),
+            signal.get("confluence"),
+            signal.get("rsi_1m"),
+            signal.get("ema_position"),
+            signal.get("volume_state"),
+            signal.get("gap"),
+            signal.get("gap_pct"),
+            signal.get("atr"),
+            signal.get("atr_zone"),
+            signal.get("adx"),
+            signal.get("time_left"),
+            state.mode,
+            signal.get("btc_price"),
+            signal.get("btc_gap"),
+            signal.get("btc_gap_pct"),
+            signal.get("btc_aligned"),
+            signal.get("consecutive_closes"),
+            signal.get("speed_accel"),
+            signal.get("vwap_cross"),
+            payload,
+        ))
+        conn.commit()
+        return cursor.lastrowid
+    except Exception as e:
+        logger.error("Помилка save_alt_signal: %s", e)
+        return None
     finally:
         conn.close()
 

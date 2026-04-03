@@ -107,7 +107,7 @@ BREAKEVEN_AFTER_ROI_PCT = float(os.getenv("BREAKEVEN_AFTER_ROI_PCT", "50"))
 CIRCUIT_BREAKER_LOSSES = int(os.getenv("CIRCUIT_BREAKER_LOSSES", "3"))
 
 # GAP filter: |current_price - start_price| must exceed this threshold (USD)
-GAP_MIN_USD = float(os.getenv("GAP_MIN_USD", "50"))
+GAP_MIN_USD = float(os.getenv("GAP_MIN_USD", "100"))
 # Strict GAP required when price > CONTRACT_PRICE_HIGH_MIN or time < TIME_STRICT_MAX_MIN
 GAP_STRICT_USD = float(os.getenv("GAP_STRICT_USD", "100"))
 # CLOB ask price above this → require GAP_STRICT_USD (FLB zone)
@@ -122,6 +122,16 @@ OBI_LEVELS = int(os.getenv("OBI_LEVELS", "5"))
 
 # CLOB bid-ask spread gate: skip signal if spread > this value
 CLOB_SPREAD_MAX = float(os.getenv("CLOB_SPREAD_MAX", "0.03"))
+
+# ── ALT assets (ETH, SOL): збір даних паралельно з BTC ──
+# GAP фільтр у % від ціни активу (замість абсолютних $)
+# BTC GAP_MIN_USD=100 при BTC~83k ≈ 0.12% → ALT_GAP_MIN_PCT=0.15%
+ALT_GAP_MIN_PCT = float(os.getenv("ALT_GAP_MIN_PCT", "0.15"))
+ALT_GAP_STRICT_PCT = float(os.getenv("ALT_GAP_STRICT_PCT", "0.15"))
+# ATR мінімум у % від ціни (BTC ATR_MIN_USD=30 при ~83k ≈ 0.036%)
+ALT_ATR_MIN_PCT = float(os.getenv("ALT_ATR_MIN_PCT", "0.05"))
+# Включити збір ALT сигналів
+ALT_SCAN_ENABLED = os.getenv("ALT_SCAN_ENABLED", "true").lower() in ("1", "true", "yes")
 
 # Session change notifications
 NOTIFY_SESSION_CHANGE = True

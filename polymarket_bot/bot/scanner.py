@@ -16,13 +16,14 @@ from bot.config import (
     CLOB_SPREAD_MAX,
     CONTRACT_PRICE_HIGH_MIN,
     GAP_STRICT_USD,
+    ALT_SCAN_ENABLED,
 )
 from bot.exchange_client import ExchangeClient
 from bot.polymarket_client import PolymarketClient
 from bot.indicators import add_indicators
-from bot.signals import check_signals
+from bot.signals import check_signals, check_alt_signals
 from bot.state import state
-from bot.storage import save_signal, save_shadow_signal, save_signal_snapshot
+from bot.storage import save_signal, save_shadow_signal, save_signal_snapshot, save_alt_signal
 from bot.telegram_bot import send_alert, send_info_message
 from bot.alert_text import get_current_session_key, format_session_alert_html
 
@@ -324,10 +325,63 @@ class Scanner:
                                         self._schedule_price_snapshots(sig_id, token_id_snap)
                                     )
 
+                # ── ALT assets (ETH, SOL): збір даних паралельно з BTC ──
+                if ALT_SCAN_ENABLED and state.mode != "test":
+                    await self._scan_alt_assets(df)
+
             except Exception as e:
                 logger.error(f"Непередбачена помилка в циклі сканування: {e}", exc_info=True)
 
             await asyncio.sleep(SCAN_INTERVAL_SECONDS)
+
+    async def _scan_alt_assets(self, btc_df: pd.DataFrame) -> None:
+        """Сканує ETH і SOL ринки і зберігає сигнали в alt_signals для статистики."""
+        for asset in ("ETH", "SOL"):
+            try:
+                symbol = f"{asset}USDT"
+                markets = await self.poly.get_active_alt_markets(asset)
+                if not markets:
+                    continue
+
+                df_raw = await self.exchange.get_1m_candles(symbol=symbol, limit=100)
+                if df_raw.empty:
+                    logger.debug("ALT %s: порожній датафрейм", asset)
+                    continue
+
+                df_ind = add_indicators(df_raw)
+
+                for market in markets:
+                    try:
+                        sig = check_alt_signals(market, df_ind, asset, btc_df)
+                        if sig is None:
+                            continue
+
+                        sig["market_id"] = str(market.get("market_id", ""))
+
+                        # CLOB ask для реальної ціни
+                        direction = sig["direction"]
+                        token_id = (
+                            market.get("token_yes_id") if direction == "UP"
+                            else market.get("token_no_id")
+                        )
+                        if token_id:
+                            clob_ask, _ = await self._fetch_clob_best_prices(token_id)
+                            if clob_ask > 0:
+                                sig["clob_ask"] = clob_ask
+
+                        sig_id = save_alt_signal(sig)
+                        logger.info(
+                            "ALT %s #%s: %s | gap=%.2f%% | btc_aligned=%s | clob=%.3f",
+                            asset, sig_id, direction,
+                            sig.get("gap_pct", 0),
+                            sig.get("btc_aligned"),
+                            sig.get("clob_ask", 0),
+                        )
+                    except Exception as e:
+                        logger.debug("ALT %s market error: %s", asset, e)
+
+            except Exception as e:
+                logger.warning("ALT %s scan error: %s", asset, e)
 
     async def _check_session_change(self, df: pd.DataFrame) -> None:
         current = get_current_session_key()

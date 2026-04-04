@@ -126,8 +126,8 @@ CLOB_SPREAD_MAX = float(os.getenv("CLOB_SPREAD_MAX", "0.03"))
 # ── ALT assets (ETH, SOL): збір даних паралельно з BTC ──
 # GAP фільтр у % від ціни активу (замість абсолютних $)
 # BTC GAP_MIN_USD=100 при BTC~83k ≈ 0.12% → ALT_GAP_MIN_PCT=0.15%
-ALT_GAP_MIN_PCT = float(os.getenv("ALT_GAP_MIN_PCT", "0.15"))
-ALT_GAP_STRICT_PCT = float(os.getenv("ALT_GAP_STRICT_PCT", "0.15"))
+ALT_GAP_MIN_PCT = float(os.getenv("ALT_GAP_MIN_PCT", "0.06"))
+ALT_GAP_STRICT_PCT = float(os.getenv("ALT_GAP_STRICT_PCT", "0.06"))
 # ATR мінімум у % від ціни (BTC ATR_MIN_USD=30 при ~83k ≈ 0.036%)
 ALT_ATR_MIN_PCT = float(os.getenv("ALT_ATR_MIN_PCT", "0.05"))
 # Включити збір ALT сигналів

@@ -381,6 +381,7 @@ def init_alt_signals_table(db_path: str | None = None):
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
                 asset TEXT NOT NULL,
                 market_id TEXT,
+                end_date_iso TEXT,
                 start_price REAL,
                 current_price REAL,
                 delta REAL,
@@ -406,9 +407,22 @@ def init_alt_signals_table(db_path: str | None = None):
                 consecutive_closes INTEGER,
                 speed_accel REAL,
                 vwap_cross INTEGER,
+                result TEXT,
+                resolved_price REAL,
                 payload_json TEXT
             )
         """)
+        # Міграція існуючих таблиць
+        cursor = conn.cursor()
+        cursor.execute("PRAGMA table_info(alt_signals)")
+        existing = {row[1] for row in cursor.fetchall()}
+        for col, decl in [
+            ("end_date_iso", "TEXT"),
+            ("result", "TEXT"),
+            ("resolved_price", "REAL"),
+        ]:
+            if col not in existing:
+                conn.execute(f"ALTER TABLE alt_signals ADD COLUMN {col} {decl}")
         conn.commit()
     except Exception as e:
         logger.error("Помилка init_alt_signals_table: %s", e)
@@ -425,16 +439,17 @@ def save_alt_signal(signal: dict, db_path: str | None = None) -> int | None:
         payload = json.dumps(signal, ensure_ascii=False, default=str)
         cursor = conn.execute("""
             INSERT INTO alt_signals (
-                asset, market_id, start_price, current_price, delta, delta_percent,
+                asset, market_id, end_date_iso, start_price, current_price, delta, delta_percent,
                 direction, contract_price, clob_ask, confluence,
                 rsi_1m, ema_position, volume_state,
                 gap, gap_pct, atr, atr_zone, adx, time_left, bot_mode,
                 btc_price, btc_gap, btc_gap_pct, btc_aligned,
                 consecutive_closes, speed_accel, vwap_cross, payload_json
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         """, (
             signal.get("asset"),
             signal.get("market_id"),
+            signal.get("end_date_iso"),
             signal.get("start_price"),
             signal.get("current_price"),
             signal.get("delta"),
@@ -469,6 +484,51 @@ def save_alt_signal(signal: dict, db_path: str | None = None) -> int | None:
         return None
     finally:
         conn.close()
+
+
+def resolve_alt_signals(current_prices: dict[str, float], db_path: str | None = None) -> int:
+    """
+    Визначає result для alt_signals де ринок вже закрився (end_date_iso < now).
+    current_prices: {"ETH": 2050.0, "SOL": 80.5} — поточна ціна активу.
+    WIN = ціна пішла в напрямку сигналу, LOSS = проти.
+    Повертає кількість оновлених записів.
+    """
+    from datetime import datetime, timezone
+    path = db_path if db_path is not None else get_db_path()
+    updated = 0
+    try:
+        conn = sqlite3.connect(path)
+        conn.row_factory = sqlite3.Row
+        now_iso = datetime.now(timezone.utc).isoformat()
+
+        # Всі нерозв'язані сигнали де ринок вже закрився
+        rows = conn.execute("""
+            SELECT id, asset, direction, start_price, end_date_iso
+            FROM alt_signals
+            WHERE result IS NULL AND end_date_iso IS NOT NULL AND end_date_iso < ?
+        """, (now_iso,)).fetchall()
+
+        for row in rows:
+            asset = row["asset"]
+            resolved_price = current_prices.get(asset)
+            if resolved_price is None:
+                continue
+
+            start = row["start_price"]
+            direction = row["direction"]
+            if start and start > 0:
+                actual = "UP" if resolved_price > start else "DOWN"
+                result = "WIN" if actual == direction else "LOSS"
+                conn.execute("""
+                    UPDATE alt_signals SET result=?, resolved_price=? WHERE id=?
+                """, (result, resolved_price, row["id"]))
+                updated += 1
+
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.error("Помилка resolve_alt_signals: %s", e)
+    return updated
 
 
 if __name__ == "__main__":

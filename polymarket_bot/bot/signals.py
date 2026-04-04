@@ -432,6 +432,7 @@ def check_alt_signals(
         "asset": asset.upper(),
         "direction": direction,
         "confluence": confluence,
+        "end_date_iso": market_info.get("end_date_iso"),
         "start_price": start_price,
         "current_price": price,
         "delta": round(delta, 4),

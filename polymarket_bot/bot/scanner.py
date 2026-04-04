@@ -23,7 +23,7 @@ from bot.polymarket_client import PolymarketClient
 from bot.indicators import add_indicators
 from bot.signals import check_signals, check_alt_signals
 from bot.state import state
-from bot.storage import save_signal, save_shadow_signal, save_signal_snapshot, save_alt_signal
+from bot.storage import save_signal, save_shadow_signal, save_signal_snapshot, save_alt_signal, resolve_alt_signals
 from bot.telegram_bot import send_alert, send_info_message
 from bot.alert_text import get_current_session_key, format_session_alert_html
 
@@ -336,6 +336,20 @@ class Scanner:
 
     async def _scan_alt_assets(self, btc_df: pd.DataFrame) -> None:
         """Сканує ETH і SOL ринки і зберігає сигнали в alt_signals для статистики."""
+        # Resolve завершені ринки
+        try:
+            current_prices = {}
+            for asset in ("ETH", "SOL"):
+                df_tmp = await self.exchange.get_1m_candles(f"{asset}USDT", limit=2)
+                if not df_tmp.empty:
+                    current_prices[asset] = float(df_tmp.iloc[-1]["close"])
+            if current_prices:
+                n = resolve_alt_signals(current_prices)
+                if n > 0:
+                    logger.info("ALT resolved %d signals", n)
+        except Exception as e:
+            logger.debug("resolve_alt_signals error: %s", e)
+
         for asset in ("ETH", "SOL"):
             try:
                 symbol = f"{asset}USDT"

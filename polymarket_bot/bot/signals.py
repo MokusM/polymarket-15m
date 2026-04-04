@@ -307,6 +307,53 @@ def check_signals(market_info: dict, df: pd.DataFrame, _shadow: dict | None = No
 
 
 # ---------------------------------------------------------------------------
+#  Momentum helper (shared BTC + ALT)
+# ---------------------------------------------------------------------------
+
+def _calc_momentum(df: pd.DataFrame, direction: str) -> dict:
+    """Рахує momentum поля: streak, speed_accel, vwap_cross."""
+    try:
+        _c = df["close"].reset_index(drop=True)
+        _o = df["open"].reset_index(drop=True)
+        _v = df["volume"].reset_index(drop=True)
+
+        # consecutive closes в напрямку сигналу
+        streak = 0
+        for i in range(1, min(6, len(_c))):
+            bullish = float(_c.iloc[-i]) > float(_o.iloc[-i])
+            if (direction == "UP" and bullish) or (direction == "DOWN" and not bullish):
+                streak += 1
+            else:
+                break
+
+        # speed: USD/хв за останні 2 і 5 свічок
+        speed_2m = round((float(_c.iloc[-1]) - float(_c.iloc[-3])) / 2, 2) if len(_c) >= 3 else 0
+        speed_5m = round((float(_c.iloc[-1]) - float(_c.iloc[-6])) / 5, 2) if len(_c) >= 6 else 0
+        speed_accel = round(speed_2m - speed_5m, 2)
+
+        # OBV slope
+        obv = (_c.diff() > 0).astype(float) * _v - (_c.diff() < 0).astype(float) * _v
+        obv_slope = round(float(obv.iloc[-3:].mean()), 2) if len(obv) >= 3 else 0
+
+        # VWAP cross
+        _vwap = df["vwap"].reset_index(drop=True) if "vwap" in df.columns else None
+        vwap_cross = False
+        if _vwap is not None and len(_vwap) >= 2:
+            prev_above = bool(float(_c.iloc[-2]) > float(_vwap.iloc[-2]))
+            curr_above = bool(float(_c.iloc[-1]) > float(_vwap.iloc[-1]))
+            vwap_cross = prev_above != curr_above
+
+        return {
+            "consecutive_closes": streak,
+            "speed_accel": speed_accel,
+            "obv_slope": obv_slope,
+            "vwap_cross": vwap_cross,
+        }
+    except Exception:
+        return {}
+
+
+# ---------------------------------------------------------------------------
 #  ALT assets (ETH / SOL): те ж саме але GAP у % від ціни + BTC кореляція
 # ---------------------------------------------------------------------------
 
@@ -451,6 +498,7 @@ def check_alt_signals(
         "btc_gap": btc_gap,
         "btc_gap_pct": btc_gap_pct,
         "btc_aligned": btc_aligned,
+        **_calc_momentum(df, direction),
     }
 
 

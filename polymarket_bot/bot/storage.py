@@ -275,6 +275,7 @@ def init_shadow_signals_table(db_path: str | None = None):
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
                 market_id TEXT,
+                end_date_iso TEXT,
                 direction TEXT,
                 contract_price REAL,
                 clob_ask REAL,
@@ -285,9 +286,17 @@ def init_shadow_signals_table(db_path: str | None = None):
                 atr REAL,
                 adx REAL,
                 btc_price REAL,
-                bot_mode TEXT
+                bot_mode TEXT,
+                resolved_direction TEXT
             )
         """)
+        # Міграція існуючих таблиць
+        cursor = conn.cursor()
+        cursor.execute("PRAGMA table_info(shadow_signals)")
+        existing = {row[1] for row in cursor.fetchall()}
+        for col, decl in [("end_date_iso", "TEXT"), ("resolved_direction", "TEXT")]:
+            if col not in existing:
+                conn.execute(f"ALTER TABLE shadow_signals ADD COLUMN {col} {decl}")
         conn.commit()
     except Exception as e:
         logger.error("Помилка init_shadow_signals_table: %s", e)
@@ -307,20 +316,22 @@ def save_shadow_signal(
     adx: float | None = None,
     btc_price: float | None = None,
     clob_ask: float | None = None,
+    end_date_iso: str | None = None,
     db_path: str | None = None,
-):
+) -> int | None:
     from bot.state import state
     path = db_path if db_path is not None else get_db_path()
     try:
         conn = sqlite3.connect(path)
-        conn.execute("""
+        cursor = conn.execute("""
             INSERT INTO shadow_signals
-            (market_id, direction, contract_price, clob_ask, confluence,
+            (market_id, end_date_iso, direction, contract_price, clob_ask, confluence,
              reject_reason, time_left, gap, atr, adx, btc_price, bot_mode)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (market_id, direction, contract_price, clob_ask, confluence,
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (market_id, end_date_iso, direction, contract_price, clob_ask, confluence,
               reject_reason, time_left, gap, atr, adx, btc_price, state.mode))
         conn.commit()
+        return cursor.lastrowid
     except Exception as e:
         logger.error("Помилка save_shadow_signal: %s", e)
     finally:
@@ -368,6 +379,49 @@ def save_signal_snapshot(
         logger.error("Помилка save_signal_snapshot: %s", e)
     finally:
         conn.close()
+
+
+def resolve_shadow_signals(btc_df, db_path: str | None = None) -> int:
+    """
+    Для shadow_signals де ринок вже закрився — записує куди реально пішов BTC.
+    btc_df: DataFrame з 1m свічками BTC (pandas).
+    resolved_direction: "UP"/"DOWN" — фактичний напрямок BTC за вікно.
+    """
+    from datetime import datetime, timezone
+    import pandas as pd
+    path = db_path if db_path is not None else get_db_path()
+    updated = 0
+    try:
+        conn = sqlite3.connect(path)
+        conn.row_factory = sqlite3.Row
+        now_iso = datetime.now(timezone.utc).isoformat()
+
+        rows = conn.execute("""
+            SELECT id, end_date_iso FROM shadow_signals
+            WHERE resolved_direction IS NULL AND end_date_iso IS NOT NULL AND end_date_iso < ?
+        """, (now_iso,)).fetchall()
+
+        if not rows or btc_df is None or btc_df.empty:
+            conn.close()
+            return 0
+
+        # Поточна ціна BTC
+        btc_now = float(btc_df.iloc[-1]["close"])
+        btc_15m_ago = float(btc_df.iloc[-15]["close"]) if len(btc_df) >= 15 else btc_now
+        actual_direction = "UP" if btc_now > btc_15m_ago else "DOWN"
+
+        for row in rows:
+            conn.execute(
+                "UPDATE shadow_signals SET resolved_direction=? WHERE id=?",
+                (actual_direction, row["id"])
+            )
+            updated += 1
+
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.error("Помилка resolve_shadow_signals: %s", e)
+    return updated
 
 
 def init_alt_signals_table(db_path: str | None = None):

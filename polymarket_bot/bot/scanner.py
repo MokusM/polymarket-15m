@@ -23,7 +23,7 @@ from bot.polymarket_client import PolymarketClient
 from bot.indicators import add_indicators
 from bot.signals import check_signals, check_alt_signals
 from bot.state import state
-from bot.storage import save_signal, save_shadow_signal, save_signal_snapshot, save_alt_signal, resolve_alt_signals
+from bot.storage import save_signal, save_shadow_signal, save_signal_snapshot, save_alt_signal, resolve_alt_signals, resolve_shadow_signals
 from bot.telegram_bot import send_alert, send_info_message
 from bot.alert_text import get_current_session_key, format_session_alert_html
 
@@ -115,6 +115,7 @@ class Scanner:
                             atr=_shadow.get("atr"),
                             adx=adx_val,
                             btc_price=_shadow.get("btc_price"),
+                            end_date_iso=market_prices.get("end_date_iso"),
                         )
 
                     if signal:
@@ -324,6 +325,14 @@ class Scanner:
                                     asyncio.create_task(
                                         self._schedule_price_snapshots(sig_id, token_id_snap)
                                     )
+
+                # ── Resolve shadow signals (BTC напрямок після закриття вікна) ──
+                try:
+                    n = resolve_shadow_signals(df_with_indicators)
+                    if n > 0:
+                        logger.debug("Shadow resolved: %d", n)
+                except Exception as e:
+                    logger.debug("resolve_shadow_signals error: %s", e)
 
                 # ── ALT assets (ETH, SOL): збір даних паралельно з BTC ──
                 if ALT_SCAN_ENABLED and state.mode != "test":

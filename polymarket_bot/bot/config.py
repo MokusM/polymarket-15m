@@ -42,6 +42,8 @@ TP_FULL_PRICE             = float(os.getenv("TP_FULL_PRICE", "0.95"))
 TP_FINAL_PRICE            = float(os.getenv("TP_FINAL_PRICE", "0.97"))
 POSITION_MONITOR_INTERVAL = int(os.getenv("POSITION_MONITOR_INTERVAL", "10"))
 BREAKEVEN_AFTER_ROI_PCT   = float(os.getenv("BREAKEVEN_AFTER_ROI_PCT", "50"))
+TRAILING_BE_TRIGGER       = float(os.getenv("TRAILING_BE_TRIGGER", "0"))
+TRAILING_BE_SL_PCT        = float(os.getenv("TRAILING_BE_SL_PCT", "10"))
 
 # ── Misc ──────────────────────────────────────────────────────────────────────
 CLOB_TRADE_HISTORY_LIMIT     = int(os.getenv("CLOB_TRADE_HISTORY_LIMIT", "10"))

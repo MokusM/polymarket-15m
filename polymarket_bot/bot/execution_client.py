@@ -225,6 +225,9 @@ class ExecutionClient:
         """
         tick_s = self.client.get_tick_size(token_id)
         tick = float(tick_s) if tick_s else 0.01
+        if tick <= 0:
+            tick = 0.01
+        self._last_tick_size = f"{tick:.10f}".rstrip("0").rstrip(".")
 
         def tick_up(p: float) -> float:
             steps = math.ceil(p / tick - 1e-12)
@@ -302,12 +305,14 @@ class ExecutionClient:
 
         try:
             loop = asyncio.get_event_loop()
+            self._last_tick_size = tick_size
             limit_p, slip_err = await loop.run_in_executor(
                 None,
                 lambda: self._resolve_buy_limit_price_sync(token_id, price),
             )
             if slip_err:
                 return {"success": False, "error": slip_err}
+            tick_size = self._last_tick_size  # використовуємо реальний tick з CLOB
 
             if use_stake:
                 size = round(stake_usd / limit_p, 2)
@@ -324,6 +329,12 @@ class ExecutionClient:
                     market_slug or "", market_id,
                 )
                 if min_sh > 0:
+                    if min_sh > size and limit_p * min_sh > stake_usd * 5:
+                        # Мінімальний розмір більший ніж у 5 разів перевищує stake — відмовляємось
+                        return {
+                            "success": False,
+                            "error": f"min_order_size {min_sh} shares (${limit_p * min_sh:.2f}) перевищує stake ${stake_usd:.2f} — ордер не розміщено",
+                        }
                     size = max(size, min_sh)
 
             if limit_p * size < 1.0:
@@ -360,6 +371,14 @@ class ExecutionClient:
                     size = float(_Dec(_M) / _Dec(_D))
             # Фінальне округлення до 4 знаків щоб py_clob_client не відправив float noise
             size = float(_Dec(str(size)).quantize(_Dec("0.0001"), rounding=_RHU))
+            # Фінальна перевірка: maker (price × size) повинен мати ≤ 2 знаки.
+            # Якщо після всіх округлень залишився шум — знайти найближчий size що задовольняє умову.
+            _maker = _Dec(str(_price_2dp)) * _Dec(str(size))
+            _maker_rounded = _maker.quantize(_Dec("0.01"), rounding=_RHU)
+            if abs(_maker - _maker_rounded) > _Dec("0.001"):
+                # Підібрати size так щоб price*size = ціле число центів
+                _target_maker = int((_Dec(str(_price_2dp)) * _Dec(str(size)) * 100).to_integral_value(_RHU))
+                size = float((_Dec(str(_target_maker)) / _Dec("100") / _Dec(str(_price_2dp))).quantize(_Dec("0.0001"), rounding=_RHU))
 
             logger.debug(
                 "PRE-ORDER: price=%.4f → %.2f, size=%s, maker=%.10f",

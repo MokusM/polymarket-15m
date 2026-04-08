@@ -72,10 +72,34 @@ def init_db(db_path: str | None = None):
         )
         _migrate_signals_columns(cursor)
         conn.commit()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS signal_snapshots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                signal_id INTEGER,
+                minutes_after INTEGER,
+                btc_price REAL,
+                contract_price REAL,
+                recorded_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.commit()
     except Exception as e:
         logger.error("Помилка ініціалізації БД: %s", e)
     finally:
         conn.close()
+
+
+def save_signal_snapshot(signal_id: int, minutes_after: int, btc_price: float | None, contract_price: float | None):
+    try:
+        conn = get_connection()
+        conn.execute(
+            "INSERT INTO signal_snapshots (signal_id, minutes_after, btc_price, contract_price) VALUES (?, ?, ?, ?)",
+            (signal_id, minutes_after, btc_price, contract_price),
+        )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.debug("save_signal_snapshot error: %s", e)
 
 
 def save_signal(signal: dict) -> int | None:
@@ -169,15 +193,15 @@ def update_signal_live_fill(signal_id: int, stake_usd: float, contract_price: fl
 
 
 def mark_signal_live_no_position(signal_id: int):
-    """Після Approve live: ордер не виконано / ліміт у стакані — не рахувати paper LOSS у settlement."""
+    """Після Approve live: ордер не виконано / ліміт у стакані — одразу NO_ENTRY (settlement не дублює 💤)."""
     try:
         conn = get_connection()
         conn.execute(
-            "UPDATE signals SET live_entry_status = 'no_position' WHERE id = ?",
+            "UPDATE signals SET live_entry_status = 'no_position', result = 'NO_ENTRY', pnl = 0.0 WHERE id = ?",
             (signal_id,),
         )
         conn.commit()
-        logger.info("Сигнал #%s: live_entry_status=no_position", signal_id)
+        logger.info("Сигнал #%s: no_position → NO_ENTRY (immediate)", signal_id)
     except Exception as e:
         logger.error("Помилка mark_signal_live_no_position: %s", e)
     finally:

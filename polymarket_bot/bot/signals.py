@@ -268,7 +268,7 @@ def check_signals(market_info: dict, df: pd.DataFrame) -> dict | None:
     _atr_val = float(atr) if not pd.isna(atr) else 999
     _macd_hist = abs(float(last.get("macd_hist", 0) or 0))
     _macd_norm = _macd_hist / _atr_val if _atr_val > 0 else 0.0
-    _new_filter = (abs(gap_val) >= 100 and _cc >= 2 and _macd_norm >= 0.20 and _atr_val < 150)
+    _new_filter = (abs(gap_val) >= 80 and _cc >= 2 and _macd_norm >= 0.20 and _atr_val < 150)
     _current_filter = True  # якщо дійшли сюди — current вже пройшов
     if _current_filter and _new_filter:
         filter_version = "both"

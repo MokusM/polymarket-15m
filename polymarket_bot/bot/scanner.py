@@ -118,7 +118,16 @@ class Scanner:
                         clob_bid = clob_yes_bid if direction == "UP" else clob_no_bid
 
                         # ── CLOB price zone filter (перша перевірка — до OBI/MTF) ──
-                        if state.mode != "test" and clob_ask > 0:
+                        if state.mode != "test":
+                            if clob_ask <= 0:
+                                # Retry once before skipping
+                                token_id_retry = market_prices.get("token_yes_id") if direction == "UP" else market_prices.get("token_no_id")
+                                if token_id_retry:
+                                    clob_ask, clob_bid = await self._fetch_clob_best_prices(token_id_retry)
+                                    logger.info("CLOB retry: ask=%.2f для %s", clob_ask, direction)
+                            if clob_ask <= 0:
+                                logger.info("SKIP: CLOB ask недоступний після retry — не використовуємо Gamma як fallback")
+                                continue
                             if not (th["CONTRACT_PRICE_MIN"] <= clob_ask <= th["CONTRACT_PRICE_MAX"]):
                                 logger.info(
                                     "SKIP CLOB ask %.2f поза зоною [%.2f–%.2f]",
@@ -206,6 +215,8 @@ class Scanner:
                         if can_send:
                             signal["market_id"] = market_id
                             signal["market_slug"] = market_prices.get("market_slug") or ""
+                            signal["token_yes_id"] = market_prices.get("token_yes_id") or ""
+                            signal["token_no_id"] = market_prices.get("token_no_id") or ""
                             signal["neg_risk"] = bool(
                                 market_prices.get("neg_risk", False)
                             )
@@ -222,7 +233,15 @@ class Scanner:
                             sig_id = save_signal(signal)
                             if sig_id:
                                 asyncio.create_task(send_alert(sig_id, signal))
-                                
+
+                                # Price snapshots для SL аналізу
+                                token_id_snap = market_prices.get("token_yes_id") if direction == "UP" else market_prices.get("token_no_id")
+                                if token_id_snap:
+                                    logger.info("📸 Scheduling snapshots for #%s token=%s..%s", sig_id, token_id_snap[:8], token_id_snap[-4:])
+                                    asyncio.create_task(self._schedule_price_snapshots(sig_id, token_id_snap))
+                                else:
+                                    logger.warning("No token_id for snapshots #%s dir=%s", sig_id, direction)
+
                                 self.last_signal_time[key] = now
                                 self.signal_counts[key] = count + 1
                                 logger.info(f"✅ Згенеровано сигнал #{sig_id}: {direction} для маркету {market_id}")
@@ -256,25 +275,55 @@ class Scanner:
 
     async def _fetch_clob_best_prices(self, token_id: str) -> tuple[float, float]:
         """Return (best_ask, best_bid) from CLOB public book API. Returns (0, 0) on error."""
-        try:
-            async with httpx.AsyncClient(timeout=3.0) as client:
-                r = await client.get(
-                    "https://clob.polymarket.com/book",
-                    params={"token_id": token_id},
-                )
-                if r.status_code != 200:
-                    return 0.0, 0.0
-                data = r.json()
-                asks = data.get("asks") or []
-                bids = data.get("bids") or []
-                # Polymarket CLOB sorts asks DESC (worst→best) and bids ASC (worst→best)
-                # so best ask = asks[-1], best bid = bids[-1]
-                best_ask = float(asks[-1]["price"]) if asks else 0.0
-                best_bid = float(bids[-1]["price"]) if bids else 0.0
-                return best_ask, best_bid
-        except Exception as e:
-            logger.debug("_fetch_clob_best_prices(%s): %s", token_id[:12], e)
-            return 0.0, 0.0
+        for attempt in range(3):
+            try:
+                async with httpx.AsyncClient(timeout=3.0) as client:
+                    r = await client.get(
+                        "https://clob.polymarket.com/book",
+                        params={"token_id": token_id},
+                    )
+                    if r.status_code != 200:
+                        raise ValueError(f"status {r.status_code}")
+                    data = r.json()
+                    asks = data.get("asks") or []
+                    bids = data.get("bids") or []
+                    best_ask = float(asks[-1]["price"]) if asks else 0.0
+                    best_bid = float(bids[-1]["price"]) if bids else 0.0
+                    return best_ask, best_bid
+            except Exception as e:
+                if attempt < 2:
+                    await asyncio.sleep(0.5)
+                else:
+                    logger.debug("_fetch_clob_best_prices(%s) failed після 3 спроб: %s", token_id[:12], e)
+        return 0.0, 0.0
+
+    async def _schedule_price_snapshots(self, signal_id: int, token_id: str) -> None:
+        """Записує ціну контракту і BTC через 1/2/3/5/10 хв після сигналу."""
+        from bot.storage import save_signal_snapshot
+        logger.info("📸 Snapshot task started for #%s", signal_id)
+        elapsed = 0
+        for minutes in (1, 2, 3, 5, 10):
+            await asyncio.sleep((minutes - elapsed) * 60)
+            elapsed = minutes
+            try:
+                contract_price = None
+                try:
+                    async with httpx.AsyncClient(timeout=3.0) as c:
+                        r = await c.get(
+                            "https://clob.polymarket.com/book",
+                            params={"token_id": token_id},
+                        )
+                        if r.status_code == 200:
+                            asks = r.json().get("asks") or []
+                            contract_price = float(asks[-1]["price"]) if asks else None
+                except Exception:
+                    pass
+                df_now = await self.exchange.get_btc_1m_candles(limit=2)
+                btc_now = float(df_now.iloc[-1]["close"]) if not df_now.empty else None
+                save_signal_snapshot(signal_id, minutes, btc_now, contract_price)
+                logger.info("📸 Snapshot #%s +%dmin: cp=%s btc=%s", signal_id, minutes, contract_price, btc_now)
+            except Exception as e:
+                logger.warning("Snapshot error #%s +%dmin: %s", signal_id, minutes, e)
 
     async def close(self):
         await self.exchange.close()

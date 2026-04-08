@@ -20,6 +20,8 @@ from bot.config import (
     TP_MID_PRICE,
     TP_PARTIAL_PRICE,
     TP_PARTIAL_SELL_PCT,
+    TRAILING_BE_TRIGGER,
+    TRAILING_BE_SL_PCT,
 )
 from bot.storage import get_db_path
 
@@ -330,12 +332,17 @@ async def monitor_positions_loop(execution_client):
                                     pos["token_id"], current_price, remaining,
                                 )
                                 if sell_result and sell_result.get("success") is not False:
+                                    _te_fill = current_price
+                                    try:
+                                        _te_avg = sell_result.get("average_price") or sell_result.get("price")
+                                        if _te_avg: _te_fill = float(_te_avg)
+                                    except Exception: pass
                                     pnl = _pnl_total_on_full_close(
-                                        stake_u, shares_init, remaining, current_price, realized_accum,
+                                        stake_u, shares_init, remaining, _te_fill, realized_accum,
                                     )
                                     close_position(pos_id, "time_exit", pnl)
                                     await send_info_message(
-                                        f"⏰ <b>Time Exit #{pos_id} @ {current_price:.2f}</b>\n"
+                                        f"⏰ <b>Time Exit #{pos_id} @ {_te_fill:.2f}</b>\n"
                                         f"{pos['direction']} {pos['side']} | "
                                         f"{remaining:.0f} shares | {secs_left:.0f}с до закриття\n"
                                         f"PnL: <b>{pnl:+.2f} USD</b>"
@@ -364,6 +371,26 @@ async def monitor_positions_loop(execution_client):
                                     f"SL @ {entry:.2f}"
                                 )
                                 sl = entry
+
+                    # ── Trailing breakeven: ціна досягла TRIGGER → SL підняти на entry+X% ──
+                    if (
+                        TRAILING_BE_TRIGGER > 0
+                        and current_price >= TRAILING_BE_TRIGGER
+                        and remaining > 0
+                    ):
+                        be_sl = round(entry * (1 + TRAILING_BE_SL_PCT / 100), 4)
+                        if sl < be_sl:
+                            update_sl_price(pos_id, be_sl)
+                            logger.info(
+                                "TRAILING BE #%s: price %.2f >= %.2f → SL %.2f → %.2f",
+                                pos_id, current_price, TRAILING_BE_TRIGGER, sl, be_sl,
+                            )
+                            await send_info_message(
+                                f"\U0001f512 <b>SL locked #{pos_id}</b>\n"
+                                f"Price {current_price:.2f} hit {TRAILING_BE_TRIGGER:.2f} → "
+                                f"SL raised to {be_sl:.2f} (entry {entry:.2f} +{TRAILING_BE_SL_PCT:.0f}%)"
+                            )
+                            sl = be_sl
 
                     # ── Stop-loss ──
                     if sl > 0 and current_price <= sl:
@@ -404,15 +431,23 @@ async def monitor_positions_loop(execution_client):
                                     pos_id, sell_price, remaining, sell_result,
                                 )
                             continue
+                        # Реальна ціна продажу з fill, fallback на current_price
+                        _fill_price = current_price
+                        try:
+                            _avg = sell_result.get("average_price") or sell_result.get("price")
+                            if _avg:
+                                _fill_price = float(_avg)
+                        except Exception:
+                            pass
                         pnl = _pnl_total_on_full_close(
-                            stake_u, shares_init, remaining, current_price, realized_accum,
+                            stake_u, shares_init, remaining, _fill_price, realized_accum,
                         )
                         close_position(pos_id, "stop_loss", pnl)
 
                         sl_text = (
                             f"\U0001f6d1 <b>Stop-Loss #{pos_id}</b>\n"
                             f"{pos['direction']} {pos['side']} | "
-                            f"Entry: {entry:.2f} \u2192 Exit: {current_price:.2f}\n"
+                            f"Entry: {entry:.2f} \u2192 Exit: {_fill_price:.2f}\n"
                             f"PnL: <b>{pnl:+.2f} USD</b>"
                         )
                         if state.circuit_breaker_active:
@@ -439,13 +474,18 @@ async def monitor_positions_loop(execution_client):
                             else:
                                 logger.error("TP FINAL SELL failed #%s: %s — позиція залишається відкритою", pos_id, sell_result)
                             continue
+                        _tp_fill = current_price
+                        try:
+                            _tp_avg = sell_result.get("average_price") or sell_result.get("price")
+                            if _tp_avg: _tp_fill = float(_tp_avg)
+                        except Exception: pass
                         pnl = _pnl_total_on_full_close(
-                            stake_u, shares_init, remaining, current_price, realized_accum,
+                            stake_u, shares_init, remaining, _tp_fill, realized_accum,
                         )
                         close_position(pos_id, "tp_final", pnl)
 
                         await send_info_message(
-                            f"\U0001f3af <b>Full Exit #{pos_id} @ {current_price:.2f}</b>\n"
+                            f"\U0001f3af <b>Full Exit #{pos_id} @ {_tp_fill:.2f}</b>\n"
                             f"{pos['direction']} {pos['side']} | "
                             f"Entry: {entry:.2f} \u2192 {current_price:.2f}\n"
                             f"Sold {remaining:.0f} shares\n"

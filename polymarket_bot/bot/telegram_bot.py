@@ -11,6 +11,7 @@ from bot.config import (
     TELEGRAM_TOKEN,
     CHAT_ID,
     STAKE_USD,
+    MIN_STAKE_USD,
     MAX_OPEN_POSITIONS,
     AUTO_APPROVE_LIVE,
     CLOB_TRADE_HISTORY_LIMIT,
@@ -764,6 +765,9 @@ async def send_alert(signal_id: int, signal: dict):
             logger.error("Помилка send_alert (instant): %s", e)
         return
 
+    # Зберігаємо до відправки — щоб сигнал був доступний навіть якщо Telegram впаде
+    store_pending_signal(signal_id, {**signal, "_risk": risk})
+
     try:
         msg = await bot.send_message(
             chat_id=CHAT_ID,
@@ -772,7 +776,6 @@ async def send_alert(signal_id: int, signal: dict):
             parse_mode="HTML"
         )
         update_telegram_message_id(signal_id, msg.message_id)
-        store_pending_signal(signal_id, {**signal, "_risk": risk})
     except Exception as e:
         logger.error("Помилка send_alert: %s", e)
 
@@ -831,6 +834,12 @@ async def _execute_live_order(signal_id: int, skip_min_size: bool = False) -> st
     if not signal.get("_manual") and count_open_positions() >= MAX_OPEN_POSITIONS:
         await _mark_no_fill()
         return f"\u26a0\ufe0f Ліміт позицій ({MAX_OPEN_POSITIONS})"
+
+    # conf < MIN_TRADE_CONFLUENCE → торгуємо на мінімум ($1) для збору реальних даних
+    _conf = signal.get("confluence", 0) if not signal.get("_manual") else 99
+    _min_trade_conf = state.get_thresholds().get("MIN_TRADE_CONFLUENCE", 0)
+    if _min_trade_conf > 0 and _conf < _min_trade_conf and _conf > 0:
+        signal.setdefault("_risk", {})["stake_usd"] = MIN_STAKE_USD
 
     direction = signal.get("direction", "UP")
     market_id = signal.get("market_id", "")
@@ -894,7 +903,10 @@ async def _execute_live_order(signal_id: int, skip_min_size: bool = False) -> st
                 return "❌ Помилка розміру ордера (precision)"
             if reason.startswith("price_moved:"):
                 _, ask, cap = reason.split(":")
-                return f"💤 Ціна пішла вгору поки апрувили — ask {float(ask):.2f} (ліміт {float(cap):.2f}). Ордер не відправлено."
+                ask_f = float(ask)
+                if ask_f >= 0.95:
+                    return f"⏱ Ринок вирішився під час виконання — ask {ask_f:.2f}. Ордер не відправлено."
+                return f"💤 Ціна вийшла за ліміт — ask {ask_f:.2f} (ліміт {float(cap):.2f}). Ордер не відправлено."
             if "not enough balance" in reason.lower():
                 return "❌ Недостатньо коштів на балансі"
             return f"❌ Ордер не виконано: <code>{reason}</code>"
@@ -920,7 +932,8 @@ async def _execute_live_order(signal_id: int, skip_min_size: bool = False) -> st
         shares = round(stake / ep, 2)
     stake_eff = round(shares * ep, 2)
 
-    time_left_min = float(signal.get("time_left", 10) or 10)
+    _tl = signal.get("time_left")
+    time_left_min = float(_tl) if _tl is not None and _tl != "" else 10.0
     from datetime import timedelta
     mkt_expires_at = (
         datetime.now(timezone.utc) + timedelta(seconds=time_left_min * 60)
@@ -951,7 +964,7 @@ async def _execute_live_order(signal_id: int, skip_min_size: bool = False) -> st
     side = "YES" if direction == "UP" else "NO"
     return (
         f"\U0001f680 <b>ORDER EXECUTED</b>\n"
-        f"Pos #{pos_id} | {side} @ {ep:.2f} | "
+        f"Signal #{signal_id} \u2192 Pos #{pos_id} | {side} @ {ep:.2f} | "
         f"{shares:.1f} shares | ~${stake_eff:.2f}"
     )
 

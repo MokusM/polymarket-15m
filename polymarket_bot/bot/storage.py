@@ -30,10 +30,8 @@ def _migrate_signals_columns(cursor: sqlite3.Cursor) -> None:
         ("payload_json", "TEXT"),
         ("time_left", "REAL"),
         ("telegram_message_id", "INTEGER"),
-        (
-            "live_entry_status",
-            "TEXT",
-        ),  # NULL=paper/невизначено; opened=CLOB fill; no_position=approve але позиції нема
+        ("live_entry_status", "TEXT"),  # NULL=paper; opened=CLOB fill; no_position=approve але позиції нема
+        ("filter_version", "TEXT"),     # current / new / both — A/B тест фільтрів
     ]
     for col, decl in additions:
         if col not in existing:
@@ -74,10 +72,34 @@ def init_db(db_path: str | None = None):
         )
         _migrate_signals_columns(cursor)
         conn.commit()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS signal_snapshots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                signal_id INTEGER,
+                minutes_after INTEGER,
+                btc_price REAL,
+                contract_price REAL,
+                recorded_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.commit()
     except Exception as e:
         logger.error("Помилка ініціалізації БД: %s", e)
     finally:
         conn.close()
+
+
+def save_signal_snapshot(signal_id: int, minutes_after: int, btc_price: float | None, contract_price: float | None):
+    try:
+        conn = get_connection()
+        conn.execute(
+            "INSERT INTO signal_snapshots (signal_id, minutes_after, btc_price, contract_price) VALUES (?, ?, ?, ?)",
+            (signal_id, minutes_after, btc_price, contract_price),
+        )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.debug("save_signal_snapshot error: %s", e)
 
 
 def save_signal(signal: dict) -> int | None:
@@ -113,8 +135,9 @@ def save_signal(signal: dict) -> int | None:
             INSERT INTO signals (
                 market_id, start_price, current_price, delta, delta_percent,
                 direction, contract_price, rsi_1m, rsi_3m, ema_position, volume_state,
-                decision, stake_usd, bot_mode, time_left, payload_json, alert_html
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                decision, stake_usd, bot_mode, time_left, payload_json, alert_html,
+                filter_version
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 signal.get("market_id"),
@@ -134,6 +157,7 @@ def save_signal(signal: dict) -> int | None:
                 time_left,
                 payload_json,
                 alert_html,
+                signal.get("filter_version", "current"),
             ),
         )
         conn.commit()
@@ -169,15 +193,15 @@ def update_signal_live_fill(signal_id: int, stake_usd: float, contract_price: fl
 
 
 def mark_signal_live_no_position(signal_id: int):
-    """Після Approve live: ордер не виконано / ліміт у стакані — не рахувати paper LOSS у settlement."""
+    """Після Approve live: ордер не виконано / ліміт у стакані — одразу NO_ENTRY (settlement не дублює 💤)."""
     try:
         conn = get_connection()
         conn.execute(
-            "UPDATE signals SET live_entry_status = 'no_position' WHERE id = ?",
+            "UPDATE signals SET live_entry_status = 'no_position', result = 'NO_ENTRY', pnl = 0.0 WHERE id = ?",
             (signal_id,),
         )
         conn.commit()
-        logger.info("Сигнал #%s: live_entry_status=no_position", signal_id)
+        logger.info("Сигнал #%s: no_position → NO_ENTRY (immediate)", signal_id)
     except Exception as e:
         logger.error("Помилка mark_signal_live_no_position: %s", e)
     finally:

@@ -109,38 +109,11 @@ def calculate_stake(signal: dict, bankroll: float | None = None) -> dict:
         "reason": "no_edge",
     }
 
-    if edge <= 0:
-        # Edge check disabled — fixed $10 stake
-        result["stake_usd"] = 10.0
-        result["shares"] = round(10.0 / cp, 2) if cp > 0 else 0
-        return result
-
-    kelly_full = edge / (1 - cp) if (1 - cp) > 0 else 0
-    kelly_stake = br * KELLY_FRACTION * kelly_full
-
-    result["kelly_raw"] = round(kelly_full, 4)
-
-    if kelly_stake < MIN_STAKE_USD:
-        kelly_stake = MIN_STAKE_USD
-        result["reason"] = "min_cap"
-    elif kelly_stake > MAX_STAKE_USD:
-        kelly_stake = MAX_STAKE_USD
-        result["reason"] = "max_cap"
-    else:
-        result["reason"] = "kelly"
-
-    per_position_limit = br / max(MAX_OPEN_POSITIONS, 1)
-    if kelly_stake > per_position_limit:
-        kelly_stake = per_position_limit
-        result["reason"] = "bankroll_limit"
-
-    kelly_stake = max(kelly_stake, MIN_STAKE_USD)
-    if kelly_stake > MAX_STAKE_USD:
-        kelly_stake = MAX_STAKE_USD
-        result["reason"] = "max_cap"
-
-    result["stake_usd"] = round(kelly_stake, 2)
-    result["shares"] = round(kelly_stake / cp, 2) if cp > 0 else 0
+    # Kelly вимкнено — фіксована ставка поки не накопичено 50+ угод для калібрування win_prob
+    from bot.config import STAKE_USD as FIXED_STAKE
+    result["stake_usd"] = FIXED_STAKE
+    result["shares"] = round(FIXED_STAKE / cp, 2) if cp > 0 else 0
+    result["reason"] = "fixed"
     return result
 
 

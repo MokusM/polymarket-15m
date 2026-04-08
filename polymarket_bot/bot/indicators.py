@@ -121,6 +121,21 @@ def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
     choices = ["spike", "stabilization"]
     df["volume_state"] = np.select(conditions, choices, default="normal")
 
+    # Consecutive closes in same direction (signed: +N=up, -N=down)
+    _diff = df["close"].diff()
+    _dir = _diff.apply(lambda x: 1 if x > 0 else (-1 if x < 0 else 0))
+    _cc, _count, _prev = [], 0, 0
+    for _d in _dir:
+        if _d != 0 and _d == _prev:
+            _count += 1
+        elif _d != 0:
+            _count = 1
+        else:
+            _count = 0
+        _cc.append(_count * (_prev if _prev != 0 else 1))
+        _prev = _d if _d != 0 else _prev
+    df["consecutive_closes"] = _cc
+
     # MTF RSI: resample 1m → 3m/5m, forward-fill back to 1m resolution
     for tf_min, col in [(3, "rsi_3m"), (5, "rsi_5m")]:
         try:

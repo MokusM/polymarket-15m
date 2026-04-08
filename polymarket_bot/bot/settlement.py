@@ -1,7 +1,9 @@
 import asyncio
 import json
 import logging
+import sqlite3 as _sqlite3
 import time
+from collections import defaultdict
 from datetime import datetime, timezone
 
 from bot.config import STAKE_USD
@@ -23,7 +25,104 @@ _NO_POSITION = "no_position"
 
 logger = logging.getLogger(__name__)
 
+# Збираємо результати по маркетах для зведеного звіту
+_market_results: dict[str, list[dict]] = defaultdict(list)
+_market_titles: dict[str, str] = {}
+_market_signal_counts: dict[str, int] = defaultdict(int)
+
 SETTLEMENT_INTERVAL_SECONDS = 300  # fallback polling: кожні 5 хв (WS handles most cases)
+
+
+def _count_market_signals(market_id: str) -> int:
+    """Скільки всього сигналів для цього маркету в БД."""
+    try:
+        conn = _sqlite3.connect(get_db_path())
+        conn.execute("PRAGMA busy_timeout=3000")
+        row = conn.execute(
+            "SELECT COUNT(*) FROM signals WHERE market_id = ? AND result IS NULL OR market_id = ? AND result IS NOT NULL",
+            (market_id, market_id),
+        ).fetchone()
+        conn.close()
+        return row[0] if row else 0
+    except Exception:
+        return 0
+
+
+def _count_unresolved_for_market(market_id: str) -> int:
+    """Скільки ще не settled сигналів для цього маркету."""
+    try:
+        conn = _sqlite3.connect(get_db_path())
+        conn.execute("PRAGMA busy_timeout=3000")
+        row = conn.execute(
+            "SELECT COUNT(*) FROM signals WHERE market_id = ? AND result IS NULL",
+            (market_id,),
+        ).fetchone()
+        conn.close()
+        return row[0] if row else 0
+    except Exception:
+        return 0
+
+
+def _get_position_id(signal_id: int) -> int | None:
+    """Знайти position ID для сигналу."""
+    try:
+        conn = _sqlite3.connect(get_db_path())
+        conn.execute("PRAGMA busy_timeout=3000")
+        row = conn.execute(
+            "SELECT id FROM positions WHERE signal_id = ? LIMIT 1",
+            (signal_id,),
+        ).fetchone()
+        conn.close()
+        return row[0] if row else None
+    except Exception:
+        return None
+
+
+async def _send_market_summary(market_id: str):
+    """Зведений звіт по маркету після того як всі сигнали settled."""
+    results = _market_results.pop(market_id, [])
+    title = _market_titles.pop(market_id, market_id[:24])
+    _market_signal_counts.pop(market_id, None)
+
+    if not results:
+        return
+
+    wins = [r for r in results if r["result"] == "WIN"]
+    losses = [r for r in results if r["result"] == "LOSS"]
+    no_entry = [r for r in results if r["result"] == "NO_ENTRY"]
+    total_pnl = sum(r.get("pnl", 0) for r in results)
+
+    lines = [f"\U0001f4ca <b>{title}</b>", ""]
+
+    for r in results:
+        sid = r["id"]
+        direction = r["direction"]
+        side = "YES" if direction == "UP" else "NO"
+        conf = r.get("confluence", "?")
+        fv = r.get("filter_version", "")
+        fv_tag = f" [{fv.upper()}]" if fv == "both" else ""
+        entry = r.get("entry_price", r.get("cp", 0))
+        pos_id = _get_position_id(sid)
+
+        if r["result"] in ("WIN", "LOSS"):
+            pnl = r.get("pnl", 0)
+            result_icon = "\u2705" if r["result"] == "WIN" else "\u274c"
+            pnl_str = f"+${pnl:.2f}" if pnl >= 0 else f"${pnl:.2f}"
+            pos_label = f"Pos #{pos_id}" if pos_id else f"#{sid}"
+            lines.append(f"{pos_label} | {direction} | {side} @ {entry:.2f} | conf={conf}{fv_tag}")
+            lines.append(f"{result_icon} PnL: <b>{pnl_str}</b>")
+        else:
+            lines.append(f"#{sid} | {direction} | {side} @ {r.get('cp', 0):.2f} | conf={conf}")
+            lines.append(f"\U0001f4a4 no entry")
+        lines.append("")
+
+    # Підсумковий рядок тільки якщо > 1 сигнал
+    if len(results) > 1:
+        pnl_str = f"+${total_pnl:.2f}" if total_pnl >= 0 else f"${total_pnl:.2f}"
+        summary_icon = "\U0001f7e2" if total_pnl > 0 else ("\U0001f534" if total_pnl < 0 else "\u26aa")
+        lines.append(f"{summary_icon} W:{len(wins)} L:{len(losses)} NE:{len(no_entry)} | PnL: <b>{pnl_str}</b>")
+
+    await send_info_message("\n".join(lines))
 
 
 def _market_title(sig: dict) -> str:
@@ -85,37 +184,61 @@ async def _settle_one(sig: dict, price_yes: float, price_no: float, execution_cl
     side_label = "YES" if direction == "UP" else "NO"
     cp = float(sig.get("contract_price") or 0.5)
 
+    market_id = sig.get("market_id", "")
+    market_title = _market_title(sig)
+    _market_titles[market_id] = market_title
+
+    # Confluence та filter_version з payload
+    try:
+        _payload = json.loads(sig.get("payload_json") or "{}")
+        _conf = _payload.get("confluence", "?")
+        _fv = _payload.get("filter_version", "")
+    except Exception:
+        _conf = "?"
+        _fv = ""
+
+    def _record_result(result: str, pnl: float, entry_price: float = 0.0):
+        _market_results[market_id].append({
+            "id": sig["id"], "direction": direction, "result": result,
+            "pnl": pnl, "cp": cp, "entry_price": entry_price or cp,
+            "confluence": _conf, "filter_version": _fv,
+        })
+
+    async def _try_send_summary():
+        remaining = _count_unresolved_for_market(market_id)
+        if remaining == 0:
+            await _send_market_summary(market_id)
+
     # --- NO_POSITION ---
     if sig.get("live_entry_status") == _NO_POSITION:
         update_result(sig["id"], "NO_ENTRY", 0.0)
         logger.info("Сигнал %s: no_position → NO_ENTRY", sig["id"])
-        await send_info_message(
-            f"💤 <b>Сигнал #{sig['id']} — без позиції</b>\n"
-            f"{direction} {side_label} @ {cp:.2f}\n"
-            f"CLOB ціна перевищила ліміт або ордер не виконано.\n"
-            f"<i>{_market_title(sig)}</i>"
-        )
+        _record_result("NO_ENTRY", 0.0)
         await get_watcher().unwatch(sig["id"])
+        await _try_send_summary()
         return
 
     # --- Позиція закрита монітором ---
     live_status = sig.get("live_entry_status")
     if live_status == "opened" and signal_live_position_already_closed(sig["id"]):
         try:
-            import sqlite3 as _sqlite3
             _conn = _sqlite3.connect(get_db_path())
             _row = _conn.execute(
-                "SELECT pnl FROM positions WHERE signal_id = ? AND status = 'closed' LIMIT 1",
+                "SELECT pnl, entry_price FROM positions WHERE signal_id = ? AND status = 'closed' LIMIT 1",
                 (sig["id"],),
             ).fetchone()
             _conn.close()
             real_pnl = float(_row[0] or 0) if _row else 0.0
+            entry_price = float(_row[1] or cp) if _row and len(_row) > 1 else cp
         except Exception:
             real_pnl = 0.0
+            entry_price = cp
         result_str = "WIN" if real_pnl > 0 else "LOSS"
         update_result(sig["id"], result_str, real_pnl)
         logger.info("Сигнал %s: закрито монітором — %s, PnL: %.2f", sig["id"], result_str, real_pnl)
+        _record_result(result_str, real_pnl, entry_price)
         await get_watcher().unwatch(sig["id"])
+        await _try_send_summary()
         return
 
     # --- Верифікація через Polymarket trades ---
@@ -146,13 +269,9 @@ async def _settle_one(sig: dict, price_yes: float, price_no: float, execution_cl
                         logger.warning("cancel pending order: %s", _e)
                 update_result(sig["id"], "NO_ENTRY", 0.0)
                 logger.info("Сигнал %s: trade не знайдено → NO_ENTRY", sig["id"])
-                await send_info_message(
-                    f"💤 <b>Сигнал #{sig['id']} — без позиції</b>\n"
-                    f"{direction} {side_label} @ {cp:.2f}\n"
-                    f"Ордер не виконано.\n"
-                    f"<i>{_market_title(sig)}</i>"
-                )
+                _record_result("NO_ENTRY", 0.0)
                 await get_watcher().unwatch(sig["id"])
+                await _try_send_summary()
                 return
 
             real_price = float(trade.get("price") or cp)
@@ -168,23 +287,15 @@ async def _settle_one(sig: dict, price_yes: float, price_no: float, execution_cl
                     close_position(pos["id"], f"settlement_{result_str}", pnl)
                     break
 
-            pnl_sign = f"+{pnl:.2f}" if pnl >= 0 else f"{pnl:.2f}"
-            payout = round(real_shares * 1.0, 2) if is_win else 0
-            result_icon = "✅" if is_win else "❌"
             logger.info("Сигнал %s: fill підтверджено — %s, PnL: %.2f", sig["id"], result_str, pnl)
-            await send_info_message(
-                f"{result_icon} <b>Сигнал #{sig['id']} — {result_str}</b>\n"
-                f"<i>{_market_title(sig)}</i>\n"
-                f"{direction} {side_label} @ {real_price:.2f} | "
-                f"${real_stake:.2f} → ${payout:.2f} ({real_shares:.1f} shares)\n"
-                f"PnL: <b>{pnl_sign} USD</b>"
-            )
+            _record_result(result_str, pnl, real_price)
             if state.circuit_breaker_active:
                 await send_info_message(
-                    f"🚨 <b>CIRCUIT BREAKER!</b>\n"
+                    f"\U0001f6a8 <b>CIRCUIT BREAKER!</b>\n"
                     f"{state.consecutive_losses} losses підряд — live trading вимкнено.\n/reset щоб відновити."
                 )
             await get_watcher().unwatch(sig["id"])
+            await _try_send_summary()
             return
 
     # --- Fallback: paper PnL ---
@@ -201,23 +312,15 @@ async def _settle_one(sig: dict, price_yes: float, price_no: float, execution_cl
             close_position(pos["id"], f"settlement_{result_str}", pnl)
             break
 
-    pnl_sign = f"+{pnl:.2f}" if pnl >= 0 else f"{pnl:.2f}"
-    payout = round(shares * 1.0, 2) if is_win else 0
-    result_icon = "✅" if is_win else "❌"
     logger.info("Сигнал %s: paper settlement — %s, PnL: %.2f", sig["id"], result_str, pnl)
-    await send_info_message(
-        f"{result_icon} <b>Сигнал #{sig['id']} — {result_str}</b> (paper)\n"
-        f"<i>{_market_title(sig)}</i>\n"
-        f"{direction} {side_label} @ {cp:.2f} | "
-        f"${stake:.2f} → ${payout:.2f} ({shares:.1f} shares)\n"
-        f"PnL: <b>{pnl_sign} USD</b>"
-    )
+    _record_result(result_str, pnl)
     if state.circuit_breaker_active:
         await send_info_message(
-            f"🚨 <b>CIRCUIT BREAKER!</b>\n"
+            f"\U0001f6a8 <b>CIRCUIT BREAKER!</b>\n"
             f"{state.consecutive_losses} losses підряд — live trading вимкнено.\n/reset щоб відновити."
         )
     await get_watcher().unwatch(sig["id"])
+    await _try_send_summary()
 
 
 async def settle_markets(execution_client=None):

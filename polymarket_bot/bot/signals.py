@@ -257,6 +257,26 @@ def check_signals(market_info: dict, df: pd.DataFrame) -> dict | None:
             )
             return None
 
+    # ── Filter version A/B ──
+    # "current" = поточна логіка (confluence + GAP + ATR)
+    # "new"     = gap>=100 + cc>=2 (в бік сигналу) + macd_norm>=0.20 + ATR<150
+    #             macd_norm = |macd_hist| / ATR — нормалізований MACD, не залежить від рівня BTC
+    #             gap абсолютний — природній для 15-хв BTC вікна, перевірений на 450+ сигналах
+    # "both"    = обидва фільтри пройшли
+    _cc_raw = int(last.get("consecutive_closes", 0) or 0)
+    _cc = _cc_raw if direction == "UP" else -_cc_raw  # позитивне = в бік сигналу
+    _atr_val = float(atr) if not pd.isna(atr) else 999
+    _macd_hist = abs(float(last.get("macd_hist", 0) or 0))
+    _macd_norm = _macd_hist / _atr_val if _atr_val > 0 else 0.0
+    _new_filter = (abs(gap_val) >= 80 and _cc >= 2 and _macd_norm >= 0.20 and _atr_val < 150)
+    _current_filter = True  # якщо дійшли сюди — current вже пройшов
+    if _current_filter and _new_filter:
+        filter_version = "both"
+    elif _new_filter:
+        filter_version = "new"
+    else:
+        filter_version = "current"
+
     return {
         "direction": direction,
         "confluence": confluence,
@@ -279,6 +299,8 @@ def check_signals(market_info: dict, df: pd.DataFrame) -> dict | None:
         "obi": 1.0,  # placeholder; scanner overwrites with real value
         "rsi_3m": round(float(last["rsi_3m"]), 1) if "rsi_3m" in last.index and not pd.isna(last.get("rsi_3m")) else None,
         "rsi_5m": round(float(last["rsi_5m"]), 1) if "rsi_5m" in last.index and not pd.isna(last.get("rsi_5m")) else None,
+        "consecutive_closes": _cc,
+        "filter_version": filter_version,
     }
 
 

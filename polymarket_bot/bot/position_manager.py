@@ -319,7 +319,7 @@ async def monitor_positions_loop(execution_client):
 
                     # ── Time-based exit: ціна ≥ 0.95 і до закриття < 3 хв — продати все ──
                     expires_str = pos.get("market_expires_at") or ""
-                    if expires_str and current_price >= TP_FULL_PRICE and remaining > 0:
+                    if expires_str and current_price >= 0.95 and remaining > 0:
                         try:
                             exp = datetime.fromisoformat(expires_str).replace(tzinfo=timezone.utc)
                             secs_left = (exp - datetime.now(timezone.utc)).total_seconds()

@@ -841,6 +841,11 @@ async def _execute_live_order(signal_id: int, skip_min_size: bool = False) -> st
     if _min_trade_conf > 0 and _conf < _min_trade_conf and _conf > 0:
         signal.setdefault("_risk", {})["stake_usd"] = MIN_STAKE_USD
 
+    # Stabilization filter: volume затихає = тренд вичерпується → ставка мінімум
+    if not signal.get("_manual") and signal.get("volume_state") == "stabilization" and _conf >= _min_trade_conf:
+        signal.setdefault("_risk", {})["stake_usd"] = MIN_STAKE_USD
+        logger.info("STAB FILTER: conf=%s volume=stabilization -> stake reduced to min", _conf)
+
     direction = signal.get("direction", "UP")
     market_id = signal.get("market_id", "")
 

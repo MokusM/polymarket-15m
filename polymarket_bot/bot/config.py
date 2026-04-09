@@ -1,157 +1,90 @@
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 
-dotenv_path = os.path.join(os.path.dirname(__file__), "..", ".env")
-load_dotenv(dotenv_path)
+load_dotenv(Path(__file__).parent.parent / ".env")
 
-# Telegram
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN", "")
-CHAT_ID = os.getenv("CHAT_ID", "")
+# ── Secrets ───────────────────────────────────────────────────────────────────
+TELEGRAM_TOKEN            = os.getenv("TELEGRAM_TOKEN", "")
+CHAT_ID                   = os.getenv("CHAT_ID", "")
+POLYMARKET_PRIVATE_KEY    = os.getenv("POLYMARKET_PRIVATE_KEY", "")
+POLYMARKET_CHAIN_ID       = int(os.getenv("POLYMARKET_CHAIN_ID", "137"))
+POLYMARKET_SIGNATURE_TYPE = int(os.getenv("POLYMARKET_SIGNATURE_TYPE", "0"))
+POLYMARKET_FUNDER_ADDRESS = os.getenv("POLYMARKET_FUNDER_ADDRESS", "")
 
-# Contract price zone (course: 50-72¢)
-CONTRACT_PRICE_MIN = 0.50
-CONTRACT_PRICE_MAX = 0.72
+# ── Instance settings ─────────────────────────────────────────────────────────
+DEFAULT_MODE     = os.getenv("DEFAULT_MODE", "medium")
+TELEGRAM_ENABLED = os.getenv("TELEGRAM_ENABLED", "true").lower() in ("1", "true", "yes")
+LIVE_TRADING     = os.getenv("LIVE_TRADING", "false").lower() in ("1", "true", "yes")
+AUTO_APPROVE_PAPER = os.getenv("AUTO_APPROVE_PAPER", "true").lower() in ("1", "true", "yes")
+AUTO_APPROVE_LIVE  = os.getenv("AUTO_APPROVE_LIVE", "false").lower() in ("1", "true", "yes")
 
-# Time left window (minutes)
-TIME_LEFT_MIN_MINUTES = 3
-TIME_LEFT_MAX_MINUTES = 10
-
-# RSI
-RSI_PERIOD = 14
-
-# EMA
-EMA_SHORT_PERIOD = 9
-EMA_LONG_PERIOD = 21
-EMA_SLOPE_LOOKBACK_BARS = 3
-
-# MACD (course: 12 / 26 / 9)
-MACD_FAST = 12
-MACD_SLOW = 26
-MACD_SIGNAL = 9
-
-# Pivots HL (course: 10-bar)
-PIVOT_HL_PERIOD = 10
-
-# Volume
-VOLUME_AVG_PERIOD = 10
-VOLUME_SPIKE_MULTIPLIER = 1.35
-
-# ATR
-ATR_PERIOD = 14
-ATR_MIN_USD = float(os.getenv("ATR_MIN_USD", "30"))
-
-# ATR zone thresholds ($)
-ATR_ZONE_DEAD = 30
-ATR_ZONE_QUIET = 60
-ATR_ZONE_GOLDEN = 100
-ATR_ZONE_HIGH = 120
-
-# Confluence: min indicators agreeing for a signal (3 of 5)
-MIN_CONFLUENCE = 3
-
-# Bot settings
-COOLDOWN_SECONDS = 60
-SCAN_INTERVAL_SECONDS = 3
-MAX_SIGNALS_PER_ROUND_PER_SIDE = 1
-REPEAT_ALERTS_AFTER_COOLDOWN = False
-IGNORE_IF_TIME_LEFT_LT_MIN = 2
-IGNORE_IF_CONTRACT_PRICE_GT = 0.75
-
-# Paper trading
-STAKE_USD = float(os.getenv("STAKE_USD", "10"))
-AUTO_APPROVE_PAPER = os.getenv("AUTO_APPROVE_PAPER", "true").lower() in (
-    "1",
-    "true",
-    "yes",
-)
-
-# ── Live trading ──
-LIVE_TRADING = os.getenv("LIVE_TRADING", "false").lower() in ("1", "true", "yes")
-POLYMARKET_PRIVATE_KEY = os.getenv("POLYMARKET_PRIVATE_KEY", "")
-POLYMARKET_CHAIN_ID = int(os.getenv("POLYMARKET_CHAIN_ID", "137"))
-AUTO_APPROVE_LIVE = os.getenv("AUTO_APPROVE_LIVE", "false").lower() in ("1", "true", "yes")
-
-# CLOB: для BUY підняти ліміт до best ask (side=SELL у API), щоб не «висіти» нижче ринку
-CLOB_CROSS_SPREAD_BUY = os.getenv("CLOB_CROSS_SPREAD_BUY", "true").lower() in (
-    "1", "true", "yes",
-)
-# Поріг «зсуву від сигналу» для логу-попередження; жорстка межа BUY = CONTRACT_PRICE_MAX (сканер)
+# ── CLOB execution ────────────────────────────────────────────────────────────
+CLOB_CROSS_SPREAD_BUY     = os.getenv("CLOB_CROSS_SPREAD_BUY", "true").lower() in ("1", "true", "yes")
 CLOB_MAX_BUY_SLIPPAGE_ABS = float(os.getenv("CLOB_MAX_BUY_SLIPPAGE_ABS", "0.05"))
+CLOB_BUY_BUFFER           = float(os.getenv("CLOB_BUY_BUFFER", "0.02"))
+CLOB_SPREAD_MAX           = float(os.getenv("CLOB_SPREAD_MAX", "1.0"))
 
-# Bankroll & Kelly sizing
-BANKROLL_USD = float(os.getenv("BANKROLL_USD", "20"))
-KELLY_FRACTION = float(os.getenv("KELLY_FRACTION", "0.25"))
-MIN_STAKE_USD = float(os.getenv("MIN_STAKE_USD", "1"))
-MAX_STAKE_USD = float(os.getenv("MAX_STAKE_USD", "5"))
+# ── Bankroll & Kelly ──────────────────────────────────────────────────────────
+BANKROLL_USD       = float(os.getenv("BANKROLL_USD", "20"))
+KELLY_FRACTION     = float(os.getenv("KELLY_FRACTION", "0.25"))
+MIN_STAKE_USD      = float(os.getenv("MIN_STAKE_USD", "1"))
+MAX_STAKE_USD      = float(os.getenv("MAX_STAKE_USD", "5"))
 MAX_OPEN_POSITIONS = int(os.getenv("MAX_OPEN_POSITIONS", "1"))
+STAKE_USD          = float(os.getenv("STAKE_USD", "10"))
 
-# Stop-loss & take-profit levels (absolute contract price)
-# TP ladder (PolySigma): 90¢→25%, 93¢→25%, 95¢→25%, 97¢→100%
-SL_PERCENT = float(os.getenv("SL_PERCENT", "40"))
-TP_PARTIAL_PRICE = float(os.getenv("TP_PARTIAL_PRICE", "0.90"))
-TP_PARTIAL_SELL_PCT = float(os.getenv("TP_PARTIAL_SELL_PCT", "25"))
-TP_MID_PRICE = float(os.getenv("TP_MID_PRICE", "0.93"))
-TP_FULL_PRICE = float(os.getenv("TP_FULL_PRICE", "0.95"))
-TP_FINAL_PRICE = float(os.getenv("TP_FINAL_PRICE", "0.97"))
+# ── SL / TP ───────────────────────────────────────────────────────────────────
+SL_PERCENT                = float(os.getenv("SL_PERCENT", "25"))
+TP_PARTIAL_PRICE          = float(os.getenv("TP_PARTIAL_PRICE", "0.90"))
+TP_PARTIAL_SELL_PCT       = float(os.getenv("TP_PARTIAL_SELL_PCT", "25"))
+TP_MID_PRICE              = float(os.getenv("TP_MID_PRICE", "0.93"))
+TP_FULL_PRICE             = float(os.getenv("TP_FULL_PRICE", "0.95"))
+TP_FINAL_PRICE            = float(os.getenv("TP_FINAL_PRICE", "0.97"))
 POSITION_MONITOR_INTERVAL = int(os.getenv("POSITION_MONITOR_INTERVAL", "10"))
+BREAKEVEN_AFTER_ROI_PCT   = float(os.getenv("BREAKEVEN_AFTER_ROI_PCT", "50"))
+TRAILING_BE_TRIGGER       = float(os.getenv("TRAILING_BE_TRIGGER", "0"))
+TRAILING_BE_SL_PCT        = float(os.getenv("TRAILING_BE_SL_PCT", "10"))
 
-# Скільки останніх угод показує /history (CLOB /data/trades)
-CLOB_TRADE_HISTORY_LIMIT = int(os.getenv("CLOB_TRADE_HISTORY_LIMIT", "10"))
-# Скільки сторінок CLOB зчитати (кожна — пачка угод; більше = точніші «останні N» при великій історії)
+# ── Misc ──────────────────────────────────────────────────────────────────────
+CLOB_TRADE_HISTORY_LIMIT     = int(os.getenv("CLOB_TRADE_HISTORY_LIMIT", "10"))
 CLOB_TRADE_HISTORY_MAX_PAGES = int(os.getenv("CLOB_TRADE_HISTORY_MAX_PAGES", "3"))
+CIRCUIT_BREAKER_LOSSES       = int(os.getenv("CIRCUIT_BREAKER_LOSSES", "3"))
 
-# Якщо нереалізований PnL >= цей % від ставки на залишок — SL піднімається до ціни входу (беззбиток)
-BREAKEVEN_AFTER_ROI_PCT = float(os.getenv("BREAKEVEN_AFTER_ROI_PCT", "50"))
-
-# Circuit breaker: auto-disable live trading after N consecutive losses
-CIRCUIT_BREAKER_LOSSES = int(os.getenv("CIRCUIT_BREAKER_LOSSES", "3"))
-
-# GAP filter: |current_price - start_price| must exceed this threshold (USD)
-GAP_MIN_USD = float(os.getenv("GAP_MIN_USD", "100"))
-# Strict GAP required when price > CONTRACT_PRICE_HIGH_MIN or time < TIME_STRICT_MAX_MIN
-GAP_STRICT_USD = float(os.getenv("GAP_STRICT_USD", "100"))
-# CLOB ask price above this → require GAP_STRICT_USD (FLB zone)
-CONTRACT_PRICE_HIGH_MIN = float(os.getenv("CONTRACT_PRICE_HIGH_MIN", "0.75"))
-# Time left below this (min) → require GAP_STRICT_USD
-TIME_STRICT_MAX_MIN = float(os.getenv("TIME_STRICT_MAX_MIN", "5.0"))
-
-# OBI filter: bid_volume / ask_volume must exceed this ratio (1.0 = neutral)
-OBI_MIN_RATIO = float(os.getenv("OBI_MIN_RATIO", "1.2"))
-# Number of top orderbook levels to sum for OBI calculation
-OBI_LEVELS = int(os.getenv("OBI_LEVELS", "5"))
-
-# CLOB bid-ask spread gate: skip signal if spread > this value
-CLOB_SPREAD_MAX = float(os.getenv("CLOB_SPREAD_MAX", "0.03"))
+# ── Константи (не конфігуруються) ────────────────────────────────────────────
+RSI_PERIOD                     = 14
+EMA_SHORT_PERIOD               = 9
+EMA_LONG_PERIOD                = 21
+EMA_SLOPE_LOOKBACK_BARS        = 3
+MACD_FAST                      = 12
+MACD_SLOW                      = 26
+MACD_SIGNAL                    = 9
+PIVOT_HL_PERIOD                = 10
+VOLUME_AVG_PERIOD              = 10
+VOLUME_SPIKE_MULTIPLIER        = 1.35
+ATR_PERIOD                     = 14
+ATR_ZONE_DEAD                  = 30
+ATR_ZONE_QUIET                 = 60
+ATR_ZONE_GOLDEN                = 100
+ATR_ZONE_HIGH                  = 120
+COOLDOWN_SECONDS               = 60
+SCAN_INTERVAL_SECONDS          = 3
+MAX_SIGNALS_PER_ROUND_PER_SIDE = 1
+REPEAT_ALERTS_AFTER_COOLDOWN   = False
+IGNORE_IF_TIME_LEFT_LT_MIN     = 2
+IGNORE_IF_CONTRACT_PRICE_GT    = 0.75
+NOTIFY_SESSION_CHANGE          = True
+POSITION_MONITOR_INTERVAL_ACTIVE = 1
+KYIV_TZ_STR                    = "Europe/Kyiv"
 
 # ── ALT assets (ETH, SOL): збір даних паралельно з BTC ──
-# GAP фільтр у % від ціни активу (замість абсолютних $)
-# BTC GAP_MIN_USD=100 при BTC~83k ≈ 0.12% → ALT_GAP_MIN_PCT=0.15%
-ALT_GAP_MIN_PCT = float(os.getenv("ALT_GAP_MIN_PCT", "0.06"))
+ALT_GAP_MIN_PCT    = float(os.getenv("ALT_GAP_MIN_PCT", "0.06"))
 ALT_GAP_STRICT_PCT = float(os.getenv("ALT_GAP_STRICT_PCT", "0.06"))
-# ATR мінімум у % від ціни (BTC ATR_MIN_USD=30 при ~83k ≈ 0.036%)
-ALT_ATR_MIN_PCT = float(os.getenv("ALT_ATR_MIN_PCT", "0.05"))
-# Включити збір ALT сигналів
-ALT_SCAN_ENABLED = os.getenv("ALT_SCAN_ENABLED", "true").lower() in ("1", "true", "yes")
+ALT_ATR_MIN_PCT    = float(os.getenv("ALT_ATR_MIN_PCT", "0.05"))
+ALT_SCAN_ENABLED   = os.getenv("ALT_SCAN_ENABLED", "true").lower() in ("1", "true", "yes")
 
-# Session change notifications
-NOTIFY_SESSION_CHANGE = True
-
-# Default mode at startup (light / medium / strict / test)
-DEFAULT_MODE = os.getenv("DEFAULT_MODE", "medium")
-
-# Telegram: set to false to disable all Telegram messages and polling (DB-only mode)
-TELEGRAM_ENABLED = os.getenv("TELEGRAM_ENABLED", "true").lower() in ("1", "true", "yes")
-
-# DB — two databases: test mode vs live/other modes
-# DB_LABEL lets each bot instance write to its own file (e.g. "light" → live_light.db)
-_BOT_DIR = os.path.dirname(__file__)
-_DB_LABEL = os.getenv("DB_LABEL", "")
+# ── DB paths ──────────────────────────────────────────────────────────────────
+_ROOT      = Path(__file__).parent.parent
+_DB_LABEL  = os.getenv("DB_LABEL", "")
 _db_suffix = f"_{_DB_LABEL}" if _DB_LABEL else ""
-DB_PATH_TEST = os.path.join(_BOT_DIR, "..", f"test{_db_suffix}.db")
-DB_PATH_LIVE = os.path.join(_BOT_DIR, "..", f"live{_db_suffix}.db")
-
-# Position monitor: 1s when position is open, POSITION_MONITOR_INTERVAL when idle
-POSITION_MONITOR_INTERVAL_ACTIVE = 1
-
-# Kyiv timezone for daily report
-KYIV_TZ_STR = "Europe/Kyiv"
+DB_PATH_TEST = str(_ROOT / f"test{_db_suffix}.db")
+DB_PATH_LIVE = str(_ROOT / f"live{_db_suffix}.db")

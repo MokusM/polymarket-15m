@@ -14,9 +14,9 @@ from typing import Optional
 from bot.config import (
     POLYMARKET_PRIVATE_KEY,
     POLYMARKET_CHAIN_ID,
-    CONTRACT_PRICE_MAX,
     CLOB_CROSS_SPREAD_BUY,
     CLOB_MAX_BUY_SLIPPAGE_ABS,
+    CLOB_BUY_BUFFER,
     CLOB_TRADE_HISTORY_LIMIT,
     CLOB_TRADE_HISTORY_MAX_PAGES,
 )
@@ -225,6 +225,9 @@ class ExecutionClient:
         """
         tick_s = self.client.get_tick_size(token_id)
         tick = float(tick_s) if tick_s else 0.01
+        if tick <= 0:
+            tick = 0.01
+        self._last_tick_size = f"{tick:.10f}".rstrip("0").rstrip(".")
 
         def tick_up(p: float) -> float:
             steps = math.ceil(p / tick - 1e-12)
@@ -249,14 +252,12 @@ class ExecutionClient:
         if ap <= 0:
             return ref_lim, None
 
-        hard_cap = min(0.99, CONTRACT_PRICE_MAX)
+        from bot.state import state
+        hard_cap = min(0.99, state.get_thresholds()["CONTRACT_PRICE_MAX"])
         if ap > hard_cap + 1e-9:
             return (
                 0.0,
-                (
-                    f"Ask {ap:.2f} вище макс. ціни входу {hard_cap:.2f} "
-                    f"(CONTRACT_PRICE_MAX, зона як у сканері). Ордер не відправлено."
-                ),
+                f"price_moved:{ap:.2f}:{hard_cap:.2f}",
             )
 
         if CLOB_MAX_BUY_SLIPPAGE_ABS > 0:
@@ -267,7 +268,7 @@ class ExecutionClient:
                     ap, reference, CLOB_MAX_BUY_SLIPPAGE_ABS, hard_cap,
                 )
 
-        p = max(reference, min(ap, hard_cap))
+        p = max(reference, min(ap + CLOB_BUY_BUFFER, hard_cap))
         return tick_up(p), None
 
     async def buy_shares(
@@ -304,12 +305,14 @@ class ExecutionClient:
 
         try:
             loop = asyncio.get_event_loop()
+            self._last_tick_size = tick_size
             limit_p, slip_err = await loop.run_in_executor(
                 None,
                 lambda: self._resolve_buy_limit_price_sync(token_id, price),
             )
             if slip_err:
                 return {"success": False, "error": slip_err}
+            tick_size = self._last_tick_size  # використовуємо реальний tick з CLOB
 
             if use_stake:
                 size = round(stake_usd / limit_p, 2)
@@ -326,6 +329,12 @@ class ExecutionClient:
                     market_slug or "", market_id,
                 )
                 if min_sh > 0:
+                    if min_sh > size and limit_p * min_sh > stake_usd * 5:
+                        # Мінімальний розмір більший ніж у 5 разів перевищує stake — відмовляємось
+                        return {
+                            "success": False,
+                            "error": f"min_order_size {min_sh} shares (${limit_p * min_sh:.2f}) перевищує stake ${stake_usd:.2f} — ордер не розміщено",
+                        }
                     size = max(size, min_sh)
 
             if limit_p * size < 1.0:
@@ -340,9 +349,45 @@ class ExecutionClient:
                     "error": f"Сума ордера ${limit_p * size:.2f} < $1.00 (мінімум CLOB)",
                 }
 
+            # CLOB вимагає: maker (price × size) ≤ 2 decimal places, taker (size) ≤ 4 decimal.
+            # Використовуємо Decimal для точних розрахунків без float noise.
+            from decimal import Decimal as _Dec, ROUND_HALF_UP as _RHU
+            from math import gcd as _gcd
+            # Округляємо ціну до 2 знаків (tick_size=0.01) — і для GCD і для OrderArgs.
+            # Без цього limit_p може мати float noise (0.5900000001) або 3+ знаки (0.591),
+            # що робить GCD некоректним і бібліотека рахує maker amount з шумом.
+            _price_2dp = round(limit_p, 2)
+            _p = _Dec(str(_price_2dp))  # ціна рівно 2 знаки, без float noise
+            _D = int(_p * 100)          # ціна в центах (ціле число, 59 для 0.59)
+            if _D > 0:
+                _divisor = _D // _gcd(_D, 10000)
+                _target_cents = int((_p * _Dec(str(size)) * 100).to_integral_value(_RHU))
+                _M_floor = (_target_cents // _divisor) * _divisor
+                _M_ceil = _M_floor + _divisor
+                _M = _M_ceil if abs(_M_ceil - _target_cents) < abs(_M_floor - _target_cents) else _M_floor
+                if _M < 100:
+                    _M = _M_ceil
+                if _M >= 100:
+                    size = float(_Dec(_M) / _Dec(_D))
+            # Фінальне округлення до 4 знаків щоб py_clob_client не відправив float noise
+            size = float(_Dec(str(size)).quantize(_Dec("0.0001"), rounding=_RHU))
+            # Фінальна перевірка: maker (price × size) повинен мати ≤ 2 знаки.
+            # Якщо після всіх округлень залишився шум — знайти найближчий size що задовольняє умову.
+            _maker = _Dec(str(_price_2dp)) * _Dec(str(size))
+            _maker_rounded = _maker.quantize(_Dec("0.01"), rounding=_RHU)
+            if abs(_maker - _maker_rounded) > _Dec("0.001"):
+                # Підібрати size так щоб price*size = ціле число центів
+                _target_maker = int((_Dec(str(_price_2dp)) * _Dec(str(size)) * 100).to_integral_value(_RHU))
+                size = float((_Dec(str(_target_maker)) / _Dec("100") / _Dec(str(_price_2dp))).quantize(_Dec("0.0001"), rounding=_RHU))
+
+            logger.debug(
+                "PRE-ORDER: price=%.4f → %.2f, size=%s, maker=%.10f",
+                limit_p, _price_2dp, size, _price_2dp * size,
+            )
+
             order_args = OrderArgs(
                 token_id=token_id,
-                price=limit_p,
+                price=_price_2dp,  # використовуємо округлену ціну — без float noise
                 size=size,
                 side="BUY",
             )
@@ -352,12 +397,13 @@ class ExecutionClient:
             )
 
             def _post():
-                return self.client.create_and_post_order(order_args, options)
+                order = self.client.create_order(order_args, options)
+                return self.client.post_order(order, orderType=OrderType.FAK)
 
             signed = await loop.run_in_executor(None, _post)
 
             logger.info(
-                "ORDER PLACED: BUY %s shares @ %.2f | token=%s | result=%s",
+                "ORDER PLACED (FAK): BUY %s shares @ %.2f | token=%s | result=%s",
                 size, limit_p, token_id[:12], signed,
             )
             if isinstance(signed, dict):
@@ -382,41 +428,98 @@ class ExecutionClient:
         size: float,
         neg_risk: bool = False,
         tick_size: str = "0.01",
+        fallback_size: float | None = None,
     ) -> Optional[dict]:
-        """Продати shares (для partial exit / stop-loss)."""
+        """Продати shares (для partial exit / stop-loss).
+
+        fallback_size — якщо CLOB відхилив через мінімальний розмір,
+        повторити з цією кількістю (зазвичай = всі remaining shares).
+        """
         if not self.ready:
             logger.error("ExecutionClient не готовий — ордер не розміщено")
             return {"success": False, "error": "ExecutionClient not ready"}
 
-        try:
-            loop = asyncio.get_event_loop()
-            order_args = OrderArgs(
-                token_id=token_id,
-                price=price,
-                size=size,
-                side="SELL",
-            )
-            options = PartialCreateOrderOptions(
-                tick_size=tick_size,
-                neg_risk=neg_risk,
-            )
+        # CLOB не приймає ціну >= 1.0 — кепуємо до 0.99
+        price = min(price, 0.99)
 
-            def _post():
-                return self.client.create_and_post_order(order_args, options)
+        async def _attempt(sell_size: float) -> Optional[dict]:
+            try:
+                loop = asyncio.get_event_loop()
+                order_args = OrderArgs(
+                    token_id=token_id,
+                    price=price,
+                    size=sell_size,
+                    side="SELL",
+                )
+                options = PartialCreateOrderOptions(
+                    tick_size=tick_size,
+                    neg_risk=neg_risk,
+                )
 
-            signed = await loop.run_in_executor(None, _post)
+                def _post():
+                    return self.client.create_and_post_order(order_args, options)
 
-            logger.info(
-                "ORDER PLACED: SELL %s shares @ %.2f | token=%s | result=%s",
-                size, price, token_id[:12], signed,
-            )
-            if isinstance(signed, dict):
-                return signed
-            return {"success": True, "order_id": str(signed)}
+                signed = await loop.run_in_executor(None, _post)
+                logger.info(
+                    "ORDER PLACED: SELL %s shares @ %.2f | token=%s | result=%s",
+                    sell_size, price, token_id[:12], signed,
+                )
+                if isinstance(signed, dict):
+                    return signed
+                return {"success": True, "order_id": str(signed)}
+            except Exception as e:
+                return {"success": False, "error": str(e), "_exception": e}
 
-        except Exception as e:
-            logger.error("Помилка sell_shares: %s", e, exc_info=True)
-            return {"success": False, "error": str(e)}
+        result = await _attempt(size)
+        err_str = str(result.get("error", "")) if result else ""
+
+        # Retry with fallback_size if CLOB minimum size rejected
+        if result and result.get("success") is False and "lower than the min" in err_str:
+            if fallback_size is not None and fallback_size > size:
+                logger.warning(
+                    "sell_shares: size %.2f нижче мінімуму CLOB — повторюємо з fallback %.2f",
+                    size, fallback_size,
+                )
+                result = await _attempt(fallback_size)
+                if result and "_exception" not in result:
+                    result["_used_fallback_size"] = fallback_size
+                err_str = str(result.get("error", "")) if result else ""
+            else:
+                # Вже продаємо все що є, але CLOB мінімум більший — settlement закриє позицію
+                logger.warning(
+                    "sell_shares: size %.2f нижче мінімуму CLOB і fallback недоступний — settlement закриє позицію",
+                    size,
+                )
+                return {"success": False, "error": "below_clob_minimum", "_market_resolved": True}
+
+        # Retry with actual on-chain balance if "not enough balance" error
+        if result and result.get("success") is False and "not enough balance" in err_str:
+            import re
+            m = re.search(r"balance:\s*(\d+)", err_str)
+            if m:
+                import math as _math
+                actual_size = _math.floor(int(m.group(1)) / 10_000) / 100  # floor до 2 знаків
+                if actual_size < 0.5:
+                    # Маркет вже резолвнувся і токени редімнули — settlement закриє позицію
+                    logger.warning(
+                        "sell_shares: on-chain balance %.4f < 0.5 — маркет вже резолвнувся, пропускаємо продаж",
+                        actual_size,
+                    )
+                    return {"success": False, "error": "market_resolved", "_market_resolved": True}
+                if actual_size > 0:
+                    logger.warning(
+                        "sell_shares: not enough balance — повторюємо з реальним балансом %.4f (запитували %.4f)",
+                        actual_size, size,
+                    )
+                    result = await _attempt(actual_size)
+                    if result and result.get("success") is True:
+                        result["_used_actual_size"] = actual_size
+
+        if result and result.get("success") is False:
+            exc = result.pop("_exception", None)
+            logger.error("Помилка sell_shares: %s", result.get("error"), exc_info=exc)
+
+        return result
 
     async def get_market_token_ids(
         self,
@@ -474,18 +577,48 @@ class ExecutionClient:
             )
         return None
 
-    async def get_token_price(self, token_id: str, side: str = "BUY") -> float:
-        """Поточна ціна token через CLOB (best price for side)."""
+    async def get_token_price(self, token_id: str, side: str = "BUY") -> float | None:
+        """Поточна ціна token через CLOB. Повертає None при помилці API, 0.0 якщо ціна справді 0."""
         if not self.ready:
-            return 0.0
+            return None
+        loop = asyncio.get_event_loop()
+        for attempt in range(3):
+            try:
+                result = await loop.run_in_executor(
+                    None, self.client.get_price, token_id, side,
+                )
+                if isinstance(result, dict):
+                    return float(result.get("price", 0))
+                return float(result) if result is not None else None
+            except Exception as e:
+                if attempt == 2:
+                    logger.debug("get_token_price(%s) failed після 3 спроб: %s", token_id[:12], e)
+                    return None
+                await asyncio.sleep(1.0)
+
+    async def get_order_status(self, order_id: str) -> dict:
+        """Повертає статус ордера з CLOB. Поля: status, size_matched, price."""
+        if not self.ready:
+            return {}
         try:
             loop = asyncio.get_event_loop()
-            result = await loop.run_in_executor(
-                None, self.client.get_price, token_id, side,
-            )
+            result = await loop.run_in_executor(None, self.client.get_order, order_id)
             if isinstance(result, dict):
-                return float(result.get("price", 0))
-            return float(result) if result else 0.0
+                return result
+            return {}
         except Exception as e:
-            logger.error("Помилка get_token_price: %s", e)
-            return 0.0
+            logger.debug("get_order_status(%s): %s", order_id[:12], e)
+            return {}
+
+    async def cancel_order(self, order_id: str) -> bool:
+        """Скасовує ордер у CLOB. Повертає True якщо успішно."""
+        if not self.ready:
+            return False
+        try:
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, self.client.cancel, order_id)
+            logger.info("Ордер %s скасовано", order_id[:12])
+            return True
+        except Exception as e:
+            logger.warning("cancel_order(%s): %s", order_id[:12], e)
+            return False

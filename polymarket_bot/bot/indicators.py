@@ -142,4 +142,31 @@ def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
     dx = (100 * (plus_di - minus_di).abs() / (plus_di + minus_di).replace(0, np.nan)).fillna(0)
     df["adx"] = dx.ewm(span=14, adjust=False).mean()
 
+    # Consecutive closes in same direction (signed: +N=up, -N=down)
+    _diff = df["close"].diff()
+    _dir = _diff.apply(lambda x: 1 if x > 0 else (-1 if x < 0 else 0))
+    _cc, _count, _prev = [], 0, 0
+    for _d in _dir:
+        if _d != 0 and _d == _prev:
+            _count += 1
+        elif _d != 0:
+            _count = 1
+        else:
+            _count = 0
+        _cc.append(_count * (_prev if _prev != 0 else 1))
+        _prev = _d if _d != 0 else _prev
+    df["consecutive_closes"] = _cc
+
+    # MTF RSI: resample 1m → 3m/5m, forward-fill back to 1m resolution
+    for tf_min, col in [(3, "rsi_3m"), (5, "rsi_5m")]:
+        try:
+            close_tf = df["close"].resample(f"{tf_min}min").last().dropna()
+            if len(close_tf) >= RSI_PERIOD:
+                rsi_tf = calculate_rsi(close_tf, RSI_PERIOD)
+                df[col] = rsi_tf.reindex(df.index, method="ffill")
+            else:
+                df[col] = float("nan")
+        except Exception:
+            df[col] = float("nan")
+
     return df.reset_index()

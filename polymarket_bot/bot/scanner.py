@@ -11,11 +11,7 @@ from bot.config import (
     MAX_SIGNALS_PER_ROUND_PER_SIDE,
     REPEAT_ALERTS_AFTER_COOLDOWN,
     NOTIFY_SESSION_CHANGE,
-    OBI_MIN_RATIO,
-    OBI_LEVELS,
     CLOB_SPREAD_MAX,
-    CONTRACT_PRICE_HIGH_MIN,
-    GAP_STRICT_USD,
     ALT_SCAN_ENABLED,
 )
 from bot.exchange_client import ExchangeClient
@@ -92,7 +88,29 @@ class Scanner:
                     await self._check_session_change(df_with_indicators)
 
                 # 4. Перевіряємо ринки
+                th = state.get_thresholds()
                 for market_prices in markets_with_prices:
+                    market_id = str(market_prices["market_id"])
+
+                    # ── CLOB: фетчимо обидва токени одразу для price-gate і відображення ──
+                    clob_yes_ask = clob_yes_bid = 0.0
+                    clob_no_ask = clob_no_bid = 0.0
+                    if state.mode != "test":
+                        token_yes = market_prices.get("token_yes_id")
+                        token_no = market_prices.get("token_no_id")
+                        if token_yes:
+                            clob_yes_ask, clob_yes_bid = await self._fetch_clob_best_prices(token_yes)
+                        if token_no:
+                            clob_no_ask, clob_no_bid = await self._fetch_clob_best_prices(token_no)
+                        market_prices["clob_yes_ask"] = clob_yes_ask
+                        market_prices["clob_no_ask"] = clob_no_ask
+
+                    if state.mode != "test":
+                        logger.info(
+                            "CLOB %s: YES ask=%.2f NO ask=%.2f",
+                            market_id[:12], clob_yes_ask, clob_no_ask,
+                        )
+
                     _shadow: dict = {}
                     signal = check_signals(market_prices, df_with_indicators, _shadow)
 
@@ -105,7 +123,7 @@ class Scanner:
                             except Exception:
                                 pass
                         save_shadow_signal(
-                            market_id=str(market_prices["market_id"]),
+                            market_id=market_id,
                             direction=_shadow.get("direction"),
                             contract_price=_shadow.get("contract_price"),
                             confluence=_shadow.get("confluence", 0),
@@ -120,108 +138,90 @@ class Scanner:
 
                     if signal:
                         direction = signal["direction"]
-                        market_id = str(market_prices["market_id"])
+                        clob_ask = clob_yes_ask if direction == "UP" else clob_no_ask
+                        clob_bid = clob_yes_bid if direction == "UP" else clob_no_bid
 
-                        # ── OBI filter (Binance stakan, skip in test mode) ──
+                        # ── CLOB price zone filter (перша перевірка — до OBI/MTF) ──
+                        if state.mode != "test":
+                            if clob_ask <= 0:
+                                # Retry once before skipping
+                                token_id_retry = market_prices.get("token_yes_id") if direction == "UP" else market_prices.get("token_no_id")
+                                if token_id_retry:
+                                    clob_ask, clob_bid = await self._fetch_clob_best_prices(token_id_retry)
+                                    logger.info("CLOB retry: ask=%.2f для %s", clob_ask, direction)
+                            if clob_ask <= 0:
+                                logger.info("SKIP: CLOB ask недоступний після retry — не використовуємо Gamma як fallback")
+                                continue
+                            if not (th["CONTRACT_PRICE_MIN"] <= clob_ask <= th["CONTRACT_PRICE_MAX"]):
+                                logger.info(
+                                    "SKIP CLOB ask %.2f поза зоною [%.2f–%.2f]",
+                                    clob_ask, th["CONTRACT_PRICE_MIN"], th["CONTRACT_PRICE_MAX"],
+                                )
+                                continue
+
+                            # spread gate
+                            if clob_bid > 0:
+                                spread = clob_ask - clob_bid
+                                if spread > CLOB_SPREAD_MAX:
+                                    logger.info(
+                                        "SKIP CLOB spread %.3f > %.3f",
+                                        spread, CLOB_SPREAD_MAX,
+                                    )
+                                    continue
+
+                            # high-price GAP gate
+                            if clob_ask > th["CONTRACT_PRICE_HIGH_MIN"]:
+                                gap = signal.get("gap", 0)
+                                if abs(gap) < th["GAP_STRICT_USD"]:
+                                    logger.info(
+                                        "SKIP CLOB ask %.2f > HIGH_MIN %.2f but GAP %.1f < %.0f",
+                                        clob_ask, th["CONTRACT_PRICE_HIGH_MIN"], gap, th["GAP_STRICT_USD"],
+                                    )
+                                    continue
+
+                            signal["clob_ask"] = clob_ask
+                            signal["clob_bid"] = clob_bid
+
+                        # ── MTF RSI filter ──
+                        if th["MTF_RSI_FILTER_ENABLED"] and state.mode != "test":
+                            rsi_3m = signal.get("rsi_3m")
+                            rsi_5m = signal.get("rsi_5m")
+                            if rsi_3m is not None and rsi_5m is not None:
+                                if direction == "UP" and not (rsi_3m > 50 and rsi_5m > 50):
+                                    logger.debug(
+                                        "MTF RSI UP fail: rsi_3m=%.1f rsi_5m=%.1f — skip",
+                                        rsi_3m, rsi_5m,
+                                    )
+                                    continue
+                                if direction == "DOWN" and not (rsi_3m < 50 and rsi_5m < 50):
+                                    logger.debug(
+                                        "MTF RSI DOWN fail: rsi_3m=%.1f rsi_5m=%.1f — skip",
+                                        rsi_3m, rsi_5m,
+                                    )
+                                    continue
+
+                        # ── OBI filter ──
                         obi = 1.0
                         if state.mode != "test":
                             obi = await self.exchange.get_order_book_imbalance(
-                                levels=OBI_LEVELS
+                                levels=th["OBI_LEVELS"]
                             )
-                            # UP: потрібен bid > ask (bullish); DOWN: потрібен ask > bid
-                            # OBI_MIN_RATIO=0 → фільтр вимкнено
-                            if OBI_MIN_RATIO <= 0:
+                            obi_ratio = th["OBI_MIN_RATIO"]
+                            if obi_ratio <= 0:
                                 obi_pass = True
                             else:
                                 obi_pass = (
-                                    obi >= OBI_MIN_RATIO
+                                    obi >= obi_ratio
                                     if direction == "UP"
-                                    else obi <= (1.0 / OBI_MIN_RATIO)
+                                    else obi <= (1.0 / obi_ratio)
                                 )
                             if not obi_pass:
                                 logger.debug(
                                     "OBI %.3f не відповідає напрямку %s (threshold=%.2f) — skip",
-                                    obi, direction, OBI_MIN_RATIO,
+                                    obi, direction, obi_ratio,
                                 )
                                 continue
                         signal["obi"] = obi
-
-                        # ── CLOB: фетчимо реальну ціну для статистики + фільтри ──
-                        clob_ask = clob_bid = 0.0
-                        if state.mode != "test":
-                            token_id = (
-                                market_prices.get("token_yes_id")
-                                if direction == "UP"
-                                else market_prices.get("token_no_id")
-                            )
-                            if token_id:
-                                clob_ask, clob_bid = await self._fetch_clob_best_prices(token_id)
-
-                                # Priority 4: spread gate
-                                if clob_ask > 0 and clob_bid > 0:
-                                    spread = clob_ask - clob_bid
-                                    if spread > CLOB_SPREAD_MAX:
-                                        logger.debug(
-                                            "CLOB spread %.3f > %.3f — skip",
-                                            spread, CLOB_SPREAD_MAX,
-                                        )
-                                        save_shadow_signal(
-                                            market_id=market_id, direction=direction,
-                                            contract_price=signal.get("contract_price"),
-                                            clob_ask=clob_ask, confluence=signal.get("confluence", 0),
-                                            reject_reason="clob_spread_too_wide",
-                                            time_left=signal.get("time_left"), gap=signal.get("gap"),
-                                            atr=signal.get("atr"),
-                                            adx=signal.get("adx"),
-                                            btc_price=signal.get("current_price"),
-                                        )
-                                        continue
-
-                                # Priority 1: high-price GAP gate
-                                if clob_ask > CONTRACT_PRICE_HIGH_MIN:
-                                    gap = signal.get("gap", 0)
-                                    if abs(gap) < GAP_STRICT_USD:
-                                        logger.debug(
-                                            "CLOB ask %.2f > %.2f (FLB zone) but GAP %.1f < %.0f — skip",
-                                            clob_ask, CONTRACT_PRICE_HIGH_MIN, gap, GAP_STRICT_USD,
-                                        )
-                                        save_shadow_signal(
-                                            market_id=market_id, direction=direction,
-                                            contract_price=signal.get("contract_price"),
-                                            clob_ask=clob_ask, confluence=signal.get("confluence", 0),
-                                            reject_reason="clob_ask_too_high",
-                                            time_left=signal.get("time_left"), gap=gap,
-                                            atr=signal.get("atr"),
-                                            adx=signal.get("adx"),
-                                            btc_price=signal.get("current_price"),
-                                        )
-                                        continue
-
-                                # Зберігаємо реальну CLOB ціну в сигнал (для статистики)
-                                if clob_ask > 0:
-                                    # CLOB price zone check — Gamma могла пройти фільтр, але CLOB вища
-                                    th = state.get_thresholds()
-                                    if clob_ask > th["CONTRACT_PRICE_MAX"]:
-                                        logger.debug(
-                                            "CLOB ask %.2f > CONTRACT_PRICE_MAX %.2f — skip",
-                                            clob_ask, th["CONTRACT_PRICE_MAX"],
-                                        )
-                                        save_shadow_signal(
-                                            market_id=market_id, direction=direction,
-                                            contract_price=signal.get("contract_price"),
-                                            clob_ask=clob_ask, confluence=signal.get("confluence", 0),
-                                            reject_reason="clob_ask_too_high",
-                                            time_left=signal.get("time_left"), gap=signal.get("gap"),
-                                            atr=signal.get("atr"),
-                                            adx=signal.get("adx"),
-                                            btc_price=signal.get("current_price"),
-                                        )
-                                        continue
-                                    signal["clob_ask"] = clob_ask
-                                    signal["clob_bid"] = clob_bid
-                                    signal["clob_spread"] = round(clob_ask - clob_bid, 4)
-                                    # contract_price = реальна CLOB ask (замість Gamma)
-                                    signal["contract_price"] = clob_ask
 
                         key = f"{market_id}_{direction}"
                         now = datetime.now().timestamp()
@@ -239,6 +239,8 @@ class Scanner:
                         if can_send:
                             signal["market_id"] = market_id
                             signal["market_slug"] = market_prices.get("market_slug") or ""
+                            signal["token_yes_id"] = market_prices.get("token_yes_id") or ""
+                            signal["token_no_id"] = market_prices.get("token_no_id") or ""
                             signal["neg_risk"] = bool(
                                 market_prices.get("neg_risk", False)
                             )
@@ -248,83 +250,44 @@ class Scanner:
                                 or ""
                             )
 
+                            # Зберігаємо реальну CLOB ціну в contract_price
+                            if signal.get("clob_ask"):
+                                signal["contract_price"] = signal["clob_ask"]
+
                             # ── Збір додаткових даних (тільки для статистики) ──
                             try:
-                                from bot.indicators import calculate_rsi
-                                df_3m = await self.exchange.get_btc_candles("3m", 50)
-                                df_5m = await self.exchange.get_btc_candles("5m", 50)
-                                if not df_3m.empty:
-                                    signal["rsi_3m"] = round(float(calculate_rsi(df_3m["close"], 14).iloc[-1]), 2)
-                                    taker_vol = df_3m["taker_buy_base"].iloc[-5:].sum()
-                                    total_vol = df_3m["volume"].iloc[-5:].sum()
-                                    signal["taker_ratio"] = round(float(taker_vol / total_vol), 4) if total_vol > 0 else None
-                                if not df_5m.empty:
-                                    signal["rsi_5m"] = round(float(calculate_rsi(df_5m["close"], 14).iloc[-1]), 2)
                                 signal["funding_rate"] = await self.exchange.get_funding_rate()
                                 # ADX з df_with_indicators (порахований в add_indicators)
                                 if "adx" in df_with_indicators.columns:
                                     signal["adx"] = round(float(df_with_indicators["adx"].iloc[-1]), 2)
 
-                                # ── Momentum поля (тільки статистика, без фільтрів) ──
+                                # taker_ratio
                                 try:
-                                    _df = df_with_indicators
-                                    _c = _df["close"].reset_index(drop=True)
-                                    _o = _df["open"].reset_index(drop=True)
-                                    _v = _df["volume"].reset_index(drop=True)
-
-                                    # 1. consecutive_closes
-                                    _direction = signal.get("direction", "UP")
-                                    _streak = 0
-                                    for _i in range(1, min(6, len(_c))):
-                                        _bullish = float(_c.iloc[-_i]) > float(_o.iloc[-_i])
-                                        if (_direction == "UP" and _bullish) or (_direction == "DOWN" and not _bullish):
-                                            _streak += 1
-                                        else:
-                                            break
-                                    signal["consecutive_closes"] = _streak
-
-                                    # 2. speed_2m vs speed_5m
-                                    if len(_c) >= 8:
-                                        _speed_2m = abs(float(_c.iloc[-1]) - float(_c.iloc[-3])) / 2
-                                        _speed_5m = abs(float(_c.iloc[-3]) - float(_c.iloc[-8])) / 5
-                                        signal["speed_2m"] = round(_speed_2m, 2)
-                                        signal["speed_5m"] = round(_speed_5m, 2)
-                                        signal["speed_accel"] = round(_speed_2m - _speed_5m, 2)
-
-                                    # 3. obv_slope
-                                    if len(_c) >= 5:
-                                        _diff = _c.diff()
-                                        _sign = _diff.apply(lambda x: 1 if x > 0 else (-1 if x < 0 else 0))
-                                        _obv = (_v * _sign).cumsum()
-                                        signal["obv_slope"] = round(float(_obv.iloc[-1]) - float(_obv.iloc[-4]), 2)
-
-                                    # 4. vwap_cross
-                                    if "vwap" in _df.columns and len(_c) >= 2:
-                                        _vwap = _df["vwap"].reset_index(drop=True)
-                                        _prev_above = bool(float(_c.iloc[-2]) > float(_vwap.iloc[-2]))
-                                        _curr_above = bool(float(_c.iloc[-1]) > float(_vwap.iloc[-1]))
-                                        signal["vwap_cross"] = _curr_above != _prev_above
-                                except Exception as _me:
-                                    logger.warning("Momentum fields error: %s", _me)
+                                    df_3m = await self.exchange.get_btc_candles("3m", 50)
+                                    if not df_3m.empty:
+                                        taker_vol = df_3m["taker_buy_base"].iloc[-5:].sum()
+                                        total_vol = df_3m["volume"].iloc[-5:].sum()
+                                        signal["taker_ratio"] = round(float(taker_vol / total_vol), 4) if total_vol > 0 else None
+                                except Exception:
+                                    pass
                             except Exception as e:
                                 logger.debug("Extra data collection error (non-critical): %s", e)
 
                             sig_id = save_signal(signal)
                             if sig_id:
                                 asyncio.create_task(send_alert(sig_id, signal))
+
+                                # Price snapshots для SL аналізу
+                                token_id_snap = market_prices.get("token_yes_id") if direction == "UP" else market_prices.get("token_no_id")
+                                if token_id_snap:
+                                    logger.info("📸 Scheduling snapshots for #%s token=%s..%s", sig_id, token_id_snap[:8], token_id_snap[-4:])
+                                    asyncio.create_task(self._schedule_price_snapshots(sig_id, token_id_snap))
+                                else:
+                                    logger.warning("No token_id for snapshots #%s dir=%s", sig_id, direction)
+
                                 self.last_signal_time[key] = now
                                 self.signal_counts[key] = count + 1
                                 logger.info(f"✅ Згенеровано сигнал #{sig_id}: {direction} для маркету {market_id}")
-
-                                # ── Price snapshots: трекаємо ціну контракту через 1/2/3/5/10 хв ──
-                                token_id_snap = (
-                                    market_prices.get("token_yes_id") if direction == "UP"
-                                    else market_prices.get("token_no_id")
-                                )
-                                if token_id_snap and state.mode != "test":
-                                    asyncio.create_task(
-                                        self._schedule_price_snapshots(sig_id, token_id_snap)
-                                    )
 
                 # ── Resolve shadow signals (BTC напрямок після закриття вікна) ──
                 try:
@@ -430,28 +393,32 @@ class Scanner:
 
     async def _fetch_clob_best_prices(self, token_id: str) -> tuple[float, float]:
         """Return (best_ask, best_bid) from CLOB public book API. Returns (0, 0) on error."""
-        try:
-            async with httpx.AsyncClient(timeout=3.0) as client:
-                r = await client.get(
-                    "https://clob.polymarket.com/book",
-                    params={"token_id": token_id},
-                )
-                if r.status_code != 200:
-                    return 0.0, 0.0
-                data = r.json()
-                asks = data.get("asks") or []
-                bids = data.get("bids") or []
-                # Polymarket CLOB sorts asks DESC (worst→best) and bids ASC (worst→best)
-                # so best ask = asks[-1], best bid = bids[-1]
-                best_ask = float(asks[-1]["price"]) if asks else 0.0
-                best_bid = float(bids[-1]["price"]) if bids else 0.0
-                return best_ask, best_bid
-        except Exception as e:
-            logger.debug("_fetch_clob_best_prices(%s): %s", token_id[:12], e)
-            return 0.0, 0.0
+        for attempt in range(3):
+            try:
+                async with httpx.AsyncClient(timeout=3.0) as client:
+                    r = await client.get(
+                        "https://clob.polymarket.com/book",
+                        params={"token_id": token_id},
+                    )
+                    if r.status_code != 200:
+                        raise ValueError(f"status {r.status_code}")
+                    data = r.json()
+                    asks = data.get("asks") or []
+                    bids = data.get("bids") or []
+                    best_ask = float(asks[-1]["price"]) if asks else 0.0
+                    best_bid = float(bids[-1]["price"]) if bids else 0.0
+                    return best_ask, best_bid
+            except Exception as e:
+                if attempt < 2:
+                    await asyncio.sleep(0.5)
+                else:
+                    logger.debug("_fetch_clob_best_prices(%s) failed після 3 спроб: %s", token_id[:12], e)
+        return 0.0, 0.0
 
     async def _schedule_price_snapshots(self, signal_id: int, token_id: str) -> None:
         """Записує ціну контракту і BTC через 1/2/3/5/10 хв після сигналу."""
+        from bot.storage import save_signal_snapshot
+        logger.info("📸 Snapshot task started for #%s", signal_id)
         elapsed = 0
         for minutes in (1, 2, 3, 5, 10):
             await asyncio.sleep((minutes - elapsed) * 60)
@@ -472,8 +439,9 @@ class Scanner:
                 df_now = await self.exchange.get_btc_1m_candles(limit=2)
                 btc_now = float(df_now.iloc[-1]["close"]) if not df_now.empty else None
                 save_signal_snapshot(signal_id, minutes, btc_now, contract_price)
+                logger.info("📸 Snapshot #%s +%dmin: cp=%s btc=%s", signal_id, minutes, contract_price, btc_now)
             except Exception as e:
-                logger.debug("Snapshot error #%s +%dmin: %s", signal_id, minutes, e)
+                logger.warning("Snapshot error #%s +%dmin: %s", signal_id, minutes, e)
 
     async def close(self):
         await self.exchange.close()

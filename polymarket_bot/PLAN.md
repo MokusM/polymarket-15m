@@ -1,70 +1,24 @@
-# Plan: Polymarket BTC 15m Scanner Bot — розвиток
+# Plan
 
-## Поточний стан (v1)
-- [x] Знаходження активного BTC 15m маркету через Gamma API (`/markets/slug/`)
-- [x] Індикатори: RSI 1m/3m, EMA9/21, Volume state
-- [x] ATR-фільтр волатильності (відсікає «рулетку»)
-- [x] Режими light/medium/strict/test з Telegram `/mode`
-- [x] Антиспам: один сигнал на market_id + direction
-- [x] Paper-trade: auto-approve, stake $10, PnL після settlement
-- [x] Telegram алерти з Approve/Reject/Skip
+## Pending
 
-## Спостереження (збір даних — 1-2 доби)
-- [ ] Зібрати 50-100 сигналів у medium режимі
-- [ ] Проаналізувати winrate / PnL
-- [ ] Визначити: чи є базовий edge, чи стратегія потребує змін
+- [ ] **Filter calibration (~2026-04-15)** — на основі paper статистики (252 сигнали):
+  - Light: виключити `volume=stabilization` + `time_left > 8хв` → прибере ~55% сигналів, WR ↑ до ~88%+
+  - Всі режими: виключити `delta < 0.1%` (flat market, WR ~70-77%)
+  - Найкращі комбінації: Light conf=4 tl=5-8хв (93.3%), Light conf=3 tl=<5хв (91.3%)
+  - Volume=normal — найнадійніший стан; spike — нестабільний
+  - Файли: `bot/state.py` (thresholds), `bot/signals.py` (volume filter)
 
----
+- [ ] **Edge/Kelly калібрування** — зараз edge перевірка вимкнена (ставка $10 фіксована при edge≤0). Після збору ~1 тижня даних порахувати реальний WR по режимах (light/medium/strict) з plouLight/Medium/Strict БД, підставити справжні win_prob в `estimate_win_probability()` і повернути gate `edge > 0`. Файл: `bot/risk.py`, `bot/telegram_bot.py`.
 
-## Етап 2 — додаткові індикатори
+- [ ] **ExecutionClient retry при старті** — при `ConnectionTerminated` від Polymarket CLOB під час init робити N повторних спроб з затримкою, щоб `LIVE=OFF` не залишався після тимчасової мережевої помилки
+- [ ] **Limit order fill tracking** — відстеження чи заповнився ліміт ордер у стакані (зараз deprioritized)
+- [ ] **Multi-account support** (deferred)
 
-### 2.1 VWAP (Volume Weighted Average Price)
-- Рахується з 1m свічок Binance (ціна × об'єм / сума об'ємів)
-- Ціна під VWAP → підтвердження Up сигналу; ціна над VWAP → підтвердження Down
-- Додати в `indicators.py`, вивести в алерт
+## Done
 
-### 2.2 Bollinger Bands
-- SMA(20) ± 2 стандартних відхилення
-- Торкнулась нижньої смуги + RSI низький → сильніший Up
-- Торкнулась верхньої смуги + RSI високий → сильніший Down
-- Додати в `indicators.py`, вивести в алерт
-
-### 2.3 Stochastic RSI
-- RSI від RSI — дає ранніші сигнали перекупленості/перепроданості
-- Додати як додатковий фільтр або підтвердження
-
----
-
-## Етап 3 — фільтр сесій
-
-- Азіатська (00:00–08:00 UTC): низька волатильність, мало edge
-- Європейська (08:00–16:00 UTC): середня
-- Американська (16:00–00:00 UTC): найбільша волатильність, найбільше можливостей
-- Додати session-aware фільтр: не торгувати / адаптувати пороги по сесії
-
----
-
-## Етап 4 — EV розрахунок (implied vs model probability)
-
-- Зібрати історичну статистику: при delta X%, RSI Y, ATR Z → яка реальна частка Up?
-- Порівняти model probability з implied probability (ціна контракту)
-- Якщо model > implied → позитивний EV → сигнал
-- Вивести EV в алерт: "Model: 58%, Market: 42%, EV: +16%"
-
----
-
-## Етап 5 — UX для фінального рішення
-
-- Додати посилання на TradingView (BTC 1m chart) прямо в алерт
-- Додати посилання на Polymarket маркет
-- Розмір позиції: рекомендація залежно від EV і впевненості
-- Зробити кнопку з вибором суми ставки ($5 / $10 / $25 / $50)
-
----
-
-## Етап 6 (опціонально) — order flow / CLOB
-
-- Polymarket CLOB API: книга ордерів, дисбаланс bid/ask
-- Whale detection: великі ордери як додатковий сигнал
-- Pricing lag: арбітраж між швидкістю Binance і PM
-- Найскладніший але найперспективніший етап
+- [x] MTF RSI filter (+4-8% accuracy у бектесті) — зараз вимкнено, повернути коли ринок активний
+- [x] TOML config → прибрано, режими в `state.get_thresholds()`, `.env` тільки секрети
+- [x] TP L1/L2/L3 full-close — закриває позицію в БД коли продає всі shares
+- [x] Settlement PnL fix — WIN/LOSS замість CLOSED_EARLY для денного звіту
+- [x] /filters команда — показує активні пороги поточного режиму

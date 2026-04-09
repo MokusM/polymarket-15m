@@ -1,8 +1,22 @@
+import asyncio
 import httpx
 import pandas as pd
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+async def _retry(coro_fn, retries: int = 3, delay: float = 2.0):
+    """Простий retry з exponential backoff для async функцій."""
+    for attempt in range(retries):
+        try:
+            return await coro_fn()
+        except Exception as e:
+            if attempt == retries - 1:
+                raise
+            wait = delay * (2 ** attempt)
+            logger.warning("Retry %s/%s після помилки: %s (чекаємо %.1fs)", attempt + 1, retries, e, wait)
+            await asyncio.sleep(wait)
 
 class ExchangeClient:
     """Клієнт для роботи з Binance API."""
@@ -43,31 +57,28 @@ class ExchangeClient:
             "interval": "1m",
             "limit": limit
         }
-        try:
+
+        async def _fetch():
             response = await self.client.get("/klines", params=params)
             response.raise_for_status()
-            data = response.json()
-            
-            # Формат Binance klines: 
-            # [0: Open time, 1: Open, 2: High, 3: Low, 4: Close, 5: Volume, ...]
+            return response.json()
+
+        try:
+            data = await _retry(_fetch, retries=3, delay=2.0)
+
             df = pd.DataFrame(data, columns=[
-                "timestamp", "open", "high", "low", "close", "volume", 
+                "timestamp", "open", "high", "low", "close", "volume",
                 "close_time", "quote_asset_volume", "number_of_trades",
                 "taker_buy_base_asset_volume", "taker_buy_quote_asset_volume", "ignore"
             ])
-            
-            # Залишаємо тільки потрібні колонки та приводимо до правильних типів
-            df = df[["timestamp", "open", "high", "low", "close", "volume"]]
-            for col in ["open", "high", "low", "close", "volume"]:
+            df = df[["timestamp", "open", "high", "low", "close", "volume", "taker_buy_base_asset_volume"]]
+            for col in ["open", "high", "low", "close", "volume", "taker_buy_base_asset_volume"]:
                 df[col] = df[col].astype(float)
-                
-            # Перетворюємо timestamp в datetime об'єкти
             df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
-            
             return df
         except Exception as e:
-            logger.error(f"Помилка отримання свічок з Binance: {e}")
-            return pd.DataFrame() # Порожній датафрейм у разі помилки
+            logger.error("Помилка отримання свічок з Binance після 3 спроб: %s", e)
+            return pd.DataFrame()
 
     async def get_order_book_imbalance(
         self, symbol: str = "BTCUSDT", levels: int = 20

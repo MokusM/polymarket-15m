@@ -15,7 +15,9 @@ def get_db_path() -> str:
 
 
 def get_connection(db_path: str | None = None) -> sqlite3.Connection:
-    return sqlite3.connect(db_path if db_path is not None else get_db_path())
+    conn = sqlite3.connect(db_path if db_path is not None else get_db_path())
+    conn.execute("PRAGMA busy_timeout=5000")
+    return conn
 
 
 def _migrate_signals_columns(cursor: sqlite3.Cursor) -> None:
@@ -28,10 +30,8 @@ def _migrate_signals_columns(cursor: sqlite3.Cursor) -> None:
         ("payload_json", "TEXT"),
         ("time_left", "REAL"),
         ("telegram_message_id", "INTEGER"),
-        (
-            "live_entry_status",
-            "TEXT",
-        ),  # NULL=paper/невизначено; opened=CLOB fill; no_position=approve але позиції нема
+        ("live_entry_status", "TEXT"),  # NULL=paper; opened=CLOB fill; no_position=approve але позиції нема
+        ("filter_version", "TEXT"),     # current / new / both — A/B тест фільтрів
     ]
     for col, decl in additions:
         if col not in existing:
@@ -72,6 +72,17 @@ def init_db(db_path: str | None = None):
         )
         _migrate_signals_columns(cursor)
         conn.commit()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS signal_snapshots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                signal_id INTEGER,
+                minutes_after INTEGER,
+                btc_price REAL,
+                contract_price REAL,
+                recorded_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.commit()
     except Exception as e:
         logger.error("Помилка ініціалізації БД: %s", e)
     finally:
@@ -79,6 +90,19 @@ def init_db(db_path: str | None = None):
     init_shadow_signals_table(path)
     init_signal_snapshots_table(path)
     init_alt_signals_table(path)
+
+
+def save_signal_snapshot(signal_id: int, minutes_after: int, btc_price: float | None, contract_price: float | None):
+    try:
+        conn = get_connection()
+        conn.execute(
+            "INSERT INTO signal_snapshots (signal_id, minutes_after, btc_price, contract_price) VALUES (?, ?, ?, ?)",
+            (signal_id, minutes_after, btc_price, contract_price),
+        )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.debug("save_signal_snapshot error: %s", e)
 
 
 def save_signal(signal: dict) -> int | None:
@@ -114,8 +138,9 @@ def save_signal(signal: dict) -> int | None:
             INSERT INTO signals (
                 market_id, start_price, current_price, delta, delta_percent,
                 direction, contract_price, rsi_1m, rsi_3m, ema_position, volume_state,
-                decision, stake_usd, bot_mode, time_left, payload_json, alert_html
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                decision, stake_usd, bot_mode, time_left, payload_json, alert_html,
+                filter_version
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 signal.get("market_id"),
@@ -135,6 +160,7 @@ def save_signal(signal: dict) -> int | None:
                 time_left,
                 payload_json,
                 alert_html,
+                signal.get("filter_version", "current"),
             ),
         )
         conn.commit()
@@ -170,15 +196,15 @@ def update_signal_live_fill(signal_id: int, stake_usd: float, contract_price: fl
 
 
 def mark_signal_live_no_position(signal_id: int):
-    """Після Approve live: ордер не виконано / ліміт у стакані — не рахувати paper LOSS у settlement."""
+    """Після Approve live: ордер не виконано / ліміт у стакані — одразу NO_ENTRY (settlement не дублює 💤)."""
     try:
         conn = get_connection()
         conn.execute(
-            "UPDATE signals SET live_entry_status = 'no_position' WHERE id = ?",
+            "UPDATE signals SET live_entry_status = 'no_position', result = 'NO_ENTRY', pnl = 0.0 WHERE id = ?",
             (signal_id,),
         )
         conn.commit()
-        logger.info("Сигнал #%s: live_entry_status=no_position", signal_id)
+        logger.info("Сигнал #%s: no_position → NO_ENTRY (immediate)", signal_id)
     except Exception as e:
         logger.error("Помилка mark_signal_live_no_position: %s", e)
     finally:
@@ -244,6 +270,44 @@ def signal_live_position_already_closed(signal_id: int) -> bool:
     except Exception as e:
         logger.error("Помилка signal_live_position_already_closed: %s", e)
         return False
+    finally:
+        conn.close()
+
+
+def get_recent_signals(limit: int = 10) -> list:
+    """Повертає останні N сигналів з decision=approve, з market_title з payload_json."""
+    try:
+        conn = get_connection()
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT id, timestamp, direction, contract_price, result, pnl,
+                   stake_usd, time_left, payload_json
+            FROM signals
+            WHERE decision = 'approve'
+            ORDER BY id DESC
+            LIMIT ?
+            """,
+            (limit,),
+        )
+        rows = cursor.fetchall()
+        out = []
+        for row in rows:
+            d = dict(row)
+            try:
+                payload = json.loads(d.get("payload_json") or "{}")
+            except Exception:
+                payload = {}
+            d["market_title"] = payload.get("market_title") or payload.get("market_slug") or d.get("market_id", "")
+            d["gap"] = payload.get("gap")
+            d["confluence"] = payload.get("confluence")
+            d["taker_ratio"] = payload.get("taker_ratio")
+            out.append(d)
+        return out
+    except Exception as e:
+        logger.error("Помилка get_recent_signals: %s", e)
+        return []
     finally:
         conn.close()
 
@@ -484,6 +548,36 @@ def init_alt_signals_table(db_path: str | None = None):
         conn.close()
 
 
+def init_pending_orders_table(db_path: str | None = None):
+    path = db_path if db_path is not None else get_db_path()
+    try:
+        conn = sqlite3.connect(path)
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS pending_orders (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                signal_id INTEGER NOT NULL,
+                order_id TEXT NOT NULL UNIQUE,
+                token_id TEXT NOT NULL,
+                market_id TEXT,
+                market_slug TEXT,
+                direction TEXT,
+                limit_price REAL,
+                shares REAL,
+                stake_usd REAL,
+                neg_risk INTEGER DEFAULT 0,
+                expires_at TEXT,
+                created_at TEXT DEFAULT (datetime('now'))
+            )
+            """
+        )
+        conn.commit()
+    except Exception as e:
+        logger.error("Помилка init_pending_orders_table: %s", e)
+    finally:
+        conn.close()
+
+
 def save_alt_signal(signal: dict, db_path: str | None = None) -> int | None:
     """Зберігає ALT (ETH/SOL) сигнал для статистики."""
     from bot.state import state
@@ -540,6 +634,54 @@ def save_alt_signal(signal: dict, db_path: str | None = None) -> int | None:
         conn.close()
 
 
+def save_pending_order(
+    signal_id: int,
+    order_id: str,
+    token_id: str,
+    market_id: str,
+    market_slug: str,
+    direction: str,
+    limit_price: float,
+    shares: float,
+    stake_usd: float,
+    neg_risk: bool,
+    expires_at: str,
+):
+    try:
+        conn = get_connection()
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO pending_orders
+            (signal_id, order_id, token_id, market_id, market_slug,
+             direction, limit_price, shares, stake_usd, neg_risk, expires_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (signal_id, order_id, token_id, market_id, market_slug,
+             direction, limit_price, shares, stake_usd, int(neg_risk), expires_at),
+        )
+        conn.commit()
+        logger.info("Збережено pending order: signal #%s order_id=%s", signal_id, order_id[:12])
+    except Exception as e:
+        logger.error("Помилка save_pending_order: %s", e)
+    finally:
+        conn.close()
+
+
+def get_pending_order_by_signal(signal_id: int) -> dict | None:
+    try:
+        conn = get_connection()
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            "SELECT * FROM pending_orders WHERE signal_id = ? LIMIT 1", (signal_id,)
+        ).fetchone()
+        return dict(row) if row else None
+    except Exception as e:
+        logger.error("Помилка get_pending_order_by_signal: %s", e)
+        return None
+    finally:
+        conn.close()
+
+
 def resolve_alt_signals(current_prices: dict[str, float], db_path: str | None = None) -> int:
     """
     Визначає result для alt_signals де ринок вже закрився (end_date_iso < now).
@@ -583,6 +725,45 @@ def resolve_alt_signals(current_prices: dict[str, float], db_path: str | None = 
     except Exception as e:
         logger.error("Помилка resolve_alt_signals: %s", e)
     return updated
+
+
+def get_pending_orders() -> list:
+    try:
+        conn = get_connection()
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute("SELECT * FROM pending_orders").fetchall()
+        return [dict(r) for r in rows]
+    except Exception as e:
+        logger.error("Помилка get_pending_orders: %s", e)
+        return []
+    finally:
+        conn.close()
+
+
+def delete_pending_order(order_id: str):
+    try:
+        conn = get_connection()
+        conn.execute("DELETE FROM pending_orders WHERE order_id = ?", (order_id,))
+        conn.commit()
+    except Exception as e:
+        logger.error("Помилка delete_pending_order: %s", e)
+    finally:
+        conn.close()
+
+
+def mark_signal_live_pending(signal_id: int):
+    try:
+        conn = get_connection()
+        conn.execute(
+            "UPDATE signals SET live_entry_status = 'pending_fill' WHERE id = ?",
+            (signal_id,),
+        )
+        conn.commit()
+        logger.info("Сигнал #%s: live_entry_status=pending_fill", signal_id)
+    except Exception as e:
+        logger.error("Помилка mark_signal_live_pending: %s", e)
+    finally:
+        conn.close()
 
 
 if __name__ == "__main__":

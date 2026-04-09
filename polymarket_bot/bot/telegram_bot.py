@@ -268,6 +268,8 @@ async def cmd_list(message: types.Message):
         "/buy — ручна купівля UP/DOWN для поточного маркету\n"
         "/logs — останні 50 рядків bot.log\n"
         "/mode — змінити режим (Light / Medium / Strict / Test)\n"
+        "/stop — зупинити торгівлю (сканування працює)\n"
+        "/start — відновити торгівлю\n"
         "/reset — скинути circuit breaker і відновити live trading\n"
         "\n"
         "📖 <b>Режими сканера</b>\n"
@@ -335,6 +337,32 @@ async def cmd_balance(message: types.Message):
     balance = await _execution_client.get_balance()
     await message.answer(
         f"\U0001f4b0 Баланс Polymarket: <b>${balance:.2f} USDC</b>",
+        parse_mode="HTML",
+    )
+
+
+@dp.message(Command("stop"))
+async def cmd_stop(message: types.Message):
+    """Зупинити live торгівлю. Сканування продовжується, ордери не розміщуються."""
+    state.pause()
+    await message.answer(
+        "\u23f8 <b>Торгівлю зупинено.</b>\n"
+        "Сканування працює, сигнали записуються, але ордери не розміщуються.\n"
+        "/start — відновити торгівлю",
+        parse_mode="HTML",
+    )
+
+
+@dp.message(Command("start"))
+async def cmd_start(message: types.Message):
+    """Відновити live торгівлю."""
+    if not state.is_paused:
+        await message.answer("\u2705 Торгівля вже активна.")
+        return
+    state.resume()
+    await message.answer(
+        "\u25b6 <b>Торгівлю відновлено.</b>\n"
+        f"Режим: <b>{state.mode.upper()}</b>",
         parse_mode="HTML",
     )
 
@@ -818,7 +846,7 @@ async def process_decision(callback_query: types.CallbackQuery):
 
 
 async def _execute_live_order(signal_id: int, skip_min_size: bool = False) -> str:
-    from bot.position_manager import open_position, count_open_positions
+    from bot.position_manager import open_position, count_open_positions, get_open_positions
 
     async def _mark_no_fill() -> None:
         await asyncio.to_thread(mark_signal_live_no_position, signal_id)
@@ -831,9 +859,16 @@ async def _execute_live_order(signal_id: int, skip_min_size: bool = False) -> st
         await _mark_no_fill()
         return "\u26a0\ufe0f Сигнал не знайдено в пам\u2019яті"
 
-    if not signal.get("_manual") and count_open_positions() >= MAX_OPEN_POSITIONS:
-        await _mark_no_fill()
-        return f"\u26a0\ufe0f Ліміт позицій ({MAX_OPEN_POSITIONS})"
+    # Ліміт: 1 позиція на актив (BTC/ETH/SOL можуть бути паралельно)
+    if not signal.get("_manual"):
+        _asset = signal.get("asset", "BTC").upper()
+        _open = get_open_positions()
+        _asset_open = sum(1 for p in _open if _asset in (p.get("market_slug") or p.get("market_id") or "").upper()
+                          or (_asset == "BTC" and "btc" in (p.get("market_slug") or "").lower())
+                          or (_asset != "BTC" and _asset.lower() in (p.get("market_slug") or "").lower()))
+        if _asset_open >= MAX_OPEN_POSITIONS:
+            await _mark_no_fill()
+            return f"\u26a0\ufe0f Ліміт позицій для {_asset} ({MAX_OPEN_POSITIONS})"
 
     # conf < MIN_TRADE_CONFLUENCE → торгуємо на мінімум ($1) для збору реальних даних
     _conf = signal.get("confluence", 0) if not signal.get("_manual") else 99
@@ -845,6 +880,10 @@ async def _execute_live_order(signal_id: int, skip_min_size: bool = False) -> st
     if not signal.get("_manual") and signal.get("volume_state") == "stabilization" and _conf >= _min_trade_conf:
         signal.setdefault("_risk", {})["stake_usd"] = MIN_STAKE_USD
         logger.info("STAB FILTER: conf=%s volume=stabilization -> stake reduced to min", _conf)
+
+    # ALT assets (ETH/SOL) — завжди мін ставка для збору даних
+    if signal.get("_alt_data_only"):
+        signal.setdefault("_risk", {})["stake_usd"] = MIN_STAKE_USD
 
     direction = signal.get("direction", "UP")
     market_id = signal.get("market_id", "")

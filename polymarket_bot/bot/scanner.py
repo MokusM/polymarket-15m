@@ -363,6 +363,23 @@ class Scanner:
                             sig.get("btc_aligned"),
                             sig.get("clob_ask", 0),
                         )
+
+                        # Live buy на мінімум для збору реальної статистики
+                        if state.is_live_allowed and sig.get("clob_ask") and sig.get("clob_ask") > 0:
+                            # Зберігаємо як BTC сигнал для виконання через send_alert
+                            alt_as_signal = {
+                                **sig,
+                                "market_slug": market.get("market_slug", ""),
+                                "token_yes_id": market.get("token_yes_id", ""),
+                                "token_no_id": market.get("token_no_id", ""),
+                                "neg_risk": bool(market.get("neg_risk", False)),
+                                "market_title": market.get("title") or market.get("question") or f"{asset} 15m",
+                                "_alt_data_only": True,  # маркер для мін ставки
+                            }
+                            from bot.storage import save_signal as _save_btc_signal
+                            btc_sig_id = _save_btc_signal(alt_as_signal)
+                            if btc_sig_id:
+                                asyncio.create_task(send_alert(btc_sig_id, alt_as_signal))
                     except Exception as e:
                         logger.debug("ALT %s market error: %s", asset, e)
 

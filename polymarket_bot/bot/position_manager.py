@@ -8,8 +8,11 @@ Position manager — трекінг відкритих позицій, partial e
 import asyncio
 import json
 import logging
+import math
 import sqlite3
 from datetime import datetime, timezone
+
+import httpx as _httpx
 
 from bot.config import (
     BREAKEVEN_AFTER_ROI_PCT,
@@ -209,15 +212,14 @@ def close_position(pos_id: int, reason: str, pnl: float = 0.0):
         )
         conn.commit()
         logger.info("Position #%s CLOSED: %s, PnL: %.2f", pos_id, reason, pnl)
+        if pnl < 0:
+            state.record_loss()
+        else:
+            state.record_win()
     except Exception as e:
         logger.error("Помилка close_position: %s", e)
     finally:
         conn.close()
-
-    if pnl < 0:
-        state.record_loss()
-    else:
-        state.record_win()
 
 
 def update_sl_price(pos_id: int, new_sl: float):
@@ -308,7 +310,6 @@ async def monitor_positions_loop(execution_client):
                     continue
                 try:
                     # Використовуємо CLOB REST bid — реальна ціна продажу (те що ми отримаємо)
-                    import httpx as _httpx
                     try:
                         async with _httpx.AsyncClient(timeout=3.0) as _c:
                             _r = await _c.get(
@@ -325,8 +326,8 @@ async def monitor_positions_loop(execution_client):
                         current_price = await execution_client.get_token_price(
                             pos["token_id"], "SELL",
                         )
-                    if current_price is None:
-                        continue  # API помилка — пропускаємо, не закриваємо
+                    if current_price is None or current_price <= 0:
+                        continue  # API помилка або порожній book — пропускаємо, не закриваємо
                     logger.debug("Position #%s current bid: %.4f", pos.get("id"), current_price)
 
                     update_price_extremes(pos_id=pos["id"], price=current_price)
@@ -397,13 +398,13 @@ async def monitor_positions_loop(execution_client):
                                 )
                                 sl = entry
 
-                    # ── Trailing breakeven: ціна досягла TRIGGER → SL підняти на entry+X% ──
+                    # ── Trailing breakeven: ціна досягла TRIGGER → SL на фіксований рівень ──
                     if (
                         TRAILING_BE_TRIGGER > 0
                         and current_price >= TRAILING_BE_TRIGGER
                         and remaining > 0
                     ):
-                        be_sl = round(entry * (1 + TRAILING_BE_SL_PCT / 100), 4)
+                        be_sl = TRAILING_BE_TRIGGER * (1 - TRAILING_BE_SL_PCT / 100) if TRAILING_BE_SL_PCT > 0 else 0.40
                         if sl < be_sl:
                             update_sl_price(pos_id, be_sl)
                             logger.info(
@@ -413,7 +414,7 @@ async def monitor_positions_loop(execution_client):
                             await send_info_message(
                                 f"\U0001f512 <b>SL locked #{pos_id}</b>\n"
                                 f"Price {current_price:.2f} hit {TRAILING_BE_TRIGGER:.2f} → "
-                                f"SL raised to {be_sl:.2f} (entry {entry:.2f} +{TRAILING_BE_SL_PCT:.0f}%)"
+                                f"SL raised to {be_sl:.2f}"
                             )
                             sl = be_sl
 
@@ -424,7 +425,6 @@ async def monitor_positions_loop(execution_client):
                         )
                         # Quasi market order: crosses any real bid.
                         # Must satisfy CLOB $1 notional min (price * shares >= 1.0)
-                        import math
                         _min_p = math.ceil(100.0 / max(remaining, 0.01)) / 100.0
                         sell_price = min(0.99, max(0.10, _min_p))
                         sell_result = await execution_client.sell_shares(

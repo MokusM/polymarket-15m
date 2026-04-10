@@ -254,31 +254,16 @@ async def cmd_filters(message: types.Message):
 async def cmd_list(message: types.Message):
     """Список всіх доступних команд."""
     text = (
-        "🤖 <b>Команди бота</b>\n"
-        "\n"
-        "📋 <b>Інформація</b>\n"
-        "/status — повний статус бота (режим, live, баланс, позиції)\n"
-        "/filters — активні порогові значення фільтрів\n"
-        "/diagnose — перевірити всі фільтри для поточного маркету\n"
+        "<b>Команди</b>\n"
+        "/status — статус бота\n"
         "/positions — відкриті позиції\n"
-        "/balance — баланс Polymarket USDC\n"
-        "/history — остання угоди з CLOB API\n"
-        "\n"
-        "⚙️ <b>Управління</b>\n"
-        "/buy — ручна купівля UP/DOWN для поточного маркету\n"
-        "/logs — останні 50 рядків bot.log\n"
-        "/mode — змінити режим (Light / Medium / Strict / Test)\n"
-        "/stop — зупинити торгівлю (сканування працює)\n"
+        "/balance — баланс USDC\n"
+        "/diagnose — фільтри поточного маркету\n"
+        "/buy — ручна купівля\n"
+        "/stop — зупинити торгівлю\n"
         "/start — відновити торгівлю\n"
-        "/reset — скинути circuit breaker і відновити live trading\n"
-        "\n"
-        "📖 <b>Режими сканера</b>\n"
-        "🟢 <b>Light</b> — гнучкі фільтри, більше сигналів\n"
-        "🟡 <b>Medium</b> — збалансовані (рекомендовано)\n"
-        "🔴 <b>Strict</b> — снайперський підхід, мінімум сигналів\n"
-        "🔥 <b>Test</b> — всі фільтри вимкнено, live trading недоступний\n"
-        "\n"
-        "/list — ця довідка"
+        "/reset — скинути circuit breaker\n"
+        "/logs — останні рядки логу"
     )
     await message.answer(text, parse_mode="HTML")
 
@@ -313,6 +298,7 @@ async def cmd_mode(message: types.Message):
 @dp.message(Command("positions"))
 async def cmd_positions(message: types.Message):
     from bot.position_manager import get_open_positions
+    import httpx as _httpx
 
     positions = get_open_positions()
     if not positions:
@@ -321,10 +307,40 @@ async def cmd_positions(message: types.Message):
 
     lines = [f"\U0001f4ca <b>Відкриті позиції ({len(positions)}):</b>\n"]
     for p in positions:
+        entry = float(p.get("entry_price", 0))
+        remaining = float(p.get("remaining_shares", 0))
+        stake = float(p.get("stake_usd", 0))
+        sl = float(p.get("sl_price", 0))
+        realized = float(p.get("realized_pnl", 0) or 0)
+
+        # Fetch current bid
+        current_bid = None
+        token_id = p.get("token_id")
+        if token_id:
+            try:
+                async with _httpx.AsyncClient(timeout=3.0) as c:
+                    r = await c.get("https://clob.polymarket.com/book", params={"token_id": token_id})
+                    if r.status_code == 200:
+                        bids = r.json().get("bids") or []
+                        bids = sorted(bids, key=lambda x: float(x.get("price", 0)), reverse=True)
+                        current_bid = float(bids[0]["price"]) if bids else None
+            except Exception:
+                pass
+
+        if current_bid is not None:
+            unrealized = (current_bid - entry) * remaining
+            total_pnl = realized + unrealized
+            pnl_icon = "\U0001f7e2" if total_pnl >= 0 else "\U0001f534"
+            pnl_str = f"{pnl_icon} PnL: <b>{total_pnl:+.2f}</b> (bid {current_bid:.2f})"
+        else:
+            pnl_str = "bid: n/a"
+
+        sl_str = f"SL {sl:.2f}" if sl > 0 else "no SL"
+
         lines.append(
-            f"#{p['id']} | {p['direction']} {p['side']} @ {p['entry_price']:.2f} | "
-            f"{p['remaining_shares']:.0f} shares | SL: {p.get('sl_price', 0):.2f} | "
-            f"${p['stake_usd']:.2f}"
+            f"<b>#{p['id']}</b> {p['direction']} {p['side']} @ {entry:.2f} | "
+            f"{remaining:.0f}sh | ${stake:.2f} | {sl_str}\n"
+            f"{pnl_str}"
         )
     await message.answer("\n".join(lines), parse_mode="HTML")
 
@@ -744,33 +760,22 @@ async def send_alert(signal_id: int, signal: dict):
     else:
         stake_display = STAKE_USD
 
-    text = format_signal_alert_html(signal, state.mode, stake_display)
-    text += f"\n\U0001f3af {risk_text}"
+    # Застосувати фільтри ставки до відображення
+    _conf = signal.get("confluence", 0)
+    _min_tc = state.get_thresholds().get("MIN_TRADE_CONFLUENCE", 0)
+    if _min_tc > 0 and _conf < _min_tc and _conf > 0:
+        stake_display = MIN_STAKE_USD
+    if signal.get("volume_state") == "stabilization" and _conf >= _min_tc:
+        stake_display = MIN_STAKE_USD
+    if signal.get("_alt_data_only"):
+        stake_display = MIN_STAKE_USD
 
-    if state.is_live_allowed and client_ready and edge_ok:
-        cp = signal.get("clob_ask") or signal.get("contract_price", 0.5)
-        shares = round(stake_display / cp, 1) if cp > 0 else 0
-        side = "YES" if signal.get("direction") == "UP" else "NO"
-        text += (
-            f"\n\n\U0001f7e2 <b>LIVE MODE</b> \u2014 Approve = \u0440\u0435\u0430\u043b\u044c\u043d\u0438\u0439 \u043e\u0440\u0434\u0435\u0440!\n"
-            f"\U0001f4b5 <b>BUY {side} @ {cp:.2f} | ${stake_display:.2f} | "
-            f"{shares} shares</b>"
-        )
-    elif state.is_live_allowed and not client_ready:
-        detail = ""
-        if _execution_client is None:
-            detail = " Клієнт не інжектовано (перезапусти main.py з LIVE_TRADING=true)."
-        else:
-            r = getattr(_execution_client, "not_ready_reason", None)
-            if r:
-                detail = " " + html.escape(r)
-        text += (
-            "\n\U0001f7e1 <b>LIVE MODE</b> "
-            "(ExecutionClient not ready \u2014 ордер не буде розміщено)."
-            f"{detail}"
-        )
+    text = format_signal_alert_html(signal, state.mode, stake_display)
+
+    if not client_ready and state.is_live_allowed:
+        text += "\n\U0001f7e1 ExecutionClient not ready"
     elif state.circuit_breaker_active:
-        text += "\n\U0001f6a8 <b>Circuit breaker</b> \u2014 live \u0432\u0438\u043c\u043a\u043d\u0435\u043d\u043e (paper only)"
+        text += "\n\U0001f6a8 Circuit breaker active"
 
     builder = InlineKeyboardBuilder()
     builder.button(text="\u2705 Approve", callback_data=f"decision|{signal_id}|approve")
@@ -863,9 +868,7 @@ async def _execute_live_order(signal_id: int, skip_min_size: bool = False) -> st
     if not signal.get("_manual"):
         _asset = signal.get("asset", "BTC").upper()
         _open = get_open_positions()
-        _asset_open = sum(1 for p in _open if _asset in (p.get("market_slug") or p.get("market_id") or "").upper()
-                          or (_asset == "BTC" and "btc" in (p.get("market_slug") or "").lower())
-                          or (_asset != "BTC" and _asset.lower() in (p.get("market_slug") or "").lower()))
+        _asset_open = sum(1 for p in _open if _asset.lower() in (p.get("market_slug") or "").lower())
         if _asset_open >= MAX_OPEN_POSITIONS:
             await _mark_no_fill()
             return f"\u26a0\ufe0f Ліміт позицій для {_asset} ({MAX_OPEN_POSITIONS})"

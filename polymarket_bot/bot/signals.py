@@ -489,7 +489,7 @@ def check_alt_signals(
         if not gap_ok:
             return None
 
-    if state.mode != "test" and time_left_min < TIME_STRICT_MAX_MIN:
+    if state.mode != "test" and time_left_min < th.get("TIME_STRICT_MAX_MIN", 5):
         if abs(gap_pct) < ALT_GAP_STRICT_PCT:
             return None
 

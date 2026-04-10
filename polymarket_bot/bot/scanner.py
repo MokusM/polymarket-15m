@@ -364,8 +364,10 @@ class Scanner:
                             sig.get("clob_ask", 0),
                         )
 
-                        # Live buy на мінімум для збору реальної статистики
-                        if state.is_live_allowed and sig.get("clob_ask") and sig.get("clob_ask") > 0:
+                        # Live buy на мінімум для збору реальної статистики (з cooldown)
+                        _alt_key = f"alt_{asset}_{market.get('market_id')}_{direction}"
+                        _alt_last = self.last_signal_time.get(_alt_key, 0)
+                        if state.is_live_allowed and sig.get("clob_ask") and sig.get("clob_ask") > 0 and (now - _alt_last >= COOLDOWN_SECONDS):
                             # Зберігаємо як BTC сигнал для виконання через send_alert
                             alt_as_signal = {
                                 **sig,
@@ -380,6 +382,7 @@ class Scanner:
                             btc_sig_id = _save_btc_signal(alt_as_signal)
                             if btc_sig_id:
                                 asyncio.create_task(send_alert(btc_sig_id, alt_as_signal))
+                                self.last_signal_time[_alt_key] = now
                     except Exception as e:
                         logger.debug("ALT %s market error: %s", asset, e)
 
@@ -422,8 +425,8 @@ class Scanner:
                     data = r.json()
                     asks = data.get("asks") or []
                     bids = data.get("bids") or []
-                    best_ask = float(asks[-1]["price"]) if asks else 0.0
-                    best_bid = float(bids[-1]["price"]) if bids else 0.0
+                    best_ask = min(float(a["price"]) for a in asks) if asks else 0.0
+                    best_bid = max(float(b["price"]) for b in bids) if bids else 0.0
                     return best_ask, best_bid
             except Exception as e:
                 if attempt < 2:

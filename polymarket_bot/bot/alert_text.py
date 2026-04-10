@@ -164,67 +164,41 @@ def format_signal_alert_html(signal: dict, mode: str, stake_usd: float) -> str:
     confluence = signal.get("confluence", 0)
     votes = signal.get("votes") or {}
 
-    # Indicator checklist
-    indicator_lines: list[str] = []
-    for name in INDICATOR_ORDER:
-        v = votes.get(name, {})
-        vote_dir = v.get("direction")
-        label = v.get("label", "n/a")
-        icon = VOTE_ICONS.get(vote_dir, "\u26aa")
-        if vote_dir == direction:
-            check = "\u2705"
-        elif vote_dir is not None:
-            check = "\u274c"
-        else:
-            check = "\u2796"
-        indicator_lines.append(f"  {check} {icon} <b>{name}</b>: {html_esc(label)}")
-    indicators_text = "\n".join(indicator_lines)
-
-    atr_zone = signal.get("atr_zone", "unknown")
-    zone_label = ATR_ZONE_LABELS.get(atr_zone, atr_zone)
-
-    title = signal.get("market_title", "")
-    title_line = f"\U0001f4cc <b>{title}</b>\n" if title else ""
-
-    src = signal.get("start_price_source", "")
-    ref_hint = ""
-    if src == "pm_window_binance_open":
-        ref_hint = "Ref: Binance 1m open @ market start"
-    elif src == "rolling_15m_open":
-        ref_hint = "Ref: Binance open 15 bars ago (fallback)"
-
-    score, quality_note = _assess_quality(signal)
-    stars = "\u2b50" * score + "\u2606" * (5 - score)
-
-    chg_1h = signal.get("chg_1h", 0)
     contract_price = signal.get("contract_price", 0)
     contract_side = "YES" if direction == "UP" else "NO"
-    breakeven_wr = contract_price * 100
+    time_left = signal.get("time_left", 0)
+    current_price = signal.get("current_price", 0)
+    delta = signal.get("delta", 0)
+    atr = signal.get("atr", 0)
+    atr_zone = signal.get("atr_zone", "unknown")
+    volume_state = signal.get("volume_state", "?")
 
     _fv = signal.get("filter_version", "current")
     _fv_label = {"current": "", "new": " [NEW]", "both": " [BOTH]"}.get(_fv, "")
 
+    dir_icon = "\U0001f534" if direction == "DOWN" else "\U0001f7e2"
+    title = signal.get("market_title", "")
+
+    # Індикатори одним рядком
+    ind_parts = []
+    for name in INDICATOR_ORDER:
+        v = votes.get(name, {})
+        vote_dir = v.get("direction")
+        if vote_dir == direction:
+            ind_parts.append(f"{name} \u2705")
+        elif vote_dir is not None:
+            ind_parts.append(f"{name} \u274c")
+        else:
+            ind_parts.append(f"{name} \u2796")
+    indicators_line = " | ".join(ind_parts)
+
+    title_line = f"\U0001f4cc {html_esc(title)}\n" if title else ""
+
     return (
-        f"\U0001f6a8 <b>Signal: {direction}</b>{_fv_label}\n"
-        f"\U0001f4ca <b>Confluence: {confluence}/5</b>\n"
-        f"\u2699\ufe0f Mode: {mode.upper()}\n"
+        f"{dir_icon} <b>{direction}</b> conf={confluence}{_fv_label} | "
+        f"{contract_side} @ {contract_price:.2f} | ${stake_usd:.0f} | {time_left:.1f} min\n"
         f"{title_line}"
+        f"BTC ${current_price:,.0f} ({delta:+.0f}) | ATR ${atr:.0f} {atr_zone} | vol: {volume_state}\n"
         f"\n"
-        f"{indicators_text}\n"
-        f"\n"
-        f"<b>Quality: {stars} ({score}/5)</b>\n"
-        f"<i>{html_esc(quality_note)}</i>\n"
-        f"\n"
-        f"\u26a1 ATR Zone: {zone_label}\n"
-        f"\U0001f4b0 {contract_side} @ {contract_price:.2f} | "
-        f"Stake: {stake_usd:.0f} USD | BE: {breakeven_wr:.0f}%\n"
-        f"\u23f1 Time left: {signal.get('time_left', 0)} min\n"
-        f"\n"
-        f"Start: {signal.get('start_price', 0):.2f}\n"
-        f"Now: {signal.get('current_price', 0):.2f}\n"
-        f"Delta: {signal.get('delta', 0):.2f} ({signal.get('delta_percent', 0):.2f}%)\n"
-        f"BTC 1h: {chg_1h:+.3f}%\n"
-        f"ATR: ${signal.get('atr', 0):.1f}\n"
-        f"Volume: {signal.get('volume_state', '?')}\n"
-        f"<i>{html_esc(ref_hint)}</i>\n"
+        f"{indicators_line}\n"
     )

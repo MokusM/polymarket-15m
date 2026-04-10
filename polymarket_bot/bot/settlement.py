@@ -33,20 +33,6 @@ _market_signal_counts: dict[str, int] = defaultdict(int)
 SETTLEMENT_INTERVAL_SECONDS = 300  # fallback polling: кожні 5 хв (WS handles most cases)
 
 
-def _count_market_signals(market_id: str) -> int:
-    """Скільки всього сигналів для цього маркету в БД."""
-    try:
-        conn = _sqlite3.connect(get_db_path())
-        conn.execute("PRAGMA busy_timeout=3000")
-        row = conn.execute(
-            "SELECT COUNT(*) FROM signals WHERE market_id = ? AND result IS NULL OR market_id = ? AND result IS NOT NULL",
-            (market_id, market_id),
-        ).fetchone()
-        conn.close()
-        return row[0] if row else 0
-    except Exception:
-        return 0
-
 
 def _count_unresolved_for_market(market_id: str) -> int:
     """Скільки ще не settled сигналів для цього маркету."""

@@ -2,7 +2,7 @@ import json
 import logging
 import sqlite3
 
-from bot.config import AUTO_APPROVE_PAPER, DB_PATH_TEST, DB_PATH_LIVE, STAKE_USD, LIVE_TRADING
+from bot.config import AUTO_APPROVE_PAPER, DB_PATH_TEST, DB_PATH_LIVE, STAKE_USD, MIN_STAKE_USD, LIVE_TRADING
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +87,9 @@ def init_db(db_path: str | None = None):
         logger.error("Помилка ініціалізації БД: %s", e)
     finally:
         conn.close()
+    init_shadow_signals_table(path)
+    init_signal_snapshots_table(path)
+    init_alt_signals_table(path)
 
 
 def save_signal_snapshot(signal_id: int, minutes_after: int, btc_price: float | None, contract_price: float | None):
@@ -112,9 +115,9 @@ def save_signal(signal: dict) -> int | None:
     is_live_mode = LIVE_TRADING and state.mode != "test"
     # В live-режимі сигнал очікує на ручне підтвердження або обробку send_alert
     decision = "approve" if (AUTO_APPROVE_PAPER and not is_live_mode) else "pending"
-    if is_live_mode:
+    if state.mode != "test":
         risk = calculate_stake(signal)
-        stake = float(risk["stake_usd"]) if risk.get("edge", 0) > 0 else float(STAKE_USD)
+        stake = float(risk["stake_usd"]) if risk.get("edge", 0) > 0 else float(MIN_STAKE_USD)
     else:
         stake = float(STAKE_USD)
     time_left = signal.get("time_left")
@@ -326,6 +329,225 @@ def get_unresolved_signals() -> list:
         conn.close()
 
 
+def init_shadow_signals_table(db_path: str | None = None):
+    """Таблиця для сигналів що не пройшли фільтри — для аналізу гіпотез."""
+    path = db_path if db_path is not None else get_db_path()
+    try:
+        conn = sqlite3.connect(path)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS shadow_signals (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                market_id TEXT,
+                end_date_iso TEXT,
+                direction TEXT,
+                contract_price REAL,
+                clob_ask REAL,
+                confluence INTEGER,
+                reject_reason TEXT,
+                time_left REAL,
+                gap REAL,
+                atr REAL,
+                adx REAL,
+                btc_price REAL,
+                bot_mode TEXT,
+                resolved_direction TEXT
+            )
+        """)
+        # Міграція існуючих таблиць
+        cursor = conn.cursor()
+        cursor.execute("PRAGMA table_info(shadow_signals)")
+        existing = {row[1] for row in cursor.fetchall()}
+        for col, decl in [("end_date_iso", "TEXT"), ("resolved_direction", "TEXT")]:
+            if col not in existing:
+                conn.execute(f"ALTER TABLE shadow_signals ADD COLUMN {col} {decl}")
+        conn.commit()
+    except Exception as e:
+        logger.error("Помилка init_shadow_signals_table: %s", e)
+    finally:
+        conn.close()
+
+
+def save_shadow_signal(
+    market_id: str,
+    direction: str | None,
+    contract_price: float | None,
+    confluence: int,
+    reject_reason: str,
+    time_left: float | None = None,
+    gap: float | None = None,
+    atr: float | None = None,
+    adx: float | None = None,
+    btc_price: float | None = None,
+    clob_ask: float | None = None,
+    end_date_iso: str | None = None,
+    db_path: str | None = None,
+) -> int | None:
+    from bot.state import state
+    path = db_path if db_path is not None else get_db_path()
+    try:
+        conn = sqlite3.connect(path)
+        cursor = conn.execute("""
+            INSERT INTO shadow_signals
+            (market_id, end_date_iso, direction, contract_price, clob_ask, confluence,
+             reject_reason, time_left, gap, atr, adx, btc_price, bot_mode)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (market_id, end_date_iso, direction, contract_price, clob_ask, confluence,
+              reject_reason, time_left, gap, atr, adx, btc_price, state.mode))
+        conn.commit()
+        return cursor.lastrowid
+    except Exception as e:
+        logger.error("Помилка save_shadow_signal: %s", e)
+    finally:
+        conn.close()
+
+
+def init_signal_snapshots_table(db_path: str | None = None):
+    """Таблиця трекінгу ціни після сигналу — для аналізу стоп-лосу і руху."""
+    path = db_path if db_path is not None else get_db_path()
+    try:
+        conn = sqlite3.connect(path)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS signal_snapshots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                signal_id INTEGER NOT NULL,
+                minutes_after INTEGER NOT NULL,
+                btc_price REAL,
+                contract_price REAL,
+                recorded_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.commit()
+    except Exception as e:
+        logger.error("Помилка init_signal_snapshots_table: %s", e)
+    finally:
+        conn.close()
+
+
+def save_signal_snapshot(
+    signal_id: int,
+    minutes_after: int,
+    btc_price: float | None,
+    contract_price: float | None,
+    db_path: str | None = None,
+):
+    path = db_path if db_path is not None else get_db_path()
+    try:
+        conn = sqlite3.connect(path)
+        conn.execute("""
+            INSERT INTO signal_snapshots (signal_id, minutes_after, btc_price, contract_price)
+            VALUES (?, ?, ?, ?)
+        """, (signal_id, minutes_after, btc_price, contract_price))
+        conn.commit()
+    except Exception as e:
+        logger.error("Помилка save_signal_snapshot: %s", e)
+    finally:
+        conn.close()
+
+
+def resolve_shadow_signals(btc_df, db_path: str | None = None) -> int:
+    """
+    Для shadow_signals де ринок вже закрився — записує куди реально пішов BTC.
+    btc_df: DataFrame з 1m свічками BTC (pandas).
+    resolved_direction: "UP"/"DOWN" — фактичний напрямок BTC за вікно.
+    """
+    from datetime import datetime, timezone
+    import pandas as pd
+    path = db_path if db_path is not None else get_db_path()
+    updated = 0
+    try:
+        conn = sqlite3.connect(path)
+        conn.row_factory = sqlite3.Row
+        now_iso = datetime.now(timezone.utc).isoformat()
+
+        rows = conn.execute("""
+            SELECT id, end_date_iso FROM shadow_signals
+            WHERE resolved_direction IS NULL AND end_date_iso IS NOT NULL AND end_date_iso < ?
+        """, (now_iso,)).fetchall()
+
+        if not rows or btc_df is None or btc_df.empty:
+            conn.close()
+            return 0
+
+        # Поточна ціна BTC
+        btc_now = float(btc_df.iloc[-1]["close"])
+        btc_15m_ago = float(btc_df.iloc[-15]["close"]) if len(btc_df) >= 15 else btc_now
+        actual_direction = "UP" if btc_now > btc_15m_ago else "DOWN"
+
+        for row in rows:
+            conn.execute(
+                "UPDATE shadow_signals SET resolved_direction=? WHERE id=?",
+                (actual_direction, row["id"])
+            )
+            updated += 1
+
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.error("Помилка resolve_shadow_signals: %s", e)
+    return updated
+
+
+def init_alt_signals_table(db_path: str | None = None):
+    """Таблиця для сигналів ETH/SOL — ті ж поля що і signals + asset + BTC кореляція."""
+    path = db_path if db_path is not None else get_db_path()
+    try:
+        conn = sqlite3.connect(path)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS alt_signals (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                asset TEXT NOT NULL,
+                market_id TEXT,
+                end_date_iso TEXT,
+                start_price REAL,
+                current_price REAL,
+                delta REAL,
+                delta_percent REAL,
+                direction TEXT,
+                contract_price REAL,
+                clob_ask REAL,
+                confluence INTEGER,
+                rsi_1m REAL,
+                ema_position TEXT,
+                volume_state TEXT,
+                gap REAL,
+                gap_pct REAL,
+                atr REAL,
+                atr_zone TEXT,
+                adx REAL,
+                time_left REAL,
+                bot_mode TEXT,
+                btc_price REAL,
+                btc_gap REAL,
+                btc_gap_pct REAL,
+                btc_aligned INTEGER,
+                consecutive_closes INTEGER,
+                speed_accel REAL,
+                vwap_cross INTEGER,
+                result TEXT,
+                resolved_price REAL,
+                payload_json TEXT
+            )
+        """)
+        # Міграція існуючих таблиць
+        cursor = conn.cursor()
+        cursor.execute("PRAGMA table_info(alt_signals)")
+        existing = {row[1] for row in cursor.fetchall()}
+        for col, decl in [
+            ("end_date_iso", "TEXT"),
+            ("result", "TEXT"),
+            ("resolved_price", "REAL"),
+        ]:
+            if col not in existing:
+                conn.execute(f"ALTER TABLE alt_signals ADD COLUMN {col} {decl}")
+        conn.commit()
+    except Exception as e:
+        logger.error("Помилка init_alt_signals_table: %s", e)
+    finally:
+        conn.close()
+
+
 def init_pending_orders_table(db_path: str | None = None):
     path = db_path if db_path is not None else get_db_path()
     try:
@@ -352,6 +574,62 @@ def init_pending_orders_table(db_path: str | None = None):
         conn.commit()
     except Exception as e:
         logger.error("Помилка init_pending_orders_table: %s", e)
+    finally:
+        conn.close()
+
+
+def save_alt_signal(signal: dict, db_path: str | None = None) -> int | None:
+    """Зберігає ALT (ETH/SOL) сигнал для статистики."""
+    from bot.state import state
+    path = db_path if db_path is not None else get_db_path()
+    try:
+        conn = sqlite3.connect(path)
+        payload = json.dumps(signal, ensure_ascii=False, default=str)
+        cursor = conn.execute("""
+            INSERT INTO alt_signals (
+                asset, market_id, end_date_iso, start_price, current_price, delta, delta_percent,
+                direction, contract_price, clob_ask, confluence,
+                rsi_1m, ema_position, volume_state,
+                gap, gap_pct, atr, atr_zone, adx, time_left, bot_mode,
+                btc_price, btc_gap, btc_gap_pct, btc_aligned,
+                consecutive_closes, speed_accel, vwap_cross, payload_json
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        """, (
+            signal.get("asset"),
+            signal.get("market_id"),
+            signal.get("end_date_iso"),
+            signal.get("start_price"),
+            signal.get("current_price"),
+            signal.get("delta"),
+            signal.get("delta_percent"),
+            signal.get("direction"),
+            signal.get("contract_price"),
+            signal.get("clob_ask"),
+            signal.get("confluence"),
+            signal.get("rsi_1m"),
+            signal.get("ema_position"),
+            signal.get("volume_state"),
+            signal.get("gap"),
+            signal.get("gap_pct"),
+            signal.get("atr"),
+            signal.get("atr_zone"),
+            signal.get("adx"),
+            signal.get("time_left"),
+            state.mode,
+            signal.get("btc_price"),
+            signal.get("btc_gap"),
+            signal.get("btc_gap_pct"),
+            signal.get("btc_aligned"),
+            signal.get("consecutive_closes"),
+            signal.get("speed_accel"),
+            signal.get("vwap_cross"),
+            payload,
+        ))
+        conn.commit()
+        return cursor.lastrowid
+    except Exception as e:
+        logger.error("Помилка save_alt_signal: %s", e)
+        return None
     finally:
         conn.close()
 
@@ -402,6 +680,51 @@ def get_pending_order_by_signal(signal_id: int) -> dict | None:
         return None
     finally:
         conn.close()
+
+
+def resolve_alt_signals(current_prices: dict[str, float], db_path: str | None = None) -> int:
+    """
+    Визначає result для alt_signals де ринок вже закрився (end_date_iso < now).
+    current_prices: {"ETH": 2050.0, "SOL": 80.5} — поточна ціна активу.
+    WIN = ціна пішла в напрямку сигналу, LOSS = проти.
+    Повертає кількість оновлених записів.
+    """
+    from datetime import datetime, timezone
+    path = db_path if db_path is not None else get_db_path()
+    updated = 0
+    try:
+        conn = sqlite3.connect(path)
+        conn.row_factory = sqlite3.Row
+        now_iso = datetime.now(timezone.utc).isoformat()
+
+        # Всі нерозв'язані сигнали де ринок вже закрився
+        rows = conn.execute("""
+            SELECT id, asset, direction, start_price, end_date_iso
+            FROM alt_signals
+            WHERE result IS NULL AND end_date_iso IS NOT NULL AND end_date_iso < ?
+        """, (now_iso,)).fetchall()
+
+        for row in rows:
+            asset = row["asset"]
+            resolved_price = current_prices.get(asset)
+            if resolved_price is None:
+                continue
+
+            start = row["start_price"]
+            direction = row["direction"]
+            if start and start > 0:
+                actual = "UP" if resolved_price > start else "DOWN"
+                result = "WIN" if actual == direction else "LOSS"
+                conn.execute("""
+                    UPDATE alt_signals SET result=?, resolved_price=? WHERE id=?
+                """, (result, resolved_price, row["id"]))
+                updated += 1
+
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.error("Помилка resolve_alt_signals: %s", e)
+    return updated
 
 
 def get_pending_orders() -> list:

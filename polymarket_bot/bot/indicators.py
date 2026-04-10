@@ -121,6 +121,27 @@ def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
     choices = ["spike", "stabilization"]
     df["volume_state"] = np.select(conditions, choices, default="normal")
 
+    # ADX (14) — сила тренду (без напрямку), тільки для статистики
+    high = df["high"]
+    low = df["low"]
+    close_prev = df["close"].shift(1)
+    plus_dm = (high - high.shift(1)).clip(lower=0).where(
+        (high - high.shift(1)) > (low.shift(1) - low), other=0.0
+    )
+    minus_dm = (low.shift(1) - low).clip(lower=0).where(
+        (low.shift(1) - low) > (high - high.shift(1)), other=0.0
+    )
+    tr_adx = pd.concat([
+        high - low,
+        (high - close_prev).abs(),
+        (low - close_prev).abs(),
+    ], axis=1).max(axis=1)
+    atr14 = tr_adx.ewm(span=14, adjust=False).mean()
+    plus_di = 100 * plus_dm.ewm(span=14, adjust=False).mean() / atr14
+    minus_di = 100 * minus_dm.ewm(span=14, adjust=False).mean() / atr14
+    dx = (100 * (plus_di - minus_di).abs() / (plus_di + minus_di).replace(0, np.nan)).fillna(0)
+    df["adx"] = dx.ewm(span=14, adjust=False).mean()
+
     # Consecutive closes in same direction (signed: +N=up, -N=down)
     _diff = df["close"].diff()
     _dir = _diff.apply(lambda x: 1 if x > 0 else (-1 if x < 0 else 0))

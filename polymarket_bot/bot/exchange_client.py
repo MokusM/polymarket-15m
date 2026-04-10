@@ -26,6 +26,27 @@ class ExchangeClient:
     def __init__(self):
         self.client = httpx.AsyncClient(base_url=self.BASE_URL)
 
+    async def get_1m_candles(self, symbol: str = "BTCUSDT", limit: int = 100) -> pd.DataFrame:
+        """1-хвилинні свічки для будь-якого символу (BTCUSDT, ETHUSDT, SOLUSDT...)."""
+        params = {"symbol": symbol, "interval": "1m", "limit": limit}
+        try:
+            response = await self.client.get("/klines", params=params)
+            response.raise_for_status()
+            data = response.json()
+            df = pd.DataFrame(data, columns=[
+                "timestamp", "open", "high", "low", "close", "volume",
+                "close_time", "quote_asset_volume", "number_of_trades",
+                "taker_buy_base_asset_volume", "taker_buy_quote_asset_volume", "ignore"
+            ])
+            df = df[["timestamp", "open", "high", "low", "close", "volume"]]
+            for col in ["open", "high", "low", "close", "volume"]:
+                df[col] = df[col].astype(float)
+            df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
+            return df
+        except Exception as e:
+            logger.error("Помилка отримання свічок %s: %s", symbol, e)
+            return pd.DataFrame()
+
     async def get_btc_1m_candles(self, limit: int = 100) -> pd.DataFrame:
         """
         Отримує останні 1-хвилинні свічки для BTCUSDT.
@@ -85,6 +106,46 @@ class ExchangeClient:
         except Exception as e:
             logger.warning("OBI Binance error: %s", e)
             return 1.0
+
+    async def get_btc_candles(self, interval: str = "3m", limit: int = 50) -> pd.DataFrame:
+        """Свічки BTCUSDT для довільного інтервалу (3m, 5m тощо). Включає taker volume."""
+        try:
+            r = await self.client.get("/klines", params={
+                "symbol": "BTCUSDT", "interval": interval, "limit": limit
+            })
+            r.raise_for_status()
+            data = r.json()
+            df = pd.DataFrame(data, columns=[
+                "timestamp", "open", "high", "low", "close", "volume",
+                "close_time", "quote_asset_volume", "number_of_trades",
+                "taker_buy_base", "taker_buy_quote", "ignore"
+            ])
+            for col in ["open", "high", "low", "close", "volume", "taker_buy_base"]:
+                df[col] = df[col].astype(float)
+            df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
+            return df[["timestamp", "open", "high", "low", "close", "volume", "taker_buy_base"]]
+        except Exception as e:
+            logger.warning("get_btc_candles(%s) error: %s", interval, e)
+            return pd.DataFrame()
+
+    async def get_funding_rate(self, symbol: str = "BTCUSDT") -> float | None:
+        """
+        Поточний funding rate з Binance Futures (fapi).
+        Позитивний → лонги платять шортам (ринок перекуплений).
+        Негативний → шорти платять лонгам (ринок перепроданий).
+        None при помилці.
+        """
+        try:
+            async with httpx.AsyncClient(
+                base_url="https://fapi.binance.com", timeout=3.0
+            ) as fc:
+                r = await fc.get("/fapi/v1/premiumIndex", params={"symbol": symbol})
+                r.raise_for_status()
+                data = r.json()
+                return float(data.get("lastFundingRate", 0))
+        except Exception as e:
+            logger.debug("get_funding_rate error: %s", e)
+            return None
 
     async def close(self):
         await self.client.aclose()

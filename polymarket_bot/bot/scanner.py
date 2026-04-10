@@ -12,13 +12,14 @@ from bot.config import (
     REPEAT_ALERTS_AFTER_COOLDOWN,
     NOTIFY_SESSION_CHANGE,
     CLOB_SPREAD_MAX,
+    ALT_SCAN_ENABLED,
 )
 from bot.exchange_client import ExchangeClient
 from bot.polymarket_client import PolymarketClient
 from bot.indicators import add_indicators
-from bot.signals import check_signals
+from bot.signals import check_signals, check_alt_signals
 from bot.state import state
-from bot.storage import save_signal
+from bot.storage import save_signal, save_shadow_signal, save_signal_snapshot, save_alt_signal, resolve_alt_signals, resolve_shadow_signals
 from bot.telegram_bot import send_alert, send_info_message
 from bot.alert_text import get_current_session_key, format_session_alert_html
 
@@ -110,7 +111,30 @@ class Scanner:
                             market_id[:12], clob_yes_ask, clob_no_ask,
                         )
 
-                    signal = check_signals(market_prices, df_with_indicators)
+                    _shadow: dict = {}
+                    signal = check_signals(market_prices, df_with_indicators, _shadow)
+
+                    # Логуємо відхилені сигнали (якщо є confluence ≥ 2)
+                    if signal is None and _shadow.get("confluence", 0) >= 2:
+                        adx_val = None
+                        if "adx" in df_with_indicators.columns:
+                            try:
+                                adx_val = round(float(df_with_indicators["adx"].iloc[-1]), 2)
+                            except Exception:
+                                pass
+                        save_shadow_signal(
+                            market_id=market_id,
+                            direction=_shadow.get("direction"),
+                            contract_price=_shadow.get("contract_price"),
+                            confluence=_shadow.get("confluence", 0),
+                            reject_reason=_shadow.get("reject_reason", "unknown"),
+                            time_left=_shadow.get("time_left"),
+                            gap=_shadow.get("gap"),
+                            atr=_shadow.get("atr"),
+                            adx=adx_val,
+                            btc_price=_shadow.get("btc_price"),
+                            end_date_iso=market_prices.get("end_date_iso"),
+                        )
 
                     if signal:
                         direction = signal["direction"]
@@ -230,6 +254,25 @@ class Scanner:
                             if signal.get("clob_ask"):
                                 signal["contract_price"] = signal["clob_ask"]
 
+                            # ── Збір додаткових даних (тільки для статистики) ──
+                            try:
+                                signal["funding_rate"] = await self.exchange.get_funding_rate()
+                                # ADX з df_with_indicators (порахований в add_indicators)
+                                if "adx" in df_with_indicators.columns:
+                                    signal["adx"] = round(float(df_with_indicators["adx"].iloc[-1]), 2)
+
+                                # taker_ratio
+                                try:
+                                    df_3m = await self.exchange.get_btc_candles("3m", 50)
+                                    if not df_3m.empty:
+                                        taker_vol = df_3m["taker_buy_base"].iloc[-5:].sum()
+                                        total_vol = df_3m["volume"].iloc[-5:].sum()
+                                        signal["taker_ratio"] = round(float(taker_vol / total_vol), 4) if total_vol > 0 else None
+                                except Exception:
+                                    pass
+                            except Exception as e:
+                                logger.debug("Extra data collection error (non-critical): %s", e)
+
                             sig_id = save_signal(signal)
                             if sig_id:
                                 asyncio.create_task(send_alert(sig_id, signal))
@@ -246,10 +289,105 @@ class Scanner:
                                 self.signal_counts[key] = count + 1
                                 logger.info(f"✅ Згенеровано сигнал #{sig_id}: {direction} для маркету {market_id}")
 
+                # ── Resolve shadow signals (BTC напрямок після закриття вікна) ──
+                try:
+                    n = resolve_shadow_signals(df_with_indicators)
+                    if n > 0:
+                        logger.debug("Shadow resolved: %d", n)
+                except Exception as e:
+                    logger.debug("resolve_shadow_signals error: %s", e)
+
+                # ── ALT assets (ETH, SOL): збір даних паралельно з BTC ──
+                if ALT_SCAN_ENABLED and state.mode != "test":
+                    await self._scan_alt_assets(df)
+
             except Exception as e:
                 logger.error(f"Непередбачена помилка в циклі сканування: {e}", exc_info=True)
 
             await asyncio.sleep(SCAN_INTERVAL_SECONDS)
+
+    async def _scan_alt_assets(self, btc_df: pd.DataFrame) -> None:
+        """Сканує ETH і SOL ринки і зберігає сигнали в alt_signals для статистики."""
+        # Resolve завершені ринки
+        try:
+            current_prices = {}
+            for asset in ("ETH", "SOL"):
+                df_tmp = await self.exchange.get_1m_candles(f"{asset}USDT", limit=2)
+                if not df_tmp.empty:
+                    current_prices[asset] = float(df_tmp.iloc[-1]["close"])
+            if current_prices:
+                n = resolve_alt_signals(current_prices)
+                if n > 0:
+                    logger.info("ALT resolved %d signals", n)
+        except Exception as e:
+            logger.debug("resolve_alt_signals error: %s", e)
+
+        for asset in ("ETH", "SOL"):
+            try:
+                symbol = f"{asset}USDT"
+                markets = await self.poly.get_active_alt_markets(asset)
+                if not markets:
+                    continue
+
+                df_raw = await self.exchange.get_1m_candles(symbol=symbol, limit=100)
+                if df_raw.empty:
+                    logger.debug("ALT %s: порожній датафрейм", asset)
+                    continue
+
+                df_ind = add_indicators(df_raw)
+
+                for market in markets:
+                    try:
+                        sig = check_alt_signals(market, df_ind, asset, btc_df)
+                        if sig is None:
+                            continue
+
+                        sig["market_id"] = str(market.get("market_id", ""))
+
+                        # CLOB ask для реальної ціни
+                        direction = sig["direction"]
+                        token_id = (
+                            market.get("token_yes_id") if direction == "UP"
+                            else market.get("token_no_id")
+                        )
+                        if token_id:
+                            clob_ask, _ = await self._fetch_clob_best_prices(token_id)
+                            if clob_ask > 0:
+                                sig["clob_ask"] = clob_ask
+
+                        sig_id = save_alt_signal(sig)
+                        logger.info(
+                            "ALT %s #%s: %s | gap=%.2f%% | btc_aligned=%s | clob=%.3f",
+                            asset, sig_id, direction,
+                            sig.get("gap_pct", 0),
+                            sig.get("btc_aligned"),
+                            sig.get("clob_ask", 0),
+                        )
+
+                        # Live buy на мінімум для збору реальної статистики (з cooldown)
+                        _alt_key = f"alt_{asset}_{market.get('market_id')}_{direction}"
+                        _alt_last = self.last_signal_time.get(_alt_key, 0)
+                        if state.is_live_allowed and sig.get("clob_ask") and sig.get("clob_ask") > 0 and (now - _alt_last >= COOLDOWN_SECONDS):
+                            # Зберігаємо як BTC сигнал для виконання через send_alert
+                            alt_as_signal = {
+                                **sig,
+                                "market_slug": market.get("market_slug", ""),
+                                "token_yes_id": market.get("token_yes_id", ""),
+                                "token_no_id": market.get("token_no_id", ""),
+                                "neg_risk": bool(market.get("neg_risk", False)),
+                                "market_title": market.get("title") or market.get("question") or f"{asset} 15m",
+                                "_alt_data_only": True,  # маркер для мін ставки
+                            }
+                            from bot.storage import save_signal as _save_btc_signal
+                            btc_sig_id = _save_btc_signal(alt_as_signal)
+                            if btc_sig_id:
+                                asyncio.create_task(send_alert(btc_sig_id, alt_as_signal))
+                                self.last_signal_time[_alt_key] = now
+                    except Exception as e:
+                        logger.debug("ALT %s market error: %s", asset, e)
+
+            except Exception as e:
+                logger.warning("ALT %s scan error: %s", asset, e)
 
     async def _check_session_change(self, df: pd.DataFrame) -> None:
         current = get_current_session_key()
@@ -287,8 +425,8 @@ class Scanner:
                     data = r.json()
                     asks = data.get("asks") or []
                     bids = data.get("bids") or []
-                    best_ask = float(asks[-1]["price"]) if asks else 0.0
-                    best_bid = float(bids[-1]["price"]) if bids else 0.0
+                    best_ask = min(float(a["price"]) for a in asks) if asks else 0.0
+                    best_bid = max(float(b["price"]) for b in bids) if bids else 0.0
                     return best_ask, best_bid
             except Exception as e:
                 if attempt < 2:

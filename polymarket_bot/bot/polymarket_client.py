@@ -13,6 +13,12 @@ logger = logging.getLogger(__name__)
 BTC_15M_SLUG_PREFIX = "btc-updown-15m"
 ET = ZoneInfo("America/New_York")
 
+# ALT assets: slug prefix → seriesSlug
+ALT_ASSETS = {
+    "ETH": {"slug_prefix": "eth-updown-15m", "series_slug": "eth-up-or-down-15m"},
+    "SOL": {"slug_prefix": "sol-updown-15m", "series_slug": "sol-up-or-down-15m"},
+}
+
 
 def _candidate_btc_15m_unix_starts() -> list[int]:
     """Поточне + сусідні 15-хв вікна ET (на переходах між вікнами)."""
@@ -161,6 +167,69 @@ class PolymarketClient:
                 _candidate_btc_15m_unix_starts(),
             )
         return btc_markets
+
+    async def get_active_alt_markets(self, asset: str) -> list:
+        """
+        Активні 15m ринки для ETH або SOL (аналогічно BTC).
+        asset: "ETH" або "SOL"
+        """
+        cfg = ALT_ASSETS.get(asset.upper())
+        if not cfg:
+            logger.error("Невідомий asset: %s", asset)
+            return []
+
+        slug_prefix = cfg["slug_prefix"]
+        series_slug = cfg["series_slug"]
+        markets: list[dict[str, Any]] = []
+        seen_slugs: set[str] = set()
+
+        for unix_start in _candidate_btc_15m_unix_starts():
+            slug = f"{slug_prefix}-{unix_start}"
+            if slug in seen_slugs:
+                continue
+            seen_slugs.add(slug)
+
+            market = await self.get_market_by_slug(slug)
+            if not market:
+                continue
+            if market.get("closed") or not market.get("active"):
+                continue
+
+            evs = market.get("events") or []
+            series_ok = any(e.get("seriesSlug") == series_slug for e in evs)
+            if not series_ok and not (market.get("slug") or "").startswith(f"{slug_prefix}-"):
+                continue
+
+            end_str = market.get("endDate") or market.get("endDateIso")
+            if end_str:
+                dt = datetime.fromisoformat(end_str.replace("Z", "+00:00"))
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                time_left = (dt - datetime.now(timezone.utc)).total_seconds() / 60.0
+                if time_left > 15.5 or time_left < 0:
+                    continue
+
+            price_yes, price_no = _parse_outcome_prices(market)
+            token_yes_id, token_no_id = _parse_clob_token_ids(market)
+            event = evs[0] if evs else {}
+
+            logger.info("ALT %s маркет: %s (slug: %s)", asset, market.get("question"), market.get("slug"))
+
+            markets.append({
+                "asset": asset.upper(),
+                "event_id": event.get("id"),
+                "market_id": market.get("id"),
+                "market_slug": market.get("slug") or slug,
+                "title": event.get("title") or market.get("question") or "",
+                "price_yes": price_yes,
+                "price_no": price_no,
+                "end_date_iso": end_str,
+                "event_start_time": market.get("eventStartTime") or event.get("startTime"),
+                "token_yes_id": token_yes_id,
+                "token_no_id": token_no_id,
+            })
+
+        return markets
 
     async def get_market_prices(self, market_id: str) -> Optional[dict[str, float]]:
         """Ціни Up/Down для settlement за numeric/string id маркету."""

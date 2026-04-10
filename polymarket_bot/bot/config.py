@@ -76,6 +76,12 @@ NOTIFY_SESSION_CHANGE          = True
 POSITION_MONITOR_INTERVAL_ACTIVE = 1
 KYIV_TZ_STR                    = "Europe/Kyiv"
 
+# ── ALT assets (ETH, SOL): збір даних паралельно з BTC ──
+ALT_GAP_MIN_PCT    = float(os.getenv("ALT_GAP_MIN_PCT", "0.06"))
+ALT_GAP_STRICT_PCT = float(os.getenv("ALT_GAP_STRICT_PCT", "0.06"))
+ALT_ATR_MIN_PCT    = float(os.getenv("ALT_ATR_MIN_PCT", "0.05"))
+ALT_SCAN_ENABLED   = os.getenv("ALT_SCAN_ENABLED", "true").lower() in ("1", "true", "yes")
+
 # ── DB paths ──────────────────────────────────────────────────────────────────
 _ROOT      = Path(__file__).parent.parent
 _DB_LABEL  = os.getenv("DB_LABEL", "")

@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 import logging
 from typing import Optional
 
-from bot.config import IGNORE_IF_TIME_LEFT_LT_MIN, IGNORE_IF_CONTRACT_PRICE_GT
+from bot.config import IGNORE_IF_TIME_LEFT_LT_MIN, IGNORE_IF_CONTRACT_PRICE_GT, ALT_GAP_MIN_PCT, ALT_GAP_STRICT_PCT, ALT_ATR_MIN_PCT
 from bot.state import state
 
 logger = logging.getLogger(__name__)
@@ -113,7 +113,7 @@ def _binance_open_at_polymarket_window_start(
 #  Main signal check
 # ---------------------------------------------------------------------------
 
-def check_signals(market_info: dict, df: pd.DataFrame) -> dict | None:
+def check_signals(market_info: dict, df: pd.DataFrame, _shadow: dict | None = None) -> dict | None:
     if df.empty or len(df) < 30:
         return None
 
@@ -202,11 +202,33 @@ def check_signals(market_info: dict, df: pd.DataFrame) -> dict | None:
         direction = "DOWN"
         confluence = down_count
     else:
+        # Логуємо відхилені (confluence=2) для аналізу
+        if _shadow is not None:
+            best_dir = "UP" if up_count >= down_count else "DOWN"
+            best_conf = max(up_count, down_count)
+            if best_conf >= 2:
+                _shadow.update({
+                    "direction": best_dir,
+                    "confluence": best_conf,
+                    "reject_reason": "confluence_low",
+                    "time_left": round(time_left_min, 1),
+                    "atr": round(float(atr), 2) if not pd.isna(atr) else 0,
+                    "btc_price": price,
+                    "contract_price": price_yes if best_dir == "UP" else price_no,
+                })
         return None
 
     # --- Contract price filter ---
     contract_price = price_yes if direction == "UP" else price_no
     if not (th["CONTRACT_PRICE_MIN"] <= contract_price <= th["CONTRACT_PRICE_MAX"]):
+        if _shadow is not None:
+            reason = "contract_price_low" if contract_price < th["CONTRACT_PRICE_MIN"] else "contract_price_high"
+            _shadow.update({
+                "direction": direction, "confluence": confluence,
+                "reject_reason": reason, "time_left": round(time_left_min, 1),
+                "atr": round(float(atr), 2) if not pd.isna(atr) else 0,
+                "btc_price": price, "contract_price": contract_price,
+            })
         return None
 
     # --- Start price (для відображення руху BTC у вікні) ---
@@ -238,6 +260,13 @@ def check_signals(market_info: dict, df: pd.DataFrame) -> dict | None:
                 "GAP %.1f недостатній для %s (threshold=%.0f) — skip",
                 gap_val, direction, gap_min,
             )
+            if _shadow is not None:
+                _shadow.update({
+                    "direction": direction, "confluence": confluence,
+                    "reject_reason": "gap_too_small", "time_left": round(time_left_min, 1),
+                    "gap": gap_val, "atr": round(float(atr), 2) if not pd.isna(atr) else 0,
+                    "btc_price": price, "contract_price": contract_price,
+                })
             return None
 
     chg_1h = last.get("chg_1h", 0)
@@ -255,6 +284,13 @@ def check_signals(market_info: dict, df: pd.DataFrame) -> dict | None:
                 "Time %.1f min < %.0f min, GAP %.1f < %.0f — skip",
                 time_left_min, th["TIME_STRICT_MAX_MIN"], abs(gap_val), th["GAP_STRICT_USD"],
             )
+            if _shadow is not None:
+                _shadow.update({
+                    "direction": direction, "confluence": confluence,
+                    "reject_reason": "strict_gap", "time_left": round(time_left_min, 1),
+                    "gap": gap_val, "atr": round(float(atr), 2) if not pd.isna(atr) else 0,
+                    "btc_price": price, "contract_price": contract_price,
+                })
             return None
 
     # ── Filter version A/B ──
@@ -301,6 +337,202 @@ def check_signals(market_info: dict, df: pd.DataFrame) -> dict | None:
         "rsi_5m": round(float(last["rsi_5m"]), 1) if "rsi_5m" in last.index and not pd.isna(last.get("rsi_5m")) else None,
         "consecutive_closes": _cc,
         "filter_version": filter_version,
+    }
+
+
+# ---------------------------------------------------------------------------
+#  Momentum helper (shared BTC + ALT)
+# ---------------------------------------------------------------------------
+
+def _calc_momentum(df: pd.DataFrame, direction: str) -> dict:
+    """Рахує momentum поля: streak, speed_accel, vwap_cross."""
+    try:
+        _c = df["close"].reset_index(drop=True)
+        _o = df["open"].reset_index(drop=True)
+        _v = df["volume"].reset_index(drop=True)
+
+        # consecutive closes в напрямку сигналу
+        streak = 0
+        for i in range(1, min(6, len(_c))):
+            bullish = float(_c.iloc[-i]) > float(_o.iloc[-i])
+            if (direction == "UP" and bullish) or (direction == "DOWN" and not bullish):
+                streak += 1
+            else:
+                break
+
+        # speed: USD/хв за останні 2 і 5 свічок
+        speed_2m = round((float(_c.iloc[-1]) - float(_c.iloc[-3])) / 2, 2) if len(_c) >= 3 else 0
+        speed_5m = round((float(_c.iloc[-1]) - float(_c.iloc[-6])) / 5, 2) if len(_c) >= 6 else 0
+        speed_accel = round(speed_2m - speed_5m, 2)
+
+        # OBV slope
+        obv = (_c.diff() > 0).astype(float) * _v - (_c.diff() < 0).astype(float) * _v
+        obv_slope = round(float(obv.iloc[-3:].mean()), 2) if len(obv) >= 3 else 0
+
+        # VWAP cross
+        _vwap = df["vwap"].reset_index(drop=True) if "vwap" in df.columns else None
+        vwap_cross = False
+        if _vwap is not None and len(_vwap) >= 2:
+            prev_above = bool(float(_c.iloc[-2]) > float(_vwap.iloc[-2]))
+            curr_above = bool(float(_c.iloc[-1]) > float(_vwap.iloc[-1]))
+            vwap_cross = prev_above != curr_above
+
+        return {
+            "consecutive_closes": streak,
+            "speed_accel": speed_accel,
+            "obv_slope": obv_slope,
+            "vwap_cross": vwap_cross,
+        }
+    except Exception:
+        return {}
+
+
+# ---------------------------------------------------------------------------
+#  ALT assets (ETH / SOL): те ж саме але GAP у % від ціни + BTC кореляція
+# ---------------------------------------------------------------------------
+
+def check_alt_signals(
+    market_info: dict,
+    df: pd.DataFrame,
+    asset: str,
+    btc_df: pd.DataFrame | None = None,
+) -> dict | None:
+    """
+    Перевірка сигналу для ETH/SOL.
+    GAP фільтр — у % від ціни (ALT_GAP_MIN_PCT).
+    Повертає сигнал з полями btc_price, btc_gap, btc_gap_pct, btc_aligned.
+    """
+    if df.empty or len(df) < 30:
+        return None
+
+    last = df.iloc[-1]
+    price = float(last.get("close", 0))
+    th = state.get_thresholds()
+
+    # --- ATR filter (в % від ціни, без dead zone check для ALT) ---
+    atr = last.get("atr", 0)
+    atr_zone = last.get("atr_zone", "dead")
+    atr_min = price * ALT_ATR_MIN_PCT / 100.0
+    if not pd.isna(atr) and atr < atr_min and state.mode != "test":
+        return None
+
+    # --- Time left ---
+    price_yes = market_info.get("price_yes", 0.0)
+    price_no = market_info.get("price_no", 0.0)
+    end_date_str = market_info.get("end_date_iso")
+    if not end_date_str and state.mode != "test":
+        return None
+
+    try:
+        dt = datetime.fromisoformat(end_date_str.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        time_left_min = (dt - datetime.now(timezone.utc)).total_seconds() / 60.0
+    except Exception as e:
+        logger.error("ALT time calc error: %s", e)
+        time_left_min = 0
+
+    if state.mode != "test":
+        if time_left_min < IGNORE_IF_TIME_LEFT_LT_MIN:
+            return None
+        if price_yes > IGNORE_IF_CONTRACT_PRICE_GT or price_no > IGNORE_IF_CONTRACT_PRICE_GT:
+            return None
+
+    if not (th["TIME_LEFT_MIN_MINUTES"] <= time_left_min <= th["TIME_LEFT_MAX_MINUTES"]):
+        return None
+
+    # --- 5 indicator votes (ті самі що для BTC) ---
+    rsi_vote, _ = _vote_rsi(float(last.get("rsi_1m", 50)))
+    macd_vote, _ = _vote_macd(
+        float(last.get("macd_line", 0)),
+        float(last.get("macd_signal", 0)),
+        float(last.get("macd_hist", 0)),
+    )
+    vwap_vote, _ = _vote_vwap(price, float(last.get("vwap", 0)))
+    ema_vote, _ = _vote_ema(float(last.get("ema_9", 0)), float(last.get("ema_21", 0)))
+    pivots_vote, _ = _vote_pivots(
+        price,
+        float(last.get("pivot_high", 0)),
+        float(last.get("pivot_low", 0)),
+    )
+
+    up_count = sum(1 for v in (rsi_vote, macd_vote, vwap_vote, ema_vote, pivots_vote) if v == "UP")
+    down_count = sum(1 for v in (rsi_vote, macd_vote, vwap_vote, ema_vote, pivots_vote) if v == "DOWN")
+
+    min_conf = th.get("MIN_CONFLUENCE", 3)
+    if up_count >= min_conf:
+        direction = "UP"
+        confluence = up_count
+    elif down_count >= min_conf:
+        direction = "DOWN"
+        confluence = down_count
+    else:
+        return None
+
+    # --- Contract price filter ---
+    contract_price = price_yes if direction == "UP" else price_no
+    if not (th["CONTRACT_PRICE_MIN"] <= contract_price <= th["CONTRACT_PRICE_MAX"]):
+        return None
+
+    # --- GAP у % від ціни ---
+    event_start_iso = market_info.get("event_start_time")
+    start_price = _binance_open_at_polymarket_window_start(df, event_start_iso)
+    if start_price is None:
+        start_price = float(df.iloc[-15]["open"]) if len(df) >= 15 else price
+
+    delta = price - start_price
+    gap_pct = round((delta / start_price) * 100, 4) if start_price > 0 else 0.0
+    gap_val = round(delta, 4)
+
+    if state.mode != "test":
+        gap_ok = (gap_pct >= ALT_GAP_MIN_PCT) if direction == "UP" else (gap_pct <= -ALT_GAP_MIN_PCT)
+        if not gap_ok:
+            return None
+
+    if state.mode != "test" and time_left_min < th.get("TIME_STRICT_MAX_MIN", 5):
+        if abs(gap_pct) < ALT_GAP_STRICT_PCT:
+            return None
+
+    # --- BTC кореляція ---
+    btc_price = btc_gap = btc_gap_pct = btc_aligned = None
+    if btc_df is not None and not btc_df.empty:
+        btc_price = float(btc_df.iloc[-1]["close"])
+        btc_start = float(btc_df.iloc[-15]["close"]) if len(btc_df) >= 15 else btc_price
+        btc_gap = round(btc_price - btc_start, 2)
+        btc_gap_pct = round((btc_gap / btc_start) * 100, 4) if btc_start > 0 else 0.0
+        btc_direction = "UP" if btc_gap > 0 else "DOWN"
+        btc_aligned = 1 if btc_direction == direction else 0
+
+    atr_val = round(float(atr), 4) if not pd.isna(atr) else 0
+    ema_9 = float(last.get("ema_9", 0))
+    ema_21 = float(last.get("ema_21", 0))
+    ema_pos = "above" if ema_vote == "UP" else "below" if ema_vote == "DOWN" else "at"
+    ema_9_slope = float(last.get("ema_9_slope", 0))
+
+    return {
+        "asset": asset.upper(),
+        "direction": direction,
+        "confluence": confluence,
+        "end_date_iso": market_info.get("end_date_iso"),
+        "start_price": start_price,
+        "current_price": price,
+        "delta": round(delta, 4),
+        "delta_percent": round((delta / start_price) * 100, 3) if start_price > 0 else 0,
+        "gap": gap_val,
+        "gap_pct": gap_pct,
+        "contract_price": contract_price,
+        "rsi_1m": float(last.get("rsi_1m", 50)),
+        "ema_position": f"{ema_pos} EMA9 ({ema_9_slope:+.2f})",
+        "volume_state": last.get("volume_state", "normal"),
+        "time_left": round(time_left_min, 1),
+        "atr": atr_val,
+        "atr_zone": atr_zone,
+        "adx": round(float(last.get("adx", 0)), 2) if "adx" in last.index else None,
+        "btc_price": btc_price,
+        "btc_gap": btc_gap,
+        "btc_gap_pct": btc_gap_pct,
+        "btc_aligned": btc_aligned,
+        **_calc_momentum(df, direction),
     }
 
 

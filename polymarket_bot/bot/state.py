@@ -11,6 +11,7 @@ class BotState:
         self._live_enabled = LIVE_TRADING
         self._consecutive_losses = 0
         self._circuit_breaker_triggered = False
+        self._paused = False
 
     # ── Live trading guard ──
 
@@ -23,7 +24,21 @@ class BotState:
             return False
         if self._circuit_breaker_triggered:
             return False
+        if self._paused:
+            return False
         return True
+
+    def pause(self):
+        self._paused = True
+        logger.info("Trading PAUSED via /stop")
+
+    def resume(self):
+        self._paused = False
+        logger.info("Trading RESUMED via /start")
+
+    @property
+    def is_paused(self) -> bool:
+        return self._paused
 
     def record_win(self):
         self._consecutive_losses = 0

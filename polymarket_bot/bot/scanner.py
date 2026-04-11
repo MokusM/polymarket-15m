@@ -70,13 +70,27 @@ class Scanner:
                         self.last_signal_time.pop(k, None)
                         self.signal_counts.pop(k, None)
 
-                # 2. Отримуємо свіжі свічки
-                df = await self.exchange.get_btc_1m_candles(limit=100)
-                
-                if df.empty:
-                    logger.warning("Не вдалось отримати свічки зі біржі. Чекаємо...")
-                    await asyncio.sleep(SCAN_INTERVAL_SECONDS)
-                    continue
+                # 2. Отримуємо свіжі свічки (REST кожні 30 сек, WS оновлює між запитами)
+                now = datetime.now().timestamp()
+                _rest_interval = 30  # REST запит кожні 30 сек замість 3
+                if not hasattr(self, '_last_rest_fetch') or now - self._last_rest_fetch >= _rest_interval or self.last_df.empty:
+                    df = await self.exchange.get_btc_1m_candles(limit=100)
+                    if df.empty:
+                        logger.warning("Не вдалось отримати свічки зі біржі. Чекаємо...")
+                        await asyncio.sleep(SCAN_INTERVAL_SECONDS)
+                        continue
+                    self._last_rest_df = df.copy()
+                    self._last_rest_fetch = now
+                else:
+                    df = self._last_rest_df.copy()
+
+                # Оновити останню свічку з WS (реальний час замість 30-сек затримки)
+                from bot import ws_binance
+                _ws_kline = ws_binance.get_kline("BTCUSDT")
+                if _ws_kline and not df.empty:
+                    df.iloc[-1, df.columns.get_loc("close")] = _ws_kline["close"]
+                    df.iloc[-1, df.columns.get_loc("high")] = max(float(df.iloc[-1]["high"]), _ws_kline["high"])
+                    df.iloc[-1, df.columns.get_loc("low")] = min(float(df.iloc[-1]["low"]), _ws_kline["low"])
 
                 # 3. Рахуємо індикатори
                 df_with_indicators = add_indicators(df)

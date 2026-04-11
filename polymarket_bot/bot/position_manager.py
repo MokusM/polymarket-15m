@@ -348,9 +348,10 @@ async def monitor_positions_loop(execution_client):
                     sl = float(pos.get("sl_price") or 0)
                     partial_level = int(pos.get("partial_exit_done") or 0)
 
-                    # ── Time-based exit: ціна ≥ 0.95 і до закриття < 3 хв — продати все ──
+                    # ── Time-based exit: ВИМКНЕНО — settlement закриє по 1.00 ──
+                    # Дані показали що time exit коштує -$30 на 54 угодах (всі WIN)
                     expires_str = pos.get("market_expires_at") or ""
-                    if expires_str and current_price >= 0.95 and remaining > 0:
+                    if False and expires_str and current_price >= 0.95 and remaining > 0:
                         try:
                             exp = datetime.fromisoformat(expires_str).replace(tzinfo=timezone.utc)
                             secs_left = (exp - datetime.now(timezone.utc)).total_seconds()

@@ -19,6 +19,7 @@ WS_URL = "wss://stream.binance.com:9443/ws"
 # Поточні ціни — оновлюються кожні 1-2 сек
 _prices: dict[str, float] = {}
 _last_update: dict[str, float] = {}
+_klines: dict[str, dict] = {}  # symbol → {open, high, low, close, volume}
 _ws_task: asyncio.Task | None = None
 _running = False
 
@@ -39,6 +40,26 @@ def get_price(symbol: str = "BTCUSDT") -> float | None:
 def get_all_prices() -> dict[str, float]:
     """Повернути всі поточні ціни."""
     return dict(_prices)
+
+
+def get_kline(symbol: str = "BTCUSDT") -> dict | None:
+    """Повернути поточну kline {open, high, low, close, volume}. None якщо немає даних."""
+    symbol = symbol.upper()
+    kline = _klines.get(symbol)
+    if kline is None:
+        return None
+    last = _last_update.get(symbol, 0)
+    if time.time() - last > 30:
+        return None
+    return dict(kline)
+
+
+def is_connected() -> bool:
+    """Чи WS підключений і дані свіжі."""
+    if not _running:
+        return False
+    btc_last = _last_update.get("BTCUSDT", 0)
+    return time.time() - btc_last < 10
 
 
 async def _ws_loop(symbols: list[str]):
@@ -70,6 +91,13 @@ async def _ws_loop(symbols: list[str]):
                         if symbol and close_price > 0:
                             _prices[symbol] = close_price
                             _last_update[symbol] = time.time()
+                            _klines[symbol] = {
+                                "open": float(kline.get("o", 0)),
+                                "high": float(kline.get("h", 0)),
+                                "low": float(kline.get("l", 0)),
+                                "close": close_price,
+                                "volume": float(kline.get("v", 0)),
+                            }
 
                     except Exception as e:
                         logger.debug("WS parse error: %s", e)

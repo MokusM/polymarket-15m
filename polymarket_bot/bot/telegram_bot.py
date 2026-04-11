@@ -421,23 +421,50 @@ async def cmd_logs(message: types.Message):
 
 @dp.message(Command("buy"))
 async def cmd_buy(message: types.Message):
-    """Ручна купівля: показує поточний маркет і кнопки UP/DOWN."""
+    """Ручна купівля: вибір монети → напрямок."""
     if _scanner is None or _scanner.last_df.empty:
-        await message.answer("⏳ Сканер ще не запустив перший цикл.")
+        await message.answer("\u23f3 Сканер ще не запустив перший цикл.")
         return
 
-    markets = _scanner.last_markets
-    if not markets:
-        await message.answer("❌ Немає активних BTC 15m маркетів.")
-        return
+    builder = InlineKeyboardBuilder()
+    builder.button(text="\U0001f7e0 BTC", callback_data="buy_asset|BTC")
+    builder.button(text="\U0001f535 ETH", callback_data="buy_asset|ETH")
+    builder.button(text="\U0001f7e3 SOL", callback_data="buy_asset|SOL")
+    builder.adjust(3)
+    await message.answer(
+        "\U0001f4c8 <b>Ручна купівля</b>\nВибери монету:",
+        reply_markup=builder.as_markup(),
+        parse_mode="HTML",
+    )
 
-    market = markets[0]
-    df = _scanner.last_df
-    last = df.iloc[-1]
-    btc_price = float(last.get("close", 0))
+
+@dp.callback_query(lambda c: c.data and c.data.startswith("buy_asset|"))
+async def process_buy_asset(callback_query: types.CallbackQuery):
+    asset = callback_query.data.split("|")[1]
+
+    if asset == "BTC":
+        markets = _scanner.last_markets
+        if not markets:
+            await callback_query.answer("Немає активних BTC маркетів")
+            return
+        market = markets[0]
+        df = _scanner.last_df
+        last = df.iloc[-1]
+        asset_price = float(last.get("close", 0))
+    else:
+        try:
+            alt_markets = await _scanner.poly.get_active_alt_markets(asset)
+            if not alt_markets:
+                await callback_query.answer(f"Немає активних {asset} маркетів")
+                return
+            market = alt_markets[0]
+            df_alt = await _scanner.exchange.get_1m_candles(f"{asset}USDT", limit=2)
+            asset_price = float(df_alt.iloc[-1]["close"]) if not df_alt.empty else 0
+        except Exception as e:
+            await callback_query.answer(f"Помилка: {e}")
+            return
 
     from datetime import timezone as _tz
-    from bot.signals import _binance_open_at_polymarket_window_start
     time_left_min = 0.0
     end_date_str = market.get("end_date_iso")
     if end_date_str:
@@ -457,22 +484,32 @@ async def cmd_buy(message: types.Message):
     if no_tid:
         no_ask, _ = await _scanner._fetch_clob_best_prices(no_tid)
 
-    title = market.get("title") or market.get("market_id", "?")
+    title = market.get("title") or market.get("question") or f"{asset} 15m"
     mid = str(market.get("market_id", ""))
 
     text = (
-        f"📈 <b>Ручна купівля</b>\n"
-        f"📌 {html.escape(str(title)[:60])}\n"
-        f"⏱ Час: <b>{time_left_min:.1f} хв</b>  ·  BTC: <b>${btc_price:,.0f}</b>\n"
-        f"CLOB  YES ask: <b>{yes_ask:.2f}</b>  ·  NO ask: <b>{no_ask:.2f}</b>\n\n"
+        f"\U0001f4c8 <b>Ручна купівля {asset}</b>\n"
+        f"\U0001f4cc {html.escape(str(title)[:60])}\n"
+        f"\u23f1 Час: <b>{time_left_min:.1f} хв</b>  \u00b7  {asset}: <b>${asset_price:,.2f}</b>\n"
+        f"CLOB  YES: <b>{yes_ask:.2f}</b>  \u00b7  NO: <b>{no_ask:.2f}</b>\n\n"
         f"Вибери напрямок:"
     )
 
     builder = InlineKeyboardBuilder()
-    builder.button(text="⬆️ BUY UP", callback_data=f"manual_buy|{mid}|UP")
-    builder.button(text="⬇️ BUY DOWN", callback_data=f"manual_buy|{mid}|DOWN")
+    builder.button(text="\u2b06\ufe0f BUY UP", callback_data=f"manual_buy|{mid}|UP")
+    builder.button(text="\u2b07\ufe0f BUY DOWN", callback_data=f"manual_buy|{mid}|DOWN")
     builder.adjust(2)
-    await message.answer(text, reply_markup=builder.as_markup(), parse_mode="HTML")
+
+    try:
+        await bot.edit_message_text(
+            chat_id=callback_query.message.chat.id,
+            message_id=callback_query.message.message_id,
+            text=text,
+            reply_markup=builder.as_markup(),
+            parse_mode="HTML",
+        )
+    except Exception:
+        await callback_query.message.answer(text, reply_markup=builder.as_markup(), parse_mode="HTML")
 
 
 @dp.callback_query(lambda c: c.data and c.data.startswith("manual_buy|"))
@@ -494,9 +531,16 @@ async def process_manual_buy(callback_query: types.CallbackQuery):
         markets = _scanner.last_markets
         market = next((m for m in markets if str(m.get("market_id", "")) == market_id), None)
         if not market:
-            market = markets[0] if markets else None
+            for _alt_asset in ("ETH", "SOL"):
+                try:
+                    _alt_markets = await _scanner.poly.get_active_alt_markets(_alt_asset)
+                    market = next((m for m in _alt_markets if str(m.get("market_id", "")) == market_id), None)
+                    if market:
+                        break
+                except Exception:
+                    pass
         if not market:
-            await bot.send_message(callback_query.message.chat.id, "❌ Маркет не знайдено.")
+            await bot.send_message(callback_query.message.chat.id, "\u274c Маркет не знайдено.")
             return
 
         df = _scanner.last_df
@@ -607,7 +651,7 @@ async def process_manual_buy(callback_query: types.CallbackQuery):
 
         await bot.send_message(
             callback_query.message.chat.id,
-            f"{dir_icon} <b>Ручна купівля #{sig_id}</b>\n{order_text}",
+            f"{dir_icon} <b>Ручна купівля {market_title.split()[0] if market_title else 'BTC'} #{sig_id}</b>\n{order_text}",
             parse_mode="HTML",
         )
 

@@ -986,6 +986,7 @@ async def _execute_live_order(signal_id: int, skip_min_size: bool = False) -> st
         datetime.now(timezone.utc) + timedelta(seconds=time_left_min * 60)
     ).strftime("%Y-%m-%d %H:%M:%S")
 
+    _btc_strike = signal.get("start_price") or signal.get("ptb")
     pos_id = open_position(
         signal_id=signal_id,
         market_id=market_id,
@@ -997,6 +998,7 @@ async def _execute_live_order(signal_id: int, skip_min_size: bool = False) -> st
         stake_usd=stake_eff,
         order_result=result,
         market_expires_at=mkt_expires_at,
+        btc_strike=_btc_strike,
     )
 
     if pos_id is None:

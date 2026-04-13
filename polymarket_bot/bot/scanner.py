@@ -390,25 +390,21 @@ class Scanner:
                             sig.get("clob_ask", 0),
                         )
 
-                        # Live buy на мінімум для збору реальної статистики (з cooldown)
-                        _alt_key = f"alt_{asset}_{market.get('market_id')}_{direction}"
-                        _alt_last = self.last_signal_time.get(_alt_key, 0)
-                        if state.is_live_allowed and sig.get("clob_ask") and sig.get("clob_ask") > 0 and (now - _alt_last >= COOLDOWN_SECONDS):
-                            # Зберігаємо як BTC сигнал для виконання через send_alert
+                        # Route ALT signal through strategy router
+                        if sig.get("clob_ask") and sig.get("clob_ask") > 0:
                             alt_as_signal = {
                                 **sig,
+                                "asset": asset.upper(),
                                 "market_slug": market.get("market_slug", ""),
                                 "token_yes_id": market.get("token_yes_id", ""),
                                 "token_no_id": market.get("token_no_id", ""),
                                 "neg_risk": bool(market.get("neg_risk", False)),
                                 "market_title": market.get("title") or market.get("question") or f"{asset} 15m",
-                                "_alt_data_only": True,  # маркер для мін ставки
                             }
-                            from bot.storage import save_signal as _save_btc_signal
-                            btc_sig_id = _save_btc_signal(alt_as_signal)
-                            if btc_sig_id:
-                                asyncio.create_task(send_alert(btc_sig_id, alt_as_signal))
-                                self.last_signal_time[_alt_key] = now
+                            await route_signal(
+                                alt_as_signal, self, self.execution_clients,
+                                self._route_cooldowns, COOLDOWN_SECONDS,
+                            )
                     except Exception as e:
                         logger.debug("ALT %s market error: %s", asset, e)
 

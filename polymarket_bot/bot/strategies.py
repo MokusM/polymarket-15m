@@ -73,6 +73,20 @@ STRATEGIES = [
         "db_label": "data",
         "max_positions_per_asset": 1,
     },
+    {
+        "id": "delta_pct",
+        "name": "Delta",
+        "enabled": _env("STRAT_DELTA_ENABLED", "false").lower() in ("1", "true"),
+        "filter": _delta_pct_filter,
+        "assets": ["BTC"],
+        "stake_usd": float(_env("STRAT_DELTA_STAKE", "5")),
+        "min_stake_usd": 1,
+        "wallet_key": _env("STRAT_DELTA_WALLET", "POLYMARKET_PRIVATE_KEY_V2"),
+        "telegram_token_key": _env("STRAT_DELTA_TG_TOKEN", "TELEGRAM_TOKEN_V2"),
+        "telegram_chat_key": _env("STRAT_DELTA_TG_CHAT", "CHAT_ID_V2"),
+        "db_label": "delta_pct",
+        "max_positions_per_asset": 1,
+    },
 ]
 
 

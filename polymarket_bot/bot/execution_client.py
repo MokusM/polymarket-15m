@@ -53,10 +53,12 @@ def trade_timestamp(tr: dict) -> float:
 class ExecutionClient:
     """Обгортка CLOB client для розміщення ордерів на Polymarket."""
 
-    def __init__(self):
+    def __init__(self, private_key: str | None = None, funder_address: str | None = None):
         self.client: Optional["ClobClient"] = None
         self._initialized = False
         self.not_ready_reason: str | None = None
+
+        _key = private_key or POLYMARKET_PRIVATE_KEY
 
         if not CLOB_AVAILABLE:
             self.not_ready_reason = (
@@ -65,19 +67,19 @@ class ExecutionClient:
             logger.error("py-clob-client не доступний — live trading вимкнено")
             return
 
-        if not POLYMARKET_PRIVATE_KEY:
+        if not _key:
             self.not_ready_reason = "POLYMARKET_PRIVATE_KEY порожній у .env"
             logger.warning("POLYMARKET_PRIVATE_KEY не задано — live trading вимкнено")
             return
 
         try:
             self.sig_type = int(os.environ.get("POLYMARKET_SIGNATURE_TYPE", "2"))
-            funder = os.environ.get("POLYMARKET_FUNDER_ADDRESS") or None
+            funder = funder_address or os.environ.get("POLYMARKET_FUNDER_ADDRESS") or None
 
             temp = ClobClient(
                 host=CLOB_HOST,
                 chain_id=POLYMARKET_CHAIN_ID,
-                key=POLYMARKET_PRIVATE_KEY,
+                key=_key,
             )
             creds = temp.create_or_derive_api_creds()
             logger.info("API creds derived: %s...", creds.api_key[:16])
@@ -85,7 +87,7 @@ class ExecutionClient:
             self.client = ClobClient(
                 host=CLOB_HOST,
                 chain_id=POLYMARKET_CHAIN_ID,
-                key=POLYMARKET_PRIVATE_KEY,
+                key=_key,
                 creds=creds,
                 signature_type=self.sig_type,
                 funder=funder,

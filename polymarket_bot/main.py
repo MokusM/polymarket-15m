@@ -58,9 +58,18 @@ async def main():
             )
         # Multi-strategy: create clients per wallet key
         execution_clients["POLYMARKET_PRIVATE_KEY"] = execution_client
-        # Future: add more wallets here
-        # if os.getenv("POLYMARKET_PRIVATE_KEY_V2"):
-        #     execution_clients["POLYMARKET_PRIVATE_KEY_V2"] = ExecutionClient(key=os.getenv("POLYMARKET_PRIVATE_KEY_V2"))
+        # Second wallet for delta_pct strategy
+        _key_v2 = os.getenv("POLYMARKET_PRIVATE_KEY_V2")
+        if _key_v2:
+            try:
+                ec2 = ExecutionClient(private_key=_key_v2, funder_address=os.getenv("POLYMARKET_FUNDER_ADDRESS_V2"))
+                if ec2.ready:
+                    execution_clients["POLYMARKET_PRIVATE_KEY_V2"] = ec2
+                    logger.info("🟢 Wallet V2 ready")
+                else:
+                    logger.warning("⚠️ Wallet V2 not ready")
+            except Exception as e:
+                logger.warning("⚠️ Wallet V2 init error: %s", e)
     else:
         logger.info("📋 Paper trading mode")
 

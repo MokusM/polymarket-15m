@@ -138,6 +138,7 @@ def open_position(
     order_result: dict | None = None,
     market_expires_at: str | None = None,
     btc_strike: float | None = None,
+    strategy_id: str | None = None,
 ) -> int | None:
     """Зберегти нову відкриту позицію."""
     side = "YES" if direction == "UP" else "NO"
@@ -154,13 +155,13 @@ def open_position(
             INSERT INTO positions (
                 signal_id, market_id, market_slug, token_id, direction, side,
                 entry_price, shares, stake_usd, remaining_shares,
-                sl_price, order_result, realized_pnl, market_expires_at, btc_strike
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
+                sl_price, order_result, realized_pnl, market_expires_at, btc_strike, strategy_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)
             """,
             (
                 signal_id, market_id, market_slug, token_id,
                 direction, side, entry_price, shares, stake_usd,
-                shares, sl_price, order_json, market_expires_at, btc_strike,
+                shares, sl_price, order_json, market_expires_at, btc_strike, strategy_id,
             ),
         )
         conn.commit()

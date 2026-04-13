@@ -14,16 +14,14 @@ def _env(key: str, default: str = "") -> str:
 
 
 def _confluence_filter(signal: dict) -> dict | None:
-    """conf>=4, non-stabilization → full stake; conf>=3 → min stake."""
+    """conf>=4 only. Non-stabilization → full stake; stabilization → min stake."""
     conf = signal.get("confluence", 0)
     vol = signal.get("volume_state", "")
-    if conf >= 4 and vol != "stabilization":
-        return {"stake": "full"}
-    if conf >= 4 and vol == "stabilization":
+    if conf < 4:
+        return None
+    if vol == "stabilization":
         return {"stake": "min"}
-    if conf >= 3:
-        return {"stake": "min"}
-    return None
+    return {"stake": "full"}
 
 
 def _data_collector_filter(signal: dict) -> dict | None:

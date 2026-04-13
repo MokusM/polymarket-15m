@@ -953,11 +953,16 @@ async def _execute_live_order(signal_id: int, skip_min_size: bool = False) -> st
         await _mark_no_fill()
         return "\u26a0\ufe0f Сигнал не знайдено в пам\u2019яті"
 
-    # Ліміт: 1 позиція на актив (BTC/ETH/SOL можуть бути паралельно)
+    # Ліміт: 1 позиція на актив per strategy
     if not signal.get("_manual"):
         _asset = signal.get("asset", "BTC").upper()
+        _sid = signal.get("_strategy_id", "")
         _open = get_open_positions()
-        _asset_open = sum(1 for p in _open if _asset.lower() in (p.get("market_slug") or "").lower())
+        _asset_open = sum(
+            1 for p in _open
+            if _asset.lower() in (p.get("market_slug") or "").lower()
+            and (not _sid or p.get("strategy_id", "") == _sid)
+        )
         if _asset_open >= MAX_OPEN_POSITIONS:
             await _mark_no_fill()
             return f"\u26a0\ufe0f Ліміт позицій для {_asset} ({MAX_OPEN_POSITIONS})"
@@ -1076,6 +1081,7 @@ async def _execute_live_order(signal_id: int, skip_min_size: bool = False) -> st
     ).strftime("%Y-%m-%d %H:%M:%S")
 
     _btc_strike = signal.get("start_price") or signal.get("ptb")
+    _strategy_id = signal.get("_strategy_id")
     pos_id = open_position(
         signal_id=signal_id,
         market_id=market_id,
@@ -1088,6 +1094,7 @@ async def _execute_live_order(signal_id: int, skip_min_size: bool = False) -> st
         order_result=result,
         market_expires_at=mkt_expires_at,
         btc_strike=_btc_strike,
+        strategy_id=_strategy_id,
     )
 
     if pos_id is None:

@@ -173,9 +173,9 @@ def open_position(
         conn.close()
 
 
-def get_open_positions() -> list[dict]:
+def get_open_positions(db_path: str | None = None) -> list[dict]:
     try:
-        conn = _get_conn()
+        conn = _get_conn(db_path)
         conn.row_factory = sqlite3.Row
         rows = conn.execute(
             "SELECT * FROM positions WHERE status = 'open'"
@@ -186,6 +186,11 @@ def get_open_positions() -> list[dict]:
         return []
     finally:
         conn.close()
+
+
+def get_open_positions_from_db(db_path: str) -> list[dict]:
+    """Get open positions from a specific DB file."""
+    return get_open_positions(db_path)
 
 
 def count_open_positions() -> int:

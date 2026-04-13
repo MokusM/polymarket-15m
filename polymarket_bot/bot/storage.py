@@ -105,7 +105,7 @@ def save_signal_snapshot(signal_id: int, minutes_after: int, btc_price: float | 
         logger.debug("save_signal_snapshot error: %s", e)
 
 
-def save_signal(signal: dict) -> int | None:
+def save_signal(signal: dict, db_path: str | None = None) -> int | None:
     """Зберігає сигнал: повний JSON + той самий HTML, що й у Telegram; paper — auto approve."""
     from bot.alert_text import format_signal_alert_html
     from bot.risk import calculate_stake
@@ -131,7 +131,9 @@ def save_signal(signal: dict) -> int | None:
     alert_html = format_signal_alert_html(signal, mode, stake)
 
     try:
-        conn = get_connection()
+        # Use strategy-specific DB if provided, or override from signal
+        _db = db_path or signal.get("_db_path")
+        conn = get_connection(_db)
         cursor = conn.cursor()
         cursor.execute(
             """

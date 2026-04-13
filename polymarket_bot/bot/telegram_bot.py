@@ -857,6 +857,22 @@ async def send_alert(signal_id: int, signal: dict):
         logger.error("Помилка send_alert: %s", e)
 
 
+async def send_alert_for_strategy(
+    signal_id: int,
+    signal: dict,
+    strategy: dict,
+    execution_clients: dict,
+) -> None:
+    """Send alert and execute for a specific strategy."""
+    # Inject strategy info into signal
+    signal["_strategy_id"] = strategy["id"]
+    signal["_strategy_name"] = strategy["name"]
+
+    # For now, use existing send_alert with strategy label in signal
+    # TODO: separate telegram bots per strategy
+    await send_alert(signal_id, signal)
+
+
 @dp.callback_query(lambda c: c.data and c.data.startswith('decision|'))
 async def process_decision(callback_query: types.CallbackQuery):
     parts = callback_query.data.split('|')

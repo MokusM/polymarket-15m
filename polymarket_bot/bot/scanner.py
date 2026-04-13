@@ -19,7 +19,7 @@ from bot.polymarket_client import PolymarketClient
 from bot.indicators import add_indicators
 from bot.signals import check_signals, check_alt_signals
 from bot.state import state
-from bot.storage import save_signal, save_shadow_signal, save_signal_snapshot, save_alt_signal, resolve_alt_signals, resolve_shadow_signals
+from bot.storage import save_signal, save_shadow_signal, save_signal_snapshot, save_alt_signal, resolve_alt_signals, resolve_shadow_signals, get_db_path
 from bot.telegram_bot import send_alert, send_info_message
 from bot.strategy_router import route_signal
 from bot.alert_text import get_current_session_key, format_session_alert_html
@@ -297,22 +297,23 @@ class Scanner:
                                 self._route_cooldowns, COOLDOWN_SECONDS,
                             )
 
-                            # Legacy: also save to default DB for backward compat
-                            sig_id = save_signal(signal)
-                            if sig_id:
-                                asyncio.create_task(send_alert(sig_id, signal))
+                            # Price snapshots для SL аналізу
+                            token_id_snap = market_prices.get("token_yes_id") if direction == "UP" else market_prices.get("token_no_id")
+                            if token_id_snap:
+                                # Find latest signal_id from DB for snapshots
+                                try:
+                                    import sqlite3 as _sq
+                                    _c = _sq.connect(get_db_path())
+                                    _last_id = _c.execute("SELECT MAX(id) FROM signals").fetchone()[0]
+                                    _c.close()
+                                    if _last_id:
+                                        asyncio.create_task(self._schedule_price_snapshots(_last_id, token_id_snap))
+                                except Exception:
+                                    pass
 
-                                # Price snapshots для SL аналізу
-                                token_id_snap = market_prices.get("token_yes_id") if direction == "UP" else market_prices.get("token_no_id")
-                                if token_id_snap:
-                                    logger.info("📸 Scheduling snapshots for #%s token=%s..%s", sig_id, token_id_snap[:8], token_id_snap[-4:])
-                                    asyncio.create_task(self._schedule_price_snapshots(sig_id, token_id_snap))
-                                else:
-                                    logger.warning("No token_id for snapshots #%s dir=%s", sig_id, direction)
-
-                                self.last_signal_time[key] = now
-                                self.signal_counts[key] = count + 1
-                                logger.info(f"✅ Згенеровано сигнал #{sig_id}: {direction} для маркету {market_id}")
+                            self.last_signal_time[key] = now
+                            self.signal_counts[key] = count + 1
+                            logger.info(f"✅ Сигнал {direction} для маркету {market_id}")
 
                 # ── Resolve shadow signals (BTC напрямок після закриття вікна) ──
                 try:

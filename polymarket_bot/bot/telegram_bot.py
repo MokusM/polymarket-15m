@@ -863,14 +863,43 @@ async def send_alert_for_strategy(
     strategy: dict,
     execution_clients: dict,
 ) -> None:
-    """Send alert and execute for a specific strategy."""
-    # Inject strategy info into signal
+    """Send alert and execute for a specific strategy. Uses strategy-specific telegram if configured."""
+    import os
+    from aiogram import Bot as _Bot
+
     signal["_strategy_id"] = strategy["id"]
     signal["_strategy_name"] = strategy["name"]
 
-    # For now, use existing send_alert with strategy label in signal
-    # TODO: separate telegram bots per strategy
-    await send_alert(signal_id, signal)
+    # Determine telegram bot for this strategy
+    tg_token_key = strategy.get("telegram_token_key", "TELEGRAM_TOKEN")
+    tg_chat_key = strategy.get("telegram_chat_key", "CHAT_ID")
+    tg_token = os.getenv(tg_token_key, "")
+    tg_chat = os.getenv(tg_chat_key, "")
+
+    # If same token as main bot — use existing send_alert
+    if tg_token == TELEGRAM_TOKEN or not tg_token:
+        await send_alert(signal_id, signal)
+        return
+
+    # Different telegram bot — send directly
+    try:
+        from bot.alert_text import format_signal_alert_html
+        from bot.risk import calculate_stake
+
+        risk = calculate_stake(signal)
+        stake = signal.get("_stake_usd") or risk.get("stake_usd", 1)
+        text = format_signal_alert_html(signal, "light", stake)
+
+        strategy_bot = _Bot(token=tg_token)
+        await strategy_bot.send_message(
+            chat_id=tg_chat,
+            text=text,
+            parse_mode="HTML",
+        )
+        await strategy_bot.session.close()
+        logger.info("[%s] Telegram alert sent to bot %s", strategy["id"], tg_token_key)
+    except Exception as e:
+        logger.error("[%s] Telegram send error: %s", strategy["id"], e)
 
 
 @dp.callback_query(lambda c: c.data and c.data.startswith('decision|'))

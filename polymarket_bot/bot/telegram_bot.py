@@ -692,9 +692,28 @@ async def cmd_status(message: types.Message):
     if client_ready:
         try:
             balance = await _execution_client.get_balance()
-            lines.insert(2, f"💰 Balance: <b>${balance:.2f} USDC</b>")
+            lines.insert(2, f"\U0001f4b0 Wallet 1: <b>${balance:.2f} USDC</b>")
         except Exception:
             pass
+        # Wallet V2 balance
+        if hasattr(cmd_status, '_scanner') or _scanner:
+            _ec2 = (_scanner.execution_clients or {}).get("POLYMARKET_PRIVATE_KEY_V2")
+            if _ec2 and _ec2.ready:
+                try:
+                    bal2 = await _ec2.get_balance()
+                    lines.insert(3, f"\U0001f4b0 Wallet 2: <b>${bal2:.2f} USDC</b>")
+                except Exception:
+                    pass
+
+    # Strategies
+    from bot.strategies import get_enabled_strategies
+    strat_lines = []
+    for s in get_enabled_strategies():
+        strat_lines.append(f"  {s['id']}: ${s['stake_usd']:.0f} | {', '.join(s['assets'])}")
+    if strat_lines:
+        lines.append("")
+        lines.append("<b>Strategies:</b>")
+        lines.extend(strat_lines)
 
     # ── Open positions detail ──
     if positions:

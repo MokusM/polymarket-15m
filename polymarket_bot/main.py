@@ -58,6 +58,11 @@ async def main():
     else:
         logger.info("📋 Paper trading mode")
 
+    # WebSocket Binance price feed (BTC/ETH/SOL)
+    from bot import ws_binance
+    ws_binance.start()
+    logger.info("📡 WS Binance price feed запущено (BTC/ETH/SOL)")
+
     scanner = Scanner()
     set_scanner(scanner)
     logger.info("🚀 Запуск Polymarket BTC 15m Scanner Bot...")

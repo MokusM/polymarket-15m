@@ -35,12 +35,21 @@ def _data_collector_filter(signal: dict) -> dict | None:
 
 
 def _delta_pct_filter(signal: dict) -> dict | None:
-    """delta_pct >= 0.10% + cc >= 2."""
+    """delta_pct >= 0.10% + cc >= 2 + skip golden/high + skip tl<7."""
     dp = abs(signal.get("delta_percent", 0))
     cc = abs(signal.get("consecutive_closes", 0))
-    if dp >= 0.10 and cc >= 2:
-        return {"stake": "full"}
-    return None
+    atr_zone = signal.get("atr_zone", "")
+    tl = signal.get("time_left", 0) or 0
+
+    if dp < 0.10:
+        return None
+    if cc < 2:
+        return None
+    if atr_zone in ("golden", "high", "extreme"):
+        return None
+    if tl < 7:
+        return None
+    return {"stake": "full"}
 
 
 # Strategy registry

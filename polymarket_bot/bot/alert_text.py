@@ -194,8 +194,11 @@ def format_signal_alert_html(signal: dict, mode: str, stake_usd: float) -> str:
 
     title_line = f"\U0001f4cc {html_esc(title)}\n" if title else ""
 
+    strat_name = signal.get("_strategy_name", "")
+    strat_tag = f"[{strat_name}] " if strat_name else ""
+
     return (
-        f"{dir_icon} <b>{direction}</b> conf={confluence}{_fv_label} | "
+        f"{dir_icon} {strat_tag}<b>{direction}</b> conf={confluence}{_fv_label} | "
         f"{contract_side} @ {contract_price:.2f} | {time_left:.1f} min\n"
         f"{title_line}"
         f"BTC ${current_price:,.0f} ({delta:+.0f}) | ATR ${atr:.0f} {atr_zone} | vol: {volume_state}\n"

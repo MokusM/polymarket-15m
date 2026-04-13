@@ -43,6 +43,7 @@ async def main():
     init_pending_orders_table(DB_PATH_LIVE)
 
     execution_client = None
+    execution_clients = {}
     if LIVE_TRADING:
         from bot.execution_client import ExecutionClient
         execution_client = ExecutionClient()
@@ -55,15 +56,30 @@ async def main():
                 "⚠️ LIVE_TRADING=true, але ExecutionClient не готовий. Причина: %s",
                 reason,
             )
+        # Multi-strategy: create clients per wallet key
+        execution_clients["POLYMARKET_PRIVATE_KEY"] = execution_client
+        # Future: add more wallets here
+        # if os.getenv("POLYMARKET_PRIVATE_KEY_V2"):
+        #     execution_clients["POLYMARKET_PRIVATE_KEY_V2"] = ExecutionClient(key=os.getenv("POLYMARKET_PRIVATE_KEY_V2"))
     else:
         logger.info("📋 Paper trading mode")
+
+    # Init strategy databases
+    from bot.strategy_router import get_db_path
+    from bot.strategies import get_enabled_strategies
+    for strat in get_enabled_strategies():
+        db = get_db_path(strat["id"])
+        init_db(db)
+        init_positions_table(db)
+        init_pending_orders_table(db)
+        logger.info("📂 Strategy '%s' DB: %s", strat["id"], db)
 
     # WebSocket Binance price feed (BTC/ETH/SOL)
     from bot import ws_binance
     ws_binance.start()
     logger.info("📡 WS Binance price feed запущено (BTC/ETH/SOL)")
 
-    scanner = Scanner()
+    scanner = Scanner(execution_clients=execution_clients)
     set_scanner(scanner)
     logger.info("🚀 Запуск Polymarket BTC 15m Scanner Bot...")
 

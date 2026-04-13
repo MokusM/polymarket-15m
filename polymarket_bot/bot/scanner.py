@@ -21,6 +21,7 @@ from bot.signals import check_signals, check_alt_signals
 from bot.state import state
 from bot.storage import save_signal, save_shadow_signal, save_signal_snapshot, save_alt_signal, resolve_alt_signals, resolve_shadow_signals
 from bot.telegram_bot import send_alert, send_info_message
+from bot.strategy_router import route_signal
 from bot.alert_text import get_current_session_key, format_session_alert_html
 
 logger = logging.getLogger(__name__)
@@ -38,7 +39,7 @@ def _parse_signal_key(key: str) -> tuple[str, str] | None:
 
 
 class Scanner:
-    def __init__(self):
+    def __init__(self, execution_clients: dict | None = None):
         self.exchange = ExchangeClient()
         self.poly = PolymarketClient()
         self.last_signal_time = {}
@@ -47,6 +48,9 @@ class Scanner:
         # Cache for /diagnose command
         self.last_df: pd.DataFrame = pd.DataFrame()
         self.last_markets: list = []
+        # Multi-strategy
+        self.execution_clients = execution_clients or {}
+        self._route_cooldowns: dict = {}
 
     async def run(self):
         logger.info("Пошук активних ринків BTC...")
@@ -287,6 +291,13 @@ class Scanner:
                             except Exception as e:
                                 logger.debug("Extra data collection error (non-critical): %s", e)
 
+                            # Route to all matching strategies
+                            await route_signal(
+                                signal, self, self.execution_clients,
+                                self._route_cooldowns, COOLDOWN_SECONDS,
+                            )
+
+                            # Legacy: also save to default DB for backward compat
                             sig_id = save_signal(signal)
                             if sig_id:
                                 asyncio.create_task(send_alert(sig_id, signal))

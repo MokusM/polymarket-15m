@@ -5,7 +5,9 @@
       "Read(//tmp/polymarket-trading-bot/lib/**)",
       "Read(//tmp/polymarket-trading-bot/strategies/**)",
       "WebFetch(domain:api.github.com)",
-      "WebFetch(domain:raw.githubusercontent.com)"
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(mkdir -p /d/plou/polymarket_bot/db)",
+      "Bash(touch /d/plou/polymarket_bot/db/.gitkeep)"
     ]
   }
 }

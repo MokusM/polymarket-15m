@@ -32,6 +32,7 @@ def _migrate_signals_columns(cursor: sqlite3.Cursor) -> None:
         ("telegram_message_id", "INTEGER"),
         ("live_entry_status", "TEXT"),  # NULL=paper; opened=CLOB fill; no_position=approve але позиції нема
         ("filter_version", "TEXT"),     # current / new / both — A/B тест фільтрів
+        ("strategy_id", "TEXT"),        # confluence / data_collector / delta_pct
     ]
     for col, decl in additions:
         if col not in existing:
@@ -131,9 +132,7 @@ def save_signal(signal: dict, db_path: str | None = None) -> int | None:
     alert_html = format_signal_alert_html(signal, mode, stake)
 
     try:
-        # Use strategy-specific DB if provided, or override from signal
-        _db = db_path or signal.get("_db_path")
-        conn = get_connection(_db)
+        conn = get_connection(db_path)
         cursor = conn.cursor()
         cursor.execute(
             """
@@ -141,8 +140,8 @@ def save_signal(signal: dict, db_path: str | None = None) -> int | None:
                 market_id, start_price, current_price, delta, delta_percent,
                 direction, contract_price, rsi_1m, rsi_3m, ema_position, volume_state,
                 decision, stake_usd, bot_mode, time_left, payload_json, alert_html,
-                filter_version
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                filter_version, strategy_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 signal.get("market_id"),
@@ -157,12 +156,13 @@ def save_signal(signal: dict, db_path: str | None = None) -> int | None:
                 signal.get("ema_position"),
                 signal.get("volume_state"),
                 decision,
-                stake,
+                signal.get("_stake_usd") or stake,
                 mode,
                 time_left,
                 payload_json,
                 alert_html,
                 signal.get("filter_version", "current"),
+                signal.get("_strategy_id"),
             ),
         )
         conn.commit()

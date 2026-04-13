@@ -83,6 +83,10 @@ def _migrate_positions_columns(cursor: sqlite3.Cursor) -> None:
         cursor.execute(
             "ALTER TABLE positions ADD COLUMN btc_strike REAL",
         )
+    if "strategy_id" not in existing:
+        cursor.execute(
+            "ALTER TABLE positions ADD COLUMN strategy_id TEXT",
+        )
 
 
 def init_positions_table(db_path: str | None = None):

@@ -64,15 +64,11 @@ async def main():
     else:
         logger.info("📋 Paper trading mode")
 
-    # Init strategy databases
-    from bot.strategy_router import get_db_path
+    # Log enabled strategies (all share live.db with strategy_id column)
     from bot.strategies import get_enabled_strategies
     for strat in get_enabled_strategies():
-        db = get_db_path(strat["id"])
-        init_db(db)
-        init_positions_table(db)
-        init_pending_orders_table(db)
-        logger.info("📂 Strategy '%s' DB: %s", strat["id"], db)
+        logger.info("📋 Strategy '%s' enabled: %s assets, $%.0f stake",
+                     strat["id"], strat["assets"], strat["stake_usd"])
 
     # WebSocket Binance price feed (BTC/ETH/SOL)
     from bot import ws_binance

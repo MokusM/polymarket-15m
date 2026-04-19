@@ -19,8 +19,8 @@ from bot.polymarket_client import PolymarketClient
 from bot.indicators import add_indicators
 from bot.signals import check_signals, check_alt_signals
 from bot.state import state
-from bot.storage import save_signal, save_shadow_signal, save_signal_snapshot, save_alt_signal, resolve_alt_signals, resolve_shadow_signals, get_db_path
-from bot.telegram_bot import send_alert, send_info_message
+from bot.storage import save_shadow_signal, save_signal_snapshot, save_alt_signal, resolve_alt_signals, resolve_shadow_signals, get_db_path
+from bot.telegram_bot import send_info_message
 from bot.strategy_router import route_signal
 from bot.alert_text import get_current_session_key, format_session_alert_html
 

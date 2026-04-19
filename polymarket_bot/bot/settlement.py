@@ -371,7 +371,89 @@ async def settle_markets(execution_client=None):
                         logger.info("Polling fallback: маркет %s закрито → settle сигналу #%s",
                                     sig["market_id"][:12], sig["id"])
                         await _settle_one(sig, price_yes, price_no, execution_client)
+                # --- Safety net: close orphan positions (expired but not settled) ---
+                await _close_orphan_positions(poly, execution_client)
+
             except Exception as e:
                 logger.error("Помилка в fallback polling: %s", e, exc_info=True)
     finally:
         await poly.close()
+
+
+async def _close_orphan_positions(poly, execution_client=None):
+    """Close positions where market expired but settlement missed them."""
+    from bot.strategies import get_strategy
+
+    try:
+        positions = get_open_positions()
+        now = datetime.now(timezone.utc)
+
+        for pos in positions:
+            expires_str = pos.get("market_expires_at") or ""
+            if not expires_str:
+                continue
+            try:
+                exp = datetime.fromisoformat(expires_str).replace(tzinfo=timezone.utc)
+            except Exception:
+                continue
+
+            # Only process if expired > 5 min ago (give normal settlement time)
+            if (now - exp).total_seconds() < 300:
+                continue
+
+            market_id = pos.get("market_id") or ""
+            if not market_id:
+                continue
+
+            # Check market resolution via API
+            info = await poly.get_market_prices(market_id)
+            if not info:
+                continue
+            price_yes = info.get("price_yes", 0.0)
+            price_no = info.get("price_no", 0.0)
+            if price_yes not in [0.0, 1.0] or price_no not in [0.0, 1.0]:
+                continue  # not yet resolved
+
+            direction = pos.get("direction", "UP")
+            is_win = (direction == "UP" and price_yes == 1.0) or (direction == "DOWN" and price_no == 1.0)
+
+            entry = float(pos.get("entry_price", 0))
+            shares = float(pos.get("remaining_shares") or pos.get("shares") or 0)
+            stake = float(pos.get("stake_usd", 0))
+            realized = float(pos.get("realized_pnl") or 0)
+
+            if is_win:
+                pnl = round(shares * 1.0 - stake + realized, 2)
+                result = "WIN"
+            else:
+                pnl = round(-stake + realized, 2)
+                result = "LOSS"
+
+            close_position(pos["id"], f"orphan_settlement_{result}", pnl)
+
+            # Also fix the signal if it exists
+            sig_id = pos.get("signal_id")
+            if sig_id:
+                from bot.storage import get_connection
+                try:
+                    conn = get_connection()
+                    conn.execute(
+                        "UPDATE signals SET result = ?, pnl = ? WHERE id = ? AND (result IS NULL OR result = 'NO_ENTRY')",
+                        (result, pnl, sig_id),
+                    )
+                    conn.commit()
+                    conn.close()
+                except Exception:
+                    pass
+
+            logger.warning(
+                "ORPHAN SETTLEMENT #%s: %s %s, PnL: %.2f (market %s expired %s)",
+                pos["id"], direction, result, pnl, market_id[:12], expires_str,
+            )
+            await send_info_message(
+                f"🔧 <b>Orphan Settlement #{pos['id']}</b>\n"
+                f"{direction} {result} | PnL: <b>{pnl:+.2f}</b>\n"
+                f"Market expired {expires_str[:16]}"
+            )
+    except Exception as e:
+        logger.error("_close_orphan_positions error: %s", e)

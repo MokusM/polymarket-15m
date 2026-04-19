@@ -260,6 +260,8 @@ async def cmd_list(message: types.Message):
         "/balance — баланс USDC\n"
         "/diagnose — фільтри поточного маркету\n"
         "/buy — ручна купівля\n"
+        "/arb — купити дешеву сторону (Wallet V2)\n"
+        "/hedge — купити протилежну сторону\n"
         "/stop — зупинити торгівлю\n"
         "/start — відновити торгівлю\n"
         "/reset — скинути circuit breaker\n"
@@ -336,10 +338,13 @@ async def cmd_positions(message: types.Message):
             pnl_str = "bid: n/a"
 
         sl_str = f"SL {sl:.2f}" if sl > 0 else "no SL"
+        strat = p.get("strategy_id") or "—"
+        slug = p.get("market_slug") or ""
 
         lines.append(
-            f"<b>#{p['id']}</b> {p['direction']} {p['side']} @ {entry:.2f} | "
+            f"<b>#{p['id']}</b> [{strat}] {p['direction']} {p['side']} @ {entry:.2f} | "
             f"{remaining:.0f}sh | ${stake:.2f} | {sl_str}\n"
+            f"📌 {slug}\n"
             f"{pnl_str}"
         )
     await message.answer("\n".join(lines), parse_mode="HTML")
@@ -664,6 +669,126 @@ async def process_manual_buy(callback_query: types.CallbackQuery):
         )
 
 
+# ── Arb assistant ──
+
+_execution_clients_ref: dict = {}
+
+
+def set_execution_clients(clients: dict):
+    global _execution_clients_ref
+    _execution_clients_ref = clients
+
+
+ARB_WALLET_KEY = "POLYMARKET_PRIVATE_KEY_V2"  # Wallet V2 (0x3544...) for manual arb
+
+
+@dp.message(Command("arb"))
+async def cmd_arb(message: types.Message):
+    """Купити дешеву сторону SOL 5m на $1 (без вибору — одразу)."""
+    exec_client = _execution_clients_ref.get(ARB_WALLET_KEY) or _execution_client
+    if not exec_client or not exec_client.ready:
+        await message.answer("❌ ExecutionClient не готовий")
+        return
+
+    from bot.arb_handler import do_arb_buy
+
+    async def _tg_send(cid, text):
+        if bot:
+            await bot.send_message(cid, text, parse_mode="HTML")
+
+    try:
+        result = await do_arb_buy(
+            "SOL", "5m", 1.0, exec_client, ARB_WALLET_KEY,
+            str(message.chat.id), tg_send_fn=_tg_send,
+        )
+    except Exception as e:
+        logger.error("arb_buy: %s", e, exc_info=True)
+        result = f"❌ Exception: {html.escape(str(e))}"
+
+    builder = InlineKeyboardBuilder()
+    builder.button(text="🛡 Hedge", callback_data="hedge|now")
+    await message.answer(result, parse_mode="HTML", reply_markup=builder.as_markup())
+
+
+@dp.callback_query(lambda c: c.data and c.data.startswith("arb|"))
+async def process_arb_buy(callback_query: types.CallbackQuery):
+    parts = callback_query.data.split("|")
+    if len(parts) != 4:
+        await bot.answer_callback_query(callback_query.id, "Bad args")
+        return
+    _, asset, window, stake_str = parts
+    stake = float(stake_str)
+
+    try:
+        await bot.answer_callback_query(callback_query.id, f"Buying {asset} {window}...")
+    except Exception:
+        pass
+
+    exec_client = _execution_clients_ref.get(ARB_WALLET_KEY) or _execution_client
+    if not exec_client or not exec_client.ready:
+        await bot.send_message(callback_query.message.chat.id, "❌ ExecutionClient не готовий")
+        return
+
+    from bot.arb_handler import do_arb_buy
+    try:
+        result = await do_arb_buy(
+            asset, window, stake, exec_client, ARB_WALLET_KEY,
+            str(callback_query.message.chat.id),
+        )
+    except Exception as e:
+        logger.error("arb_buy: %s", e, exc_info=True)
+        result = f"❌ Exception: {html.escape(str(e))}"
+
+    builder = InlineKeyboardBuilder()
+    builder.button(text="🛡 Hedge", callback_data="hedge|now")
+    await bot.send_message(
+        callback_query.message.chat.id, result,
+        parse_mode="HTML", reply_markup=builder.as_markup(),
+    )
+
+
+@dp.message(Command("hedge"))
+async def cmd_hedge(message: types.Message):
+    await _do_hedge(message.chat.id)
+
+
+_hedge_lock = asyncio.Lock()
+
+
+@dp.callback_query(lambda c: c.data == "hedge|now")
+async def process_hedge(callback_query: types.CallbackQuery):
+    try:
+        await bot.answer_callback_query(callback_query.id, "Hedging...")
+    except Exception:
+        pass
+    await _do_hedge(callback_query.message.chat.id)
+
+
+async def _do_hedge(chat_id):
+    if _hedge_lock.locked():
+        await bot.send_message(chat_id, "⏳ Hedge вже виконується...")
+        return
+
+    async with _hedge_lock:
+        exec_client = _execution_clients_ref.get(ARB_WALLET_KEY) or _execution_client
+        if not exec_client or not exec_client.ready:
+            await bot.send_message(chat_id, "❌ ExecutionClient не готовий")
+            return
+
+        from bot.arb_handler import do_arb_hedge
+
+        async def _tg_send(cid, text):
+            if bot:
+                await bot.send_message(cid, text, parse_mode="HTML")
+
+        try:
+            result = await do_arb_hedge(exec_client, ARB_WALLET_KEY, str(chat_id), tg_send_fn=_tg_send)
+        except Exception as e:
+            logger.error("hedge: %s", e, exc_info=True)
+            result = f"❌ Exception: {html.escape(str(e))}"
+        await bot.send_message(chat_id, result, parse_mode="HTML")
+
+
 @dp.message(Command("status"))
 async def cmd_status(message: types.Message):
     """Повний статус бота."""
@@ -818,20 +943,8 @@ async def send_alert(signal_id: int, signal: dict):
     # TODO: повернути перевірку edge > 0 після калібрування win_prob під CLOB ціни
     edge_ok = True  # було: risk["edge"] > 0
 
-    if state.is_live_allowed and client_ready and edge_ok:
-        stake_display = risk["stake_usd"] if risk["stake_usd"] > 0 else STAKE_USD
-    else:
-        stake_display = STAKE_USD
-
-    # Застосувати фільтри ставки до відображення
-    _conf = signal.get("confluence", 0)
-    _min_tc = state.get_thresholds().get("MIN_TRADE_CONFLUENCE", 0)
-    if _min_tc > 0 and _conf < _min_tc and _conf > 0:
-        stake_display = MIN_STAKE_USD
-    if signal.get("volume_state") == "stabilization" and _conf >= _min_tc:
-        stake_display = MIN_STAKE_USD
-    if signal.get("_alt_data_only"):
-        stake_display = MIN_STAKE_USD
+    # Strategy-specific stake has priority (set by strategy_router)
+    stake_display = signal.get("_stake_usd") or risk.get("stake_usd") or STAKE_USD
 
     text = format_signal_alert_html(signal, state.mode, stake_display)
 
@@ -882,7 +995,7 @@ async def send_alert_for_strategy(
     strategy: dict,
     execution_clients: dict,
 ) -> None:
-    """Send alert and execute for a specific strategy. Uses strategy-specific telegram if configured."""
+    """Send alert and execute for a specific strategy. Uses strategy-specific telegram and wallet."""
     import os
     from aiogram import Bot as _Bot
 
@@ -895,12 +1008,21 @@ async def send_alert_for_strategy(
     tg_token = os.getenv(tg_token_key, "")
     tg_chat = os.getenv(tg_chat_key, "")
 
-    # If same token as main bot — use existing send_alert
+    # Pick the correct execution client for this strategy's wallet
+    wallet_key = strategy.get("wallet_key", "POLYMARKET_PRIVATE_KEY")
+    exec_client = execution_clients.get(wallet_key)
+    if not exec_client or not exec_client.ready:
+        logger.warning("[%s] Wallet %s not ready — skip execution", strategy["id"], wallet_key)
+        return
+
+    # If same token as main bot — use existing send_alert (with correct client)
     if tg_token == TELEGRAM_TOKEN or not tg_token:
+        # Store pending with strategy-aware execution client reference
+        signal["_exec_client"] = exec_client
         await send_alert(signal_id, signal)
         return
 
-    # Different telegram bot — send directly
+    # Different telegram bot — send alert + execute order
     try:
         from bot.alert_text import format_signal_alert_html
         from bot.risk import calculate_stake
@@ -909,16 +1031,28 @@ async def send_alert_for_strategy(
         stake = signal.get("_stake_usd") or risk.get("stake_usd", 1)
         text = format_signal_alert_html(signal, "light", stake)
 
+        # Send Telegram alert
         strategy_bot = _Bot(token=tg_token)
+        order_text = ""
+
+        # Execute order if AUTO_APPROVE + live allowed + client ready
+        if AUTO_APPROVE_LIVE and state.is_live_allowed and exec_client and exec_client.ready:
+            store_pending_signal(signal_id, {**signal, "_risk": risk, "_exec_client": exec_client})
+            update_decision(signal_id, "approve")
+            order_text = await _execute_live_order(signal_id)
+
+        if order_text:
+            text += f"\n\n<b>⚡ Instant Execute</b>\n{order_text}"
+
         await strategy_bot.send_message(
             chat_id=tg_chat,
             text=text,
             parse_mode="HTML",
         )
         await strategy_bot.session.close()
-        logger.info("[%s] Telegram alert sent to bot %s", strategy["id"], tg_token_key)
+        logger.info("[%s] Telegram alert + execute via bot %s", strategy["id"], tg_token_key)
     except Exception as e:
-        logger.error("[%s] Telegram send error: %s", strategy["id"], e)
+        logger.error("[%s] Telegram/execute error: %s", strategy["id"], e)
 
 
 @dp.callback_query(lambda c: c.data and c.data.startswith('decision|'))
@@ -960,6 +1094,7 @@ async def process_decision(callback_query: types.CallbackQuery):
 
 async def _execute_live_order(signal_id: int, skip_min_size: bool = False) -> str:
     from bot.position_manager import open_position, count_open_positions, get_open_positions
+    from bot.strategies import get_strategy
 
     async def _mark_no_fill() -> None:
         await asyncio.to_thread(mark_signal_live_no_position, signal_id)
@@ -972,34 +1107,34 @@ async def _execute_live_order(signal_id: int, skip_min_size: bool = False) -> st
         await _mark_no_fill()
         return "\u26a0\ufe0f Сигнал не знайдено в пам\u2019яті"
 
-    # Ліміт: 1 позиція на актив per strategy
+    # Pick correct execution client: strategy-specific or global fallback
+    exec_client = signal.pop("_exec_client", None) or _execution_client
+    if not exec_client or not exec_client.ready:
+        await _mark_no_fill()
+        return "\u26a0\ufe0f ExecutionClient не готовий"
+
+    # Per-strategy position limit
+    _sid = signal.get("_strategy_id", "")
+    _strat_cfg = get_strategy(_sid) if _sid else None
+    _max_pos = _strat_cfg["max_positions_per_asset"] if _strat_cfg else MAX_OPEN_POSITIONS
+
     if not signal.get("_manual"):
         _asset = signal.get("asset", "BTC").upper()
-        _sid = signal.get("_strategy_id", "")
         _open = get_open_positions()
         _asset_open = sum(
             1 for p in _open
             if _asset.lower() in (p.get("market_slug") or "").lower()
             and (not _sid or p.get("strategy_id", "") == _sid)
         )
-        if _asset_open >= MAX_OPEN_POSITIONS:
+        if _asset_open >= _max_pos:
             await _mark_no_fill()
-            return f"\u26a0\ufe0f Ліміт позицій для {_asset} ({MAX_OPEN_POSITIONS})"
+            return f"\u26a0\ufe0f Ліміт позицій для {_asset} ({_max_pos})"
 
-    # conf < MIN_TRADE_CONFLUENCE → торгуємо на мінімум ($1) для збору реальних даних
-    _conf = signal.get("confluence", 0) if not signal.get("_manual") else 99
-    _min_trade_conf = state.get_thresholds().get("MIN_TRADE_CONFLUENCE", 0)
-    if _min_trade_conf > 0 and _conf < _min_trade_conf and _conf > 0:
-        signal.setdefault("_risk", {})["stake_usd"] = MIN_STAKE_USD
-
-    # Stabilization filter: volume затихає = тренд вичерпується → ставка мінімум
-    if not signal.get("_manual") and signal.get("volume_state") == "stabilization" and _conf >= _min_trade_conf:
-        signal.setdefault("_risk", {})["stake_usd"] = MIN_STAKE_USD
-        logger.info("STAB FILTER: conf=%s volume=stabilization -> stake reduced to min", _conf)
-
-    # ALT assets (ETH/SOL) — завжди мін ставка для збору даних
-    if signal.get("_alt_data_only"):
-        signal.setdefault("_risk", {})["stake_usd"] = MIN_STAKE_USD
+    # Stake logic is now handled by strategy filters in strategies.py:
+    # - confluence: stabilization → min, else full
+    # - data_collector: always min
+    # - delta_pct: always full (from STRAT_DELTA_STAKE)
+    # No additional overrides needed here.
 
     direction = signal.get("direction", "UP")
     market_id = signal.get("market_id", "")
@@ -1007,7 +1142,7 @@ async def _execute_live_order(signal_id: int, skip_min_size: bool = False) -> st
     slug = signal.get("market_slug", "") or ""
     mid = str(market_id) if market_id else ""
 
-    token_ids = await _execution_client.get_market_token_ids(
+    token_ids = await exec_client.get_market_token_ids(
         slug,
         mid or None,
     )
@@ -1019,37 +1154,55 @@ async def _execute_live_order(signal_id: int, skip_min_size: bool = False) -> st
     token_id = yes_token if direction == "UP" else no_token
 
     risk = signal.get("_risk", {})
-    stake = risk.get("stake_usd", 1.0)
+    # Strategy-specific stake takes priority over global Kelly calculation
+    stake = signal.get("_stake_usd") or risk.get("stake_usd", 1.0)
     cp = signal.get("clob_ask") or signal.get("contract_price", 0.5)
     neg_risk = bool(signal.get("neg_risk", False))
 
+    # Determine order type: GTC for strategies that specify it, FAK otherwise
+    _order_type = "FAK"
+    if _strat_cfg and _strat_cfg.get("order_type", "").upper() == "GTC":
+        _order_type = "GTC"
+
     async def _try_buy(price: float) -> dict | None:
-        return await _execution_client.buy_shares(
+        return await exec_client.buy_shares(
             token_id=token_id,
             price=price,
             stake_usd=stake,
             neg_risk=neg_risk,
             market_slug=None if skip_min_size else (slug or None),
             market_id=None if skip_min_size else (mid or None),
+            order_type=_order_type,
         )
 
     result = await _try_buy(cp)
 
-    # FAK retry: якщо немає покупців — ре-фетчимо поточний ask і пробуємо ще раз
-    _is_fak_no_match = (
+    # Server error retry: HTTP 500 "could not run the execution" — транзієнтна помилка
+    _is_server_error = (
         result and isinstance(result, dict) and result.get("success") is False
-        and ("no orders found to match" in (result.get("error") or "") or "FAK" in (result.get("error") or ""))
+        and "could not run the execution" in (result.get("error") or "")
     )
-    if _is_fak_no_match:
-        fresh_ask = await _execution_client.get_token_price(token_id, "SELL")
-        if fresh_ask and fresh_ask > 0:
-            from bot.state import state as _state
-            hard_cap = _state.get_thresholds()["CONTRACT_PRICE_MAX"]
-            if fresh_ask <= hard_cap + 1e-9:
-                logger.info("FAK retry: ask %.4f → retry з актуальною ціною", fresh_ask)
-                result = await _try_buy(fresh_ask)
-            else:
-                logger.info("FAK retry: fresh ask %.4f > cap %.4f — не ретраїмо", fresh_ask, hard_cap)
+    if _is_server_error:
+        logger.warning("CLOB 500 error — retry через 1.5s")
+        await asyncio.sleep(1.5)
+        result = await _try_buy(cp)
+
+    if _order_type == "FAK":
+        # FAK retry: якщо немає покупців — ре-фетчимо поточний ask і пробуємо ще раз
+        _is_fak_no_match = (
+            result and isinstance(result, dict) and result.get("success") is False
+            and ("no orders found to match" in (result.get("error") or "") or "FAK" in (result.get("error") or ""))
+        )
+        if _is_fak_no_match:
+            fresh_ask = await exec_client.get_token_price(token_id, "SELL")
+            if fresh_ask and fresh_ask > 0:
+                from bot.state import state as _state
+                hard_cap = _state.get_thresholds()["CONTRACT_PRICE_MAX"]
+                if fresh_ask <= hard_cap + 1e-9:
+                    logger.info("FAK retry: ask %.4f → retry з актуальною ціною", fresh_ask)
+                    result = await _try_buy(fresh_ask)
+                else:
+                    logger.info("FAK retry: fresh ask %.4f > cap %.4f — не ретраїмо", fresh_ask, hard_cap)
 
     if not result or (isinstance(result, dict) and result.get("success") is False):
         await _mark_no_fill()
@@ -1061,25 +1214,64 @@ async def _execute_live_order(signal_id: int, skip_min_size: bool = False) -> st
                 return "💤 Немає покупців — ордер скасовано (низька ліквідність)"
             if "invalid amounts" in reason or "max accuracy" in reason:
                 return "❌ Помилка розміру ордера (precision)"
-            if reason.startswith("price_moved:"):
-                _, ask, cap = reason.split(":")
-                ask_f = float(ask)
-                if ask_f >= 0.95:
-                    return f"⏱ Ринок вирішився під час виконання — ask {ask_f:.2f}. Ордер не відправлено."
-                return f"💤 Ціна вийшла за ліміт — ask {ask_f:.2f} (ліміт {float(cap):.2f}). Ордер не відправлено."
+            if reason.startswith("price_moved:") or reason.startswith("gtc_skip:"):
+                parts = reason.split(":")
+                return f"💤 {reason}"
             if "not enough balance" in reason.lower():
                 return "❌ Недостатньо коштів на балансі"
             return f"❌ Ордер не виконано: <code>{reason}</code>"
         return "❌ Ордер не виконано"
 
-    # FAK: ордер або виконався (matched) або скасований — "live" не повинно бути
     st_ord = (result.get("status") or "").lower() if isinstance(result, dict) else ""
-    if st_ord == "live":
-        # Несподівано отримали live статус — скасовуємо і повертаємо NO_ENTRY
+
+    # GTC: "live" means order is in the book waiting for fill — save as pending
+    if _order_type == "GTC" and st_ord == "live":
+        from bot.storage import save_pending_order, mark_signal_live_pending
+        from bot.config import GTC_ORDER_TTL_SECONDS
+
         oid = str(result.get("orderID") or result.get("order_id") or "")
-        if oid and _execution_client:
+        ep = float(result.get("_effective_price", cp))
+        shares = float(result.get("_order_size", 0))
+        stake_eff = round(shares * ep, 2)
+
+        _tl = signal.get("time_left")
+        time_left_min = float(_tl) if _tl is not None and _tl != "" else 10.0
+        # Expire: min(market expiry - 1 min, GTC TTL from now)
+        from datetime import timedelta
+        market_exp = datetime.now(timezone.utc) + timedelta(seconds=time_left_min * 60 - 60)
+        ttl_exp = datetime.now(timezone.utc) + timedelta(seconds=GTC_ORDER_TTL_SECONDS)
+        expires = min(market_exp, ttl_exp).strftime("%Y-%m-%d %H:%M:%S")
+
+        save_pending_order(
+            signal_id=signal_id,
+            order_id=oid,
+            token_id=token_id,
+            market_id=market_id,
+            market_slug=slug,
+            direction=direction,
+            limit_price=ep,
+            shares=shares,
+            stake_usd=stake_eff,
+            neg_risk=neg_risk,
+            expires_at=expires,
+            strategy_id=_sid,
+        )
+        mark_signal_live_pending(signal_id)
+
+        side = "YES" if direction == "UP" else "NO"
+        return (
+            f"📋 <b>LIMIT ORDER</b>\n"
+            f"Signal #{signal_id} | {side} @ {ep:.2f} | "
+            f"{shares:.1f} shares | ~${stake_eff:.2f}\n"
+            f"⏳ Чекаємо fill до {expires[11:16]} UTC"
+        )
+
+    # FAK: "live" should not happen — cancel
+    if _order_type == "FAK" and st_ord == "live":
+        oid = str(result.get("orderID") or result.get("order_id") or "")
+        if oid and exec_client:
             try:
-                await _execution_client.cancel_order(oid)
+                await exec_client.cancel_order(oid)
                 logger.warning("FAK ордер %s несподівано live — скасовано", oid[:16])
             except Exception as _e:
                 logger.warning("Не вдалось скасувати live FAK ордер: %s", _e)
@@ -1133,7 +1325,32 @@ async def _execute_live_order(signal_id: int, skip_min_size: bool = False) -> st
     )
 
 
-async def send_info_message(text: str):
+async def send_info_message(text: str, strategy_id: str | None = None):
+    """Send info message. Routes to strategy-specific Telegram bot if configured."""
+    import os
+    from aiogram import Bot as _Bot
+
+    # Try strategy-specific bot first
+    if strategy_id:
+        from bot.strategies import get_strategy
+        strat = get_strategy(strategy_id)
+        if strat:
+            tg_token_key = strat.get("telegram_token_key", "TELEGRAM_TOKEN")
+            tg_chat_key = strat.get("telegram_chat_key", "CHAT_ID")
+            tg_token = os.getenv(tg_token_key, "")
+            tg_chat = os.getenv(tg_chat_key, "")
+            # If different bot than main — send via strategy bot
+            if tg_token and tg_token != TELEGRAM_TOKEN:
+                try:
+                    strategy_bot = _Bot(token=tg_token)
+                    await strategy_bot.send_message(chat_id=tg_chat, text=text, parse_mode="HTML")
+                    await strategy_bot.session.close()
+                    return
+                except Exception as e:
+                    logger.error("[%s] Info msg error: %s", strategy_id, e)
+                    # Fallback to main bot
+
+    # Default: main bot
     if not TELEGRAM_ENABLED or not bot or not CHAT_ID:
         return
     try:

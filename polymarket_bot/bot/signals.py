@@ -336,6 +336,8 @@ def check_signals(market_info: dict, df: pd.DataFrame, _shadow: dict | None = No
         "rsi_3m": round(float(last["rsi_3m"]), 1) if "rsi_3m" in last.index and not pd.isna(last.get("rsi_3m")) else None,
         "rsi_5m": round(float(last["rsi_5m"]), 1) if "rsi_5m" in last.index and not pd.isna(last.get("rsi_5m")) else None,
         "consecutive_closes": _cc,
+        "macd_hist": round(_macd_hist, 2),
+        "ema_slope": round(abs(float(last.get("ema_9_slope", 0) or 0)), 2),
         "filter_version": filter_version,
     }
 
@@ -509,10 +511,20 @@ def check_alt_signals(
     ema_pos = "above" if ema_vote == "UP" else "below" if ema_vote == "DOWN" else "at"
     ema_9_slope = float(last.get("ema_9_slope", 0))
 
+    # Build votes dict (same format as BTC signals)
+    votes_dict = {
+        "RSI": {"direction": rsi_vote, "label": ""},
+        "MACD": {"direction": macd_vote, "label": ""},
+        "VWAP": {"direction": vwap_vote, "label": ""},
+        "EMA": {"direction": ema_vote, "label": ""},
+        "Pivots": {"direction": pivots_vote, "label": ""},
+    }
+
     return {
         "asset": asset.upper(),
         "direction": direction,
         "confluence": confluence,
+        "votes": votes_dict,
         "end_date_iso": market_info.get("end_date_iso"),
         "start_price": start_price,
         "current_price": price,
@@ -532,6 +544,8 @@ def check_alt_signals(
         "btc_gap": btc_gap,
         "btc_gap_pct": btc_gap_pct,
         "btc_aligned": btc_aligned,
+        "macd_hist": round(abs(float(last.get("macd_hist", 0) or 0)), 2),
+        "ema_slope": round(abs(float(last.get("ema_9_slope", 0) or 0)), 2),
         **_calc_momentum(df, direction),
     }
 

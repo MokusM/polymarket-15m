@@ -1,0 +1,167 @@
+//@version=6
+indicator("SOL 5m Arb Helper", overlay=true)
+
+// ── EMA ──
+ema9 = ta.ema(close, 9)
+ema21 = ta.ema(close, 21)
+plot(ema9, "EMA 9", color.yellow, 2)
+plot(ema21, "EMA 21", color.blue, 2)
+
+// ── VWAP ──
+vwapVal = ta.vwap(hlc3)
+plot(vwapVal, "VWAP", color.white, 2, plot.style_stepline)
+
+// ── Bollinger Bands ──
+basis = ta.sma(close, 20)
+dev = 2.0 * ta.stdev(close, 20)
+upper = basis + dev
+lower = basis - dev
+p1 = plot(upper, "BB Upper", color.new(color.gray, 50))
+p2 = plot(lower, "BB Lower", color.new(color.gray, 50))
+fill(p1, p2, color.new(color.gray, 90))
+
+// ── BB Width (volatility) ──
+bbWidth = (upper - lower) / basis * 100
+isLowVol = bbWidth < 0.15
+
+// ── RSI ──
+rsi = ta.rsi(close, 14)
+
+// ── Volume ──
+volAvg = ta.sma(volume, 20)
+volRatio = volAvg > 0 ? volume / volAvg : 1.0
+isHighVol = volRatio > 1.5
+isLowVolume = volRatio < 0.5
+
+// ── MACD ──
+[macdLine, signalLine, histLine] = ta.macd(close, 12, 26, 9)
+macdBull = histLine > 0
+macdCross = ta.cross(macdLine, signalLine)
+
+// ── ATR (volatility in $) ──
+atrVal = ta.atr(14)
+atrPercent = atrVal / close * 100
+
+// ── Momentum (price change last 5 bars) ──
+momentum = close - close[5]
+momPercent = momentum / close[5] * 100
+
+// ── 5-min window detection ──
+is5mStart = minute % 5 == 0 and minute != minute[1]
+
+// ── Flat Start Detection ──
+var float windowOpen = na
+var int barsInWindow = 0
+var float windowHigh = na
+var float windowLow = na
+
+if is5mStart
+    windowOpen := close
+    barsInWindow := 0
+    windowHigh := high
+    windowLow := low
+else
+    barsInWindow := barsInWindow + 1
+    windowHigh := math.max(nz(windowHigh, high), high)
+    windowLow := math.min(nz(windowLow, low), low)
+
+windowRange = windowHigh - windowLow
+rangePercent = windowOpen > 0 ? windowRange / windowOpen * 100 : 0
+isFlatStart = barsInWindow >= 1 and barsInWindow <= 2 and rangePercent < 0.03
+
+// ── Zone detection ──
+nearVwap = math.abs(close - vwapVal) / close * 100 < 0.03
+rsiNeutral = rsi > 40 and rsi < 60
+arbZone = nearVwap and rsiNeutral and isLowVol
+
+// ── Background colors ──
+bgcolor(isFlatStart ? color.new(color.green, 80) : na, title="Flat Start (ARB)")
+bgcolor(not isFlatStart and arbZone ? color.new(color.purple, 85) : na, title="Arb Zone")
+
+// ── Volume bars color ──
+barcolor(isHighVol ? color.yellow : na, title="High Volume Bar")
+
+// ── 5m window vertical lines ──
+if is5mStart
+    line.new(bar_index, low - atrVal, bar_index, high + atrVal,
+             color=color.new(color.white, 70), style=line.style_dotted)
+
+// ── Labels ──
+if isFlatStart and barstate.isconfirmed
+    label.new(bar_index, high, "FLAT\nARB!", style=label.style_label_down,
+              color=color.green, textcolor=color.white, size=size.small)
+
+if rsi > 70 and ta.crossover(rsi, 70)
+    label.new(bar_index, high, "DOWN\ncheap", style=label.style_label_down,
+              color=color.orange, textcolor=color.white, size=size.small)
+
+if rsi < 30 and ta.crossunder(rsi, 30)
+    label.new(bar_index, low, "UP\ncheap", style=label.style_label_up,
+              color=color.blue, textcolor=color.white, size=size.small)
+
+// Volume spike + MACD cross = strong move incoming
+if isHighVol and macdCross and barstate.isconfirmed
+    label.new(bar_index, high, "VOL!", style=label.style_label_down,
+              color=color.yellow, textcolor=color.black, size=size.small)
+
+// ── Info table ──
+var table infoTable = table.new(position.top_right, 2, 11,
+                                 bgcolor=color.new(color.black, 30), border_width=1)
+
+if barstate.islast
+    table.cell(infoTable, 0, 0, "RSI", text_color=color.gray, text_size=size.normal)
+    table.cell(infoTable, 1, 0, str.tostring(rsi, "#.0"),
+               text_color=rsi > 70 ? color.red : rsi < 30 ? color.blue : color.white,
+               text_size=size.normal)
+
+    table.cell(infoTable, 0, 1, "BB Width", text_color=color.gray, text_size=size.normal)
+    table.cell(infoTable, 1, 1, str.tostring(bbWidth, "#.3") + "%",
+               text_color=isLowVol ? color.green : color.white, text_size=size.normal)
+
+    table.cell(infoTable, 0, 2, "vs VWAP", text_color=color.gray, text_size=size.normal)
+    priceVsVwap = (close - vwapVal) / close * 100
+    table.cell(infoTable, 1, 2, str.tostring(priceVsVwap, "#.3") + "%",
+               text_color=priceVsVwap > 0 ? color.green : color.red, text_size=size.normal)
+
+    table.cell(infoTable, 0, 3, "EMA", text_color=color.gray, text_size=size.normal)
+    table.cell(infoTable, 1, 3, ema9 > ema21 ? "BULL" : "BEAR",
+               text_color=ema9 > ema21 ? color.green : color.red, text_size=size.normal)
+
+    table.cell(infoTable, 0, 4, "Vol", text_color=color.gray, text_size=size.normal)
+    table.cell(infoTable, 1, 4, str.tostring(volRatio, "#.1") + "x",
+               text_color=isHighVol ? color.yellow : isLowVolume ? color.gray : color.white,
+               text_size=size.normal)
+
+    table.cell(infoTable, 0, 5, "MACD", text_color=color.gray, text_size=size.normal)
+    table.cell(infoTable, 1, 5, macdBull ? "BULL" : "BEAR",
+               text_color=macdBull ? color.green : color.red, text_size=size.normal)
+
+    table.cell(infoTable, 0, 6, "ATR%", text_color=color.gray, text_size=size.normal)
+    table.cell(infoTable, 1, 6, str.tostring(atrPercent, "#.3") + "%",
+               text_color=atrPercent > 0.15 ? color.yellow : color.white, text_size=size.normal)
+
+    table.cell(infoTable, 0, 7, "Mom 5b", text_color=color.gray, text_size=size.normal)
+    table.cell(infoTable, 1, 7, str.tostring(momPercent, "#.3") + "%",
+               text_color=momPercent > 0.05 ? color.green : momPercent < -0.05 ? color.red : color.white,
+               text_size=size.normal)
+
+    table.cell(infoTable, 0, 8, "5m Rng", text_color=color.gray, text_size=size.normal)
+    table.cell(infoTable, 1, 8, str.tostring(rangePercent, "#.3") + "%",
+               text_color=rangePercent < 0.03 ? color.green : rangePercent > 0.10 ? color.red : color.white,
+               text_size=size.normal)
+
+    table.cell(infoTable, 0, 9, "Bar#", text_color=color.gray, text_size=size.normal)
+    table.cell(infoTable, 1, 9, str.tostring(barsInWindow),
+               text_color=color.white, text_size=size.normal)
+
+    table.cell(infoTable, 0, 10, "Setup", text_color=color.gray, text_size=size.normal)
+    setupText = isFlatStart ? "FLAT START!" : arbZone ? "ARB OK" : rsi > 70 ? "DOWN cheap" : rsi < 30 ? "UP cheap" : "WAIT"
+    setupColor = isFlatStart ? color.green : arbZone ? color.purple : rsi > 70 ? color.orange : rsi < 30 ? color.blue : color.gray
+    table.cell(infoTable, 1, 10, setupText, text_color=setupColor, text_size=size.normal)
+
+// ── Alerts ──
+alertcondition(isFlatStart, title="Flat Start", message="SOL flat first 1.5 min — BEST ARB setup!")
+alertcondition(arbZone, title="Arb Zone", message="SOL near VWAP + low vol — ARB opportunity")
+alertcondition(ta.crossover(rsi, 70), title="DOWN cheap", message="SOL RSI > 70 — DOWN side cheap")
+alertcondition(ta.crossunder(rsi, 30), title="UP cheap", message="SOL RSI < 30 — UP side cheap")
+alertcondition(isHighVol and macdCross, title="Volume + MACD", message="Volume spike + MACD cross — strong move!")

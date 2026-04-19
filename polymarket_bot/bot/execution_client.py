@@ -240,6 +240,16 @@ class ExecutionClient:
         if not CLOB_CROSS_SPREAD_BUY:
             return ref_lim, None
 
+        from bot.state import state
+        hard_cap = min(0.99, state.get_thresholds()["CONTRACT_PRICE_MAX"])
+
+        # Safety check: reference already above cap — reject even before CLOB probe
+        if reference > hard_cap + 1e-9:
+            return (
+                0.0,
+                f"price_moved:{reference:.2f}:{hard_cap:.2f}",
+            )
+
         try:
             raw = self.client.get_price(token_id, "SELL")
             ap = (
@@ -248,14 +258,13 @@ class ExecutionClient:
                 else float(raw or 0)
             )
         except Exception as ex:
-            logger.warning("cross-spread BUY: %s", ex)
-            return ref_lim, None
+            logger.warning("cross-spread BUY: %s — fallback to reference (capped)", ex)
+            # Fallback: use reference but enforce hard cap
+            return min(ref_lim, hard_cap), None
 
         if ap <= 0:
-            return ref_lim, None
+            return min(ref_lim, hard_cap), None
 
-        from bot.state import state
-        hard_cap = min(0.99, state.get_thresholds()["CONTRACT_PRICE_MAX"])
         if ap > hard_cap + 1e-9:
             return (
                 0.0,
@@ -273,6 +282,45 @@ class ExecutionClient:
         p = max(reference, min(ap + CLOB_BUY_BUFFER, hard_cap))
         return tick_up(p), None
 
+    def _resolve_gtc_limit_price_sync(self, token_id: str, reference: float) -> tuple[float, str | None]:
+        """
+        GTC limit price: ask - GTC_PRICE_OFFSET.
+        Skips if best ask > GTC_MAX_ENTRY_PRICE.
+        Returns (limit_price, error_or_None).
+        """
+        from bot.config import GTC_PRICE_OFFSET, GTC_MAX_ENTRY_PRICE
+
+        tick_s = self.client.get_tick_size(token_id)
+        tick = float(tick_s) if tick_s else 0.01
+        if tick <= 0:
+            tick = 0.01
+        self._last_tick_size = f"{tick:.10f}".rstrip("0").rstrip(".")
+
+        def tick_down(p: float) -> float:
+            steps = int(p / tick + 1e-12)
+            return max(0.01, round(steps * tick, 6))
+
+        try:
+            raw = self.client.get_price(token_id, "SELL")
+            ask = float(raw.get("price", 0)) if isinstance(raw, dict) else float(raw or 0)
+        except Exception as ex:
+            logger.warning("GTC: get_price failed: %s — using reference", ex)
+            ask = reference
+
+        if ask <= 0:
+            ask = reference
+
+        if ask > GTC_MAX_ENTRY_PRICE + 1e-9:
+            return 0.0, f"gtc_skip:ask={ask:.3f}>max={GTC_MAX_ENTRY_PRICE:.2f}"
+
+        # Limit = ask - offset, rounded down to tick
+        limit_p = tick_down(ask - GTC_PRICE_OFFSET)
+        if limit_p <= 0.01:
+            return 0.0, f"gtc_skip:limit_too_low={limit_p:.3f}"
+
+        logger.info("GTC price: ask=%.3f offset=%.3f -> limit=%.3f", ask, GTC_PRICE_OFFSET, limit_p)
+        return limit_p, None
+
     async def buy_shares(
         self,
         token_id: str,
@@ -283,9 +331,13 @@ class ExecutionClient:
         tick_size: str = "0.01",
         market_slug: str | None = None,
         market_id: str | None = None,
+        order_type: str = "FAK",
+        use_exact_price: bool = False,
     ) -> Optional[dict]:
         """
         Купити shares за лімітною ціною.
+        order_type: "FAK" (fill-and-kill, taker) або "GTC" (good-till-cancelled, maker).
+        use_exact_price: якщо True — використати price напряму, без resolver.
         price — опорна ціна з сигналу; ліміт не вище CONTRACT_PRICE_MAX; зсув від сигналу лише логується (див. CLOB_MAX_BUY_SLIPPAGE_ABS).
         Якщо передано stake_usd — кількість shares рахується від фінальної лімітної ціни (~та сама сума $).
         Два обмеження CLOB: мінімум notional ~$1 і minimum_order_size (shares) з /markets/{condition}.
@@ -305,13 +357,31 @@ class ExecutionClient:
         else:
             stake_usd = float(stake_usd)
 
+        use_gtc = order_type.upper() == "GTC"
+
         try:
             loop = asyncio.get_event_loop()
             self._last_tick_size = tick_size
-            limit_p, slip_err = await loop.run_in_executor(
-                None,
-                lambda: self._resolve_buy_limit_price_sync(token_id, price),
-            )
+            if use_exact_price:
+                # Use the price as-is, just resolve tick size
+                limit_p = round(price, 2)
+                slip_err = None
+                try:
+                    ts = await loop.run_in_executor(None, self.client.get_tick_size, token_id)
+                    if ts:
+                        self._last_tick_size = f"{float(ts):.10f}".rstrip("0").rstrip(".")
+                except Exception:
+                    pass
+            elif use_gtc:
+                limit_p, slip_err = await loop.run_in_executor(
+                    None,
+                    lambda: self._resolve_gtc_limit_price_sync(token_id, price),
+                )
+            else:
+                limit_p, slip_err = await loop.run_in_executor(
+                    None,
+                    lambda: self._resolve_buy_limit_price_sync(token_id, price),
+                )
             if slip_err:
                 return {"success": False, "error": slip_err}
             tick_size = self._last_tick_size  # використовуємо реальний tick з CLOB
@@ -398,15 +468,17 @@ class ExecutionClient:
                 neg_risk=neg_risk,
             )
 
+            _ot = OrderType.GTC if use_gtc else OrderType.FAK
+
             def _post():
                 order = self.client.create_order(order_args, options)
-                return self.client.post_order(order, orderType=OrderType.FAK)
+                return self.client.post_order(order, orderType=_ot)
 
             signed = await loop.run_in_executor(None, _post)
 
             logger.info(
-                "ORDER PLACED (FAK): BUY %s shares @ %.2f | token=%s | result=%s",
-                size, limit_p, token_id[:12], signed,
+                "ORDER PLACED (%s): BUY %s shares @ %.2f | token=%s | result=%s",
+                order_type.upper(), size, limit_p, token_id[:12], signed,
             )
             if isinstance(signed, dict):
                 signed["_effective_price"] = limit_p

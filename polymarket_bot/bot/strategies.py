@@ -25,28 +25,47 @@ def _confluence_filter(signal: dict) -> dict | None:
 
 
 def _data_collector_filter(signal: dict) -> dict | None:
-    """conf>=3 → always min stake."""
+    """conf>=4 for ALT (ETH/SOL) + dp>=0.10, conf>=3 for BTC → always min stake."""
     conf = signal.get("confluence", 0)
-    if conf >= 3:
-        return {"stake": "min"}
-    return None
+    asset = signal.get("asset", "BTC").upper()
+
+    if asset in ("ETH", "SOL"):
+        if conf < 4:
+            return None
+        dp = abs(signal.get("delta_percent", 0))
+        if dp < 0.10:
+            return None
+        # Skip dead zone — no real movement, noise only
+        if signal.get("atr_zone") == "dead":
+            return None
+    else:
+        if conf < 3:
+            return None
+
+    return {"stake": "min"}
 
 
 def _delta_pct_filter(signal: dict) -> dict | None:
-    """delta_pct >= 0.10% + cc >= 2 + skip golden/high + skip tl<7."""
+    """delta_pct >= 0.10% + |cc| >= 1 + ATR<85 + tl>=7 + skip chg_1h dead zone 0.3-0.6%."""
     dp = abs(signal.get("delta_percent", 0))
     cc = abs(signal.get("consecutive_closes", 0))
-    atr_zone = signal.get("atr_zone", "")
+    atr = signal.get("atr", 0) or 0
     tl = signal.get("time_left", 0) or 0
+    chg_1h = abs(signal.get("chg_1h", 0) or 0)
 
     if dp < 0.10:
         return None
-    if cc < 2:
+    if cc < 1:
         return None
-    if atr_zone in ("golden", "high", "extreme"):
+    if atr >= 85:
         return None
     if tl < 7:
         return None
+    # Skip dead zone: BTC has started moving but direction unclear
+    # Live data: chg_1h 0.3-0.6% gave 56% WR vs 75-80% in other zones
+    if 0.30 <= chg_1h < 0.60:
+        return None
+
     return {"stake": "full"}
 
 
@@ -59,7 +78,7 @@ STRATEGIES = [
         "filter": _confluence_filter,
         "assets": ["BTC"],
         "stake_usd": float(_env("STRAT_CONFLUENCE_STAKE", "5")),
-        "min_stake_usd": float(_env("STRAT_CONFLUENCE_MIN_STAKE", "1")),
+        "min_stake_usd": float(_env("STRAT_CONFLUENCE_MIN_STAKE", "4")),
         "wallet_key": _env("STRAT_CONFLUENCE_WALLET", "POLYMARKET_PRIVATE_KEY"),
         "telegram_token_key": _env("STRAT_CONFLUENCE_TG_TOKEN", "TELEGRAM_TOKEN"),
         "telegram_chat_key": _env("STRAT_CONFLUENCE_TG_CHAT", "CHAT_ID"),
@@ -71,12 +90,12 @@ STRATEGIES = [
         "name": "Data",
         "enabled": _env("STRAT_DATA_ENABLED", "true").lower() in ("1", "true"),
         "filter": _data_collector_filter,
-        "assets": ["BTC", "ETH", "SOL"],
-        "stake_usd": 1,
-        "min_stake_usd": 1,
-        "wallet_key": _env("STRAT_DATA_WALLET", "POLYMARKET_PRIVATE_KEY"),
-        "telegram_token_key": _env("STRAT_DATA_TG_TOKEN", "TELEGRAM_TOKEN"),
-        "telegram_chat_key": _env("STRAT_DATA_TG_CHAT", "CHAT_ID"),
+        "assets": ["SOL"],
+        "stake_usd": 4,
+        "min_stake_usd": 4,
+        "wallet_key": _env("STRAT_DATA_WALLET", "POLYMARKET_PRIVATE_KEY_V3"),
+        "telegram_token_key": _env("STRAT_DATA_TG_TOKEN", "TELEGRAM_TOKEN_V3"),
+        "telegram_chat_key": _env("STRAT_DATA_TG_CHAT", "CHAT_ID_V3"),
         "db_label": "data",
         "max_positions_per_asset": 1,
     },
@@ -86,13 +105,14 @@ STRATEGIES = [
         "enabled": _env("STRAT_DELTA_ENABLED", "false").lower() in ("1", "true"),
         "filter": _delta_pct_filter,
         "assets": ["BTC"],
-        "stake_usd": float(_env("STRAT_DELTA_STAKE", "5")),
-        "min_stake_usd": 1,
+        "stake_usd": float(_env("STRAT_DELTA_STAKE", "4")),
+        "min_stake_usd": 4,
         "wallet_key": _env("STRAT_DELTA_WALLET", "POLYMARKET_PRIVATE_KEY_V2"),
         "telegram_token_key": _env("STRAT_DELTA_TG_TOKEN", "TELEGRAM_TOKEN_V2"),
         "telegram_chat_key": _env("STRAT_DELTA_TG_CHAT", "CHAT_ID_V2"),
         "db_label": "delta_pct",
         "max_positions_per_asset": 1,
+        "order_type": "GTC",  # limit orders for better entry price
     },
 ]
 

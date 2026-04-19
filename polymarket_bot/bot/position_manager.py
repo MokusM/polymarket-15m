@@ -198,12 +198,18 @@ def get_open_positions_from_db(db_path: str) -> list[dict]:
     return get_open_positions(db_path)
 
 
-def count_open_positions() -> int:
+def count_open_positions(strategy_id: str | None = None) -> int:
     try:
         conn = _get_conn()
-        row = conn.execute(
-            "SELECT COUNT(*) FROM positions WHERE status = 'open'"
-        ).fetchone()
+        if strategy_id:
+            row = conn.execute(
+                "SELECT COUNT(*) FROM positions WHERE status = 'open' AND strategy_id = ?",
+                (strategy_id,),
+            ).fetchone()
+        else:
+            row = conn.execute(
+                "SELECT COUNT(*) FROM positions WHERE status = 'open'"
+            ).fetchone()
         return row[0] if row else 0
     except Exception:
         return 0
@@ -300,7 +306,7 @@ def update_partial_exit(
         conn.close()
 
 
-async def monitor_positions_loop(execution_client):
+async def monitor_positions_loop(execution_client, execution_clients: dict | None = None):
     """
     Фоновий цикл: перевіряє ціни відкритих позицій.
 
@@ -310,12 +316,27 @@ async def monitor_positions_loop(execution_client):
       3. TP_FULL_PRICE (0.95) → продати все що залишилось
     """
     from bot.state import state
-    from bot.telegram_bot import send_info_message
+    from bot.telegram_bot import send_info_message as _send_info_message
 
     logger.info(
         "Position monitor запущено (інтервал %ss, TP: %.2f/%.2f/%.2f/%.2f)",
         POSITION_MONITOR_INTERVAL, TP_PARTIAL_PRICE, TP_MID_PRICE, TP_FULL_PRICE, TP_FINAL_PRICE,
     )
+
+    def _get_client_for_position(pos: dict):
+        """Resolve the correct ExecutionClient for a position's strategy."""
+        if not execution_clients:
+            return execution_client
+        sid = pos.get("strategy_id") or ""
+        if sid:
+            from bot.strategies import get_strategy
+            strat = get_strategy(sid)
+            if strat:
+                wk = strat.get("wallet_key", "POLYMARKET_PRIVATE_KEY")
+                client = execution_clients.get(wk)
+                if client and client.ready:
+                    return client
+        return execution_client
 
     while True:
         try:
@@ -323,6 +344,11 @@ async def monitor_positions_loop(execution_client):
             for pos in positions:
                 if not pos.get("token_id"):
                     continue
+                pos_client = _get_client_for_position(pos)
+                _pos_sid = pos.get("strategy_id")
+
+                async def send_info_message(text: str, _sid=_pos_sid):
+                    return await _send_info_message(text, strategy_id=_sid)
                 try:
                     # Використовуємо CLOB REST bid — реальна ціна продажу (те що ми отримаємо)
                     try:
@@ -338,7 +364,7 @@ async def monitor_positions_loop(execution_client):
                             else:
                                 current_price = None
                     except Exception:
-                        current_price = await execution_client.get_token_price(
+                        current_price = await pos_client.get_token_price(
                             pos["token_id"], "SELL",
                         )
                     if current_price is None or current_price <= 0:
@@ -370,7 +396,7 @@ async def monitor_positions_loop(execution_client):
                                     "TIME EXIT #%s: price %.2f >= %.2f, %.0fs left — sell all",
                                     pos_id, current_price, TP_FULL_PRICE, secs_left,
                                 )
-                                sell_result = await execution_client.sell_shares(
+                                sell_result = await pos_client.sell_shares(
                                     pos["token_id"], current_price, remaining,
                                 )
                                 if sell_result and sell_result.get("success") is not False:
@@ -462,7 +488,7 @@ async def monitor_positions_loop(execution_client):
                         # Must satisfy CLOB $1 notional min (price * shares >= 1.0)
                         _min_p = math.ceil(100.0 / max(remaining, 0.01)) / 100.0
                         sell_price = min(0.99, max(0.10, _min_p))
-                        sell_result = await execution_client.sell_shares(
+                        sell_result = await pos_client.sell_shares(
                             pos["token_id"], sell_price, remaining,
                         )
                         sell_ok = bool(sell_result and sell_result.get("success") is True)
@@ -525,7 +551,7 @@ async def monitor_positions_loop(execution_client):
                             "TP FINAL #%s: price %.2f >= %.2f",
                             pos_id, current_price, TP_FINAL_PRICE,
                         )
-                        sell_result = await execution_client.sell_shares(
+                        sell_result = await pos_client.sell_shares(
                             pos["token_id"], current_price, remaining,
                         )
                         if not (sell_result and sell_result.get("success") is True):
@@ -567,7 +593,7 @@ async def monitor_positions_loop(execution_client):
                                 "TP L1 #%s: price %.2f >= %.2f, selling %.1f",
                                 pos_id, current_price, TP_PARTIAL_PRICE, sell_amount,
                             )
-                            sell_result = await execution_client.sell_shares(
+                            sell_result = await pos_client.sell_shares(
                                 pos["token_id"], current_price, sell_amount,
                                 fallback_size=remaining,
                             )
@@ -616,7 +642,7 @@ async def monitor_positions_loop(execution_client):
                                 "TP L2 #%s: price %.2f >= %.2f, selling %.1f",
                                 pos_id, current_price, TP_MID_PRICE, sell_amount,
                             )
-                            sell_result = await execution_client.sell_shares(
+                            sell_result = await pos_client.sell_shares(
                                 pos["token_id"], current_price, sell_amount,
                                 fallback_size=remaining,
                             )
@@ -666,7 +692,7 @@ async def monitor_positions_loop(execution_client):
                                 "TP L3 #%s: price %.2f >= %.2f, selling %.1f",
                                 pos_id, current_price, TP_FULL_PRICE, sell_amount,
                             )
-                            sell_result = await execution_client.sell_shares(
+                            sell_result = await pos_client.sell_shares(
                                 pos["token_id"], current_price, sell_amount,
                                 fallback_size=remaining,
                             )
@@ -711,96 +737,239 @@ async def monitor_positions_loop(execution_client):
         await asyncio.sleep(sleep_sec)
 
 
-PENDING_POLL_INTERVAL = 5  # секунд між перевірками pending ордерів
+PENDING_POLL_INTERVAL = 15  # fallback poll — рідко, основне через WS
+WS_USER_URL = "wss://ws-subscriptions-clob.polymarket.com/ws/user"
 
 
-async def monitor_pending_orders_loop(execution_client) -> None:
-    """Кожні 5с перевіряє pending limit orders: fill → відкриває позицію; expire → скасовує."""
+async def monitor_pending_orders_loop(execution_client, execution_clients: dict | None = None) -> None:
+    """WebSocket + fallback polling monitor for pending limit orders."""
     from bot.storage import (
         get_pending_orders, delete_pending_order,
         mark_signal_live_no_position, update_signal_live_fill,
     )
-    from bot.telegram_bot import send_info_message
+    from bot.telegram_bot import send_info_message as _send_info_message_base
 
-    logger.info("Запущено моніторинг pending ордерів (інтервал %ss)", PENDING_POLL_INTERVAL)
+    def _get_client_for_order(po: dict):
+        """Resolve ExecutionClient for a pending order's strategy."""
+        if not execution_clients:
+            return execution_client
+        sid = po.get("strategy_id") or ""
+        if sid:
+            from bot.strategies import get_strategy
+            strat = get_strategy(sid)
+            if strat:
+                wk = strat.get("wallet_key", "POLYMARKET_PRIVATE_KEY")
+                client = execution_clients.get(wk)
+                if client and client.ready:
+                    return client
+        return execution_client
 
-    while True:
-        try:
-            pending = await asyncio.to_thread(get_pending_orders)
-            now = datetime.now(timezone.utc)
+    async def _process_order(po: dict, info: dict | None = None) -> None:
+        """Process a single pending order — check status and act."""
+        order_id = po["order_id"]
+        signal_id = po["signal_id"]
+        po_client = _get_client_for_order(po)
+        _po_sid = po.get("strategy_id")
 
-            for po in pending:
-                order_id = po["order_id"]
-                signal_id = po["signal_id"]
+        async def send_info_message(text: str, _sid=_po_sid):
+            return await _send_info_message_base(text, strategy_id=_sid)
 
-                # --- Перевіряємо чи не вийшов час ---
-                expires_at_str = po.get("expires_at") or ""
-                if expires_at_str:
-                    try:
-                        exp = datetime.fromisoformat(expires_at_str).replace(tzinfo=timezone.utc)
-                        if now > exp:
-                            logger.info("Pending order %s expired — cancel", order_id[:12])
-                            await execution_client.cancel_order(order_id)
-                            await asyncio.to_thread(delete_pending_order, order_id)
-                            await asyncio.to_thread(mark_signal_live_no_position, signal_id)
-                            await send_info_message(
-                                f"⏱ <b>Ордер скасовано</b> (час вийшов)\n"
-                                f"Сигнал #{signal_id} | orderID: <code>{order_id[:16]}</code>"
-                            )
-                            continue
-                    except Exception:
-                        pass
-
-                # --- Перевіряємо статус ордера ---
-                info = await execution_client.get_order_status(order_id)
-                if not info:
-                    continue
-
-                status = (info.get("status") or "").upper()
-
-                if status == "CANCELLED":
+        # Check expiry
+        now = datetime.now(timezone.utc)
+        expires_at_str = po.get("expires_at") or ""
+        if expires_at_str:
+            try:
+                exp = datetime.fromisoformat(expires_at_str).replace(tzinfo=timezone.utc)
+                if now > exp:
+                    logger.info("Pending order %s expired — cancel", order_id[:12])
+                    await po_client.cancel_order(order_id)
                     await asyncio.to_thread(delete_pending_order, order_id)
                     await asyncio.to_thread(mark_signal_live_no_position, signal_id)
                     await send_info_message(
-                        f"❌ <b>Ордер скасовано на біржі</b>\n"
+                        f"⏱ <b>Ордер скасовано</b> (час вийшов)\n"
                         f"Сигнал #{signal_id} | orderID: <code>{order_id[:16]}</code>"
                     )
-                    continue
+                    return
+            except Exception:
+                pass
 
-                if status == "MATCHED":
-                    # Ордер виконано — спочатку видаляємо з pending (щоб уникнути дублікату позиції)
-                    await asyncio.to_thread(delete_pending_order, order_id)
+        # Get status (from WS event or REST fallback)
+        if not info:
+            info = await po_client.get_order_status(order_id)
+        if not info:
+            return
 
-                    ep = float(info.get("price") or po["limit_price"])
-                    size_matched = float(info.get("size_matched") or po["shares"])
-                    stake_eff = round(ep * size_matched, 2)
+        status = (info.get("status") or "").upper()
 
-                    pos_id = open_position(
-                        signal_id=signal_id,
-                        market_id=po["market_id"] or "",
-                        market_slug=po["market_slug"] or "",
-                        token_id=po["token_id"],
-                        direction=po["direction"],
-                        entry_price=ep,
-                        shares=size_matched,
-                        stake_usd=stake_eff,
-                        order_result=info,
-                    )
-                    await asyncio.to_thread(update_signal_live_fill, signal_id, stake_eff, ep)
+        if status == "CANCELLED":
+            await asyncio.to_thread(delete_pending_order, order_id)
+            await asyncio.to_thread(mark_signal_live_no_position, signal_id)
+            await send_info_message(
+                f"❌ <b>Ордер скасовано на біржі</b>\n"
+                f"Сигнал #{signal_id} | orderID: <code>{order_id[:16]}</code>"
+            )
+            return
 
-                    side = "YES" if po["direction"] == "UP" else "NO"
-                    logger.info(
-                        "Pending order FILLED: signal #%s pos #%s %s @ %.2f %s shares",
-                        signal_id, pos_id, side, ep, size_matched,
-                    )
-                    await send_info_message(
-                        f"✅ <b>Ордер виконано!</b>\n"
-                        f"Pos #{pos_id} | {side} @ {ep:.2f} | "
-                        f"{size_matched:.1f} shares | ~${stake_eff:.2f}\n"
-                        f"Сигнал #{signal_id}"
-                    )
+        if status == "LIVE":
+            return  # still waiting
 
+        if status == "MATCHED":
+            await asyncio.to_thread(delete_pending_order, order_id)
+
+            ep = float(info.get("price") or po["limit_price"])
+            size_matched = float(info.get("size_matched") or po["shares"])
+            stake_eff = round(ep * size_matched, 2)
+
+            pos_id = open_position(
+                signal_id=signal_id,
+                market_id=po["market_id"] or "",
+                market_slug=po["market_slug"] or "",
+                token_id=po["token_id"],
+                direction=po["direction"],
+                entry_price=ep,
+                shares=size_matched,
+                stake_usd=stake_eff,
+                order_result=info,
+                market_expires_at=po.get("expires_at"),
+                strategy_id=po.get("strategy_id"),
+            )
+            await asyncio.to_thread(update_signal_live_fill, signal_id, stake_eff, ep)
+
+            side = "YES" if po["direction"] == "UP" else "NO"
+            logger.info(
+                "Pending order FILLED: signal #%s pos #%s %s @ %.2f %s shares",
+                signal_id, pos_id, side, ep, size_matched,
+            )
+            await send_info_message(
+                f"✅ <b>LIMIT FILL!</b>\n"
+                f"Pos #{pos_id} | {side} @ {ep:.2f} | "
+                f"{size_matched:.1f} shares | ~${stake_eff:.2f}\n"
+                f"Сигнал #{signal_id}"
+            )
+
+    async def _check_safety_fill(order_id: str, event: dict):
+        """Check if a filled order is an arb safety net — auto-hedge if so."""
+        from bot.storage import get_connection
+        from bot.arb_handler import start_exit_monitor
+        try:
+            conn = get_connection()
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                "SELECT * FROM pending_hedges WHERE safety_order_id=? AND status='open'",
+                (order_id,),
+            ).fetchone()
+            conn.close()
+            if not row:
+                return
+            h = dict(row)
+            ep = float(event.get("price") or 0)
+            shares = float(event.get("size_matched") or h.get("leg1_shares", 0))
+            if ep <= 0:
+                return
+            cost = round(shares * ep, 2)
+            opp_side = "DOWN" if h["leg1_side"] == "UP" else "UP"
+
+            from bot.storage import mark_hedge_filled
+            mark_hedge_filled(h["id"], opp_side, shares, ep, cost, order_id)
+
+            leg1_cost = h.get("leg1_cost", 0) or 0
+            total = leg1_cost + cost
+            profit = min(h.get("leg1_shares", 0), shares) * 1.0 - total
+
+            logger.info("SAFETY NET FILLED #%d: %s %.1fsh @ %.3f profit=$%.2f", h["id"], opp_side, shares, ep, profit)
+            await _send_info_message_base(
+                f"🛡 <b>Safety hedge #{h['id']}</b>\n"
+                f"L2: {opp_side} {shares:.1f}sh @ {ep:.3f} = ${cost:.2f}\n"
+                f"Total: ${total:.2f} | <b>Profit: ${profit:+.2f}</b>"
+            )
         except Exception as e:
-            logger.error("Помилка monitor_pending_orders: %s", e, exc_info=True)
+            logger.warning("_check_safety_fill: %s", e)
 
-        await asyncio.sleep(PENDING_POLL_INTERVAL)
+    # --- WS listener task ---
+    async def _ws_listener():
+        """Subscribe to user channel for instant order fill events."""
+        import websockets
+        import json
+
+        # Collect API creds from all execution clients
+        creds_list = []
+        clients_to_check = [execution_client] if execution_client else []
+        if execution_clients:
+            clients_to_check.extend(execution_clients.values())
+        for ec in clients_to_check:
+            if ec and ec.ready and hasattr(ec, 'client') and hasattr(ec.client, 'creds'):
+                cr = ec.client.creds
+                if cr and cr.api_key and cr.api_key not in [c.api_key for c in creds_list]:
+                    creds_list.append(cr)
+
+        if not creds_list:
+            logger.warning("No CLOB creds for WS user channel — WS disabled")
+            return
+
+        while True:
+            try:
+                async with websockets.connect(WS_USER_URL, ping_interval=15, ping_timeout=10) as ws:
+                    # Subscribe for each wallet
+                    for cr in creds_list:
+                        sub = json.dumps({
+                            "auth": {
+                                "apiKey": cr.api_key,
+                                "secret": cr.api_secret,
+                                "passphrase": cr.api_passphrase,
+                            },
+                            "type": "user",
+                        })
+                        await ws.send(sub)
+                    logger.info("WS user channel connected (%d wallets)", len(creds_list))
+
+                    async for raw in ws:
+                        try:
+                            data = json.loads(raw)
+                            if not isinstance(data, list):
+                                data = [data]
+
+                            for event in data:
+                                oid = event.get("id") or event.get("order_id") or event.get("orderID") or ""
+                                status = (event.get("status") or "").upper()
+                                if not oid or status not in ("MATCHED", "CANCELLED"):
+                                    continue
+
+                                logger.info("WS order event: %s %s", oid[:12], status)
+                                # Find matching pending order (strategy GTC)
+                                pending = await asyncio.to_thread(get_pending_orders)
+                                matched_po = False
+                                for po in pending:
+                                    if po["order_id"] == oid:
+                                        await _process_order(po, info=event)
+                                        matched_po = True
+                                        break
+
+                                # Check if it's an arb safety net order
+                                if not matched_po and status == "MATCHED":
+                                    await _check_safety_fill(oid, event)
+                        except Exception as e:
+                            logger.debug("WS user parse error: %s", e)
+
+            except asyncio.CancelledError:
+                return
+            except Exception as e:
+                logger.warning("WS user channel error: %s — reconnect in 5s", e)
+                await asyncio.sleep(5)
+
+    # --- Start WS listener in background ---
+    ws_task = asyncio.create_task(_ws_listener())
+    logger.info("Запущено моніторинг pending ордерів (WS + fallback %ss)", PENDING_POLL_INTERVAL)
+
+    # --- Fallback polling loop (catches expiry + missed WS events) ---
+    try:
+        while True:
+            try:
+                pending = await asyncio.to_thread(get_pending_orders)
+                for po in pending:
+                    await _process_order(po)
+            except Exception as e:
+                logger.error("Помилка monitor_pending_orders: %s", e, exc_info=True)
+
+            await asyncio.sleep(PENDING_POLL_INTERVAL)
+    finally:
+        ws_task.cancel()

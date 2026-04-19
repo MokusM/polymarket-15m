@@ -25,6 +25,11 @@ CLOB_MAX_BUY_SLIPPAGE_ABS = float(os.getenv("CLOB_MAX_BUY_SLIPPAGE_ABS", "0.05")
 CLOB_BUY_BUFFER           = float(os.getenv("CLOB_BUY_BUFFER", "0.02"))
 CLOB_SPREAD_MAX           = float(os.getenv("CLOB_SPREAD_MAX", "1.0"))
 
+# ── GTC (limit) orders ───────────────────────────────────────────────────────
+GTC_PRICE_OFFSET          = float(os.getenv("GTC_PRICE_OFFSET", "0.02"))   # place limit at ask - offset
+GTC_MAX_ENTRY_PRICE       = float(os.getenv("GTC_MAX_ENTRY_PRICE", "0.75")) # skip if best ask > this
+GTC_ORDER_TTL_SECONDS     = int(os.getenv("GTC_ORDER_TTL_SECONDS", "300"))  # auto-cancel after 5 min
+
 # ── Bankroll & Kelly ──────────────────────────────────────────────────────────
 BANKROLL_USD       = float(os.getenv("BANKROLL_USD", "20"))
 KELLY_FRACTION     = float(os.getenv("KELLY_FRACTION", "0.25"))
@@ -66,7 +71,7 @@ ATR_ZONE_DEAD                  = 30
 ATR_ZONE_QUIET                 = 60
 ATR_ZONE_GOLDEN                = 100
 ATR_ZONE_HIGH                  = 120
-COOLDOWN_SECONDS               = 60
+COOLDOWN_SECONDS               = 300  # 5 min — one order per market per wallet
 SCAN_INTERVAL_SECONDS          = 3
 MAX_SIGNALS_PER_ROUND_PER_SIDE = 1
 REPEAT_ALERTS_AFTER_COOLDOWN   = False
